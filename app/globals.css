@@ -1,0 +1,144 @@
+/* Import Lora font from Google Fonts (matching arcvest.com) */
+@import url('https://fonts.googleapis.com/css2?family=Lora:wght@400;500;600;700&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    /* Arcvest.com Color Palette */
+    --ast-global-color-0: #1B9C85;  /* Primary Teal */
+    --ast-global-color-1: #178E79;  /* Secondary Teal */
+    --ast-global-color-2: #0F172A;  /* Dark Navy */
+    --ast-global-color-3: #454F5E;  /* Text Gray */
+    --ast-global-color-4: rgba(207, 237, 211, 0.34);  /* Light Accent */
+    --ast-global-color-5: #FFFFFF;  /* White */
+    --ast-global-color-6: #ffffff;  /* Background */
+    --ast-global-color-7: #06140C;  /* Black Accent */
+    --ast-global-color-8: #222222;  /* Dark Gray */
+    
+    /* Mapped to Tailwind CSS Variables */
+    --background: 0 0% 100%;  /* White */
+    --foreground: 216 25% 33%;  /* #454F5E Text Gray */
+    --card: 0 0% 100%;  /* White */
+    --card-foreground: 216 25% 33%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 216 25% 33%;
+    --primary: 171 66% 36%;  /* #1B9C85 Primary Teal */
+    --primary-foreground: 0 0% 100%;  /* White */
+    --secondary: 171 66% 32%;  /* #178E79 Secondary Teal */
+    --secondary-foreground: 0 0% 100%;
+    --muted: 171 34% 90%;  /* Light teal tint */
+    --muted-foreground: 216 25% 33%;
+    --accent: 171 66% 36%;  /* Primary Teal */
+    --accent-foreground: 0 0% 100%;
+    --destructive: 0 84.2% 60.2%;
+    --destructive-foreground: 210 40% 98%;
+    --border: 0 0% 87%;  /* #dddddd */
+    --input: 0 0% 87%;
+    --ring: 171 66% 36%;  /* Primary Teal */
+    --chart-1: 171 66% 36%;  /* Primary Teal */
+    --chart-2: 171 66% 32%;  /* Secondary Teal */
+    --chart-3: 222 60% 11%;  /* Dark Navy */
+    --chart-4: 216 25% 33%;  /* Text Gray */
+    --chart-5: 171 34% 90%;  /* Light Accent */
+    --radius: 0rem;  /* Sharp corners like arcvest.com */
+    
+    /* Additional Arcvest Styles */
+    --body-text-color: #808285;
+    --border-color: #dddddd;
+    --container-width: 1200px;
+  }
+
+  .dark {
+    --background: 222.2 84% 4.9%;
+    --foreground: 210 40% 98%;
+    --card: 222.2 84% 4.9%;
+    --card-foreground: 210 40% 98%;
+    --popover: 222.2 84% 4.9%;
+    --popover-foreground: 210 40% 98%;
+    --primary: 217.2 91.2% 59.8%;
+    --primary-foreground: 222.2 84% 4.9%;
+    --secondary: 217.2 32.6% 17.5%;
+    --secondary-foreground: 210 40% 98%;
+    --muted: 217.2 32.6% 17.5%;
+    --muted-foreground: 215 20.2% 65.1%;
+    --accent: 217.2 32.6% 17.5%;
+    --accent-foreground: 210 40% 98%;
+    --destructive: 0 62.8% 30.6%;
+    --destructive-foreground: 210 40% 98%;
+    --border: 217.2 32.6% 17.5%;
+    --input: 217.2 32.6% 17.5%;
+    --ring: 224.3 76.3% 94.1%;
+    --chart-1: 220 70% 50%;
+    --chart-2: 160 60% 45%;
+    --chart-3: 30 80% 55%;
+    --chart-4: 280 65% 60%;
+    --chart-5: 340 75% 55%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply bg-background;
+    font-family: 'Lora', serif;
+    font-weight: 400;
+    font-size: 16px;
+    line-height: 1.6em;
+    color: var(--body-text-color);
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+  
+  h1, h2, h3, h4, h5, h6 {
+    font-family: 'Lora', serif;
+    color: var(--ast-global-color-3);
+    font-weight: 600;
+  }
+  
+  button, input, select, textarea {
+    font-family: 'Lora', serif;
+    line-height: 1.857;
+  }
+  
+  ::selection {
+    background-color: var(--ast-global-color-0);
+    color: #ffffff;
+  }
+}
+
+/* Arcvest-style clean background (no gradients) */
+.gradient-bg {
+  background: #fff;
+}
+
+/* Arcvest-style buttons */
+.btn-primary {
+  background-color: var(--ast-global-color-0);
+  color: #ffffff;
+  padding: 12px 24px;
+  border: none;
+  border-radius: var(--radius);
+  font-weight: 600;
+  cursor: pointer;
+  transition: background-color 0.2s ease;
+}
+
+.btn-primary:hover {
+  background-color: var(--ast-global-color-1);
+}
+
+/* Arcvest-style cards */
+.card-hover {
+  @apply transition-all duration-200 ease-in-out;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+}
+
+.card-hover:hover {
+  box-shadow: 0 4px 16px rgba(27, 156, 133, 0.2);
+  transform: translateY(-2px);
+}

@@ -1,0 +1,655 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Portfolio Return Calculator — ArcVest</title>
+  <link href="https://fonts.googleapis.com/css2?family=Lora:wght@400;600;700&display=swap" rel="stylesheet">
+  <style>
+    /* ---------- Arcvest Design System ---------- */
+    :root {
+      /* Arcvest Color Palette */
+      --ast-global-color-0: #1B9C85;  /* Primary Teal */
+      --ast-global-color-1: #178E79;  /* Secondary Teal */
+      --ast-global-color-2: #0F172A;  /* Dark Navy */
+      --ast-global-color-3: #454F5E;  /* Text Gray */
+      --ast-global-color-4: rgba(207, 237, 211, 0.34);  /* Light Accent */
+      --ast-global-color-5: #FFFFFF;  /* White */
+      --ast-border-color: #dddddd;
+      
+      /* Application Variables */
+      --bg: #ffffff;
+      --panel: #ffffff;
+      --panel-2: #ffffff;
+      --text: #454F5E;
+      --text-dark: #0F172A;
+      --text-body: #808285;
+      --muted: #808285;
+      --brand: #1B9C85; /* Primary Teal */
+      --brand-2: #178E79; /* Secondary Teal */
+      --accent: #1B9C85; /* Teal */
+      --red: #cf2e2e;
+      --green: #00d084;
+      --ring: #1B9C85;
+      --radius: 0px; /* Sharp corners like arcvest */
+      --shadow: 0 2px 8px rgba(0,0,0,.1);
+      --shadow-hover: 0 4px 16px rgba(27, 156, 133, 0.2);
+      --mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+      --sans: 'Lora', serif;
+    }
+
+    * { box-sizing: border-box }
+    html, body { height: 100% }
+    body {
+      margin: 0;
+      font-family: var(--sans);
+      background: var(--bg); /* Clean white background */
+      color: var(--text);
+      -webkit-font-smoothing: antialiased;
+      -moz-osx-font-smoothing: grayscale;
+      padding: clamp(12px, 2vw, 24px);
+    }
+
+    .shell {
+      max-width: 1400px;
+      margin: 0 auto;
+    }
+
+    /* Header */
+    .header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      margin-bottom: 16px;
+    }
+    .title {
+      font-size: clamp(22px, 2.2vw, 28px);
+      font-weight: 700;
+      letter-spacing: -.02em;
+      color: var(--text-dark); /* Dark Navy */
+    }
+    .subtitle {
+      color: var(--muted);
+      font-size: 13px;
+    }
+
+    /* Panel */
+    .panel {
+      background: var(--panel); /* Solid white */
+      border-radius: var(--radius); /* Sharp corners */
+      box-shadow: var(--shadow);
+      border: 1px solid var(--ast-border-color);
+      overflow: hidden;
+    }
+
+    /* Config grid */
+    .config {
+      display: grid;
+      grid-template-columns: repeat(12, 1fr);
+      gap: 14px;
+      padding: 18px;
+      border-bottom: 1px dashed rgba(148,163,184,.24);
+    }
+    .field { grid-column: span 4; min-width: 0; }
+    .label { font-size: 14px; font-weight: 600; text-transform: uppercase; letter-spacing: .06em; color: var(--text-dark); margin-bottom: 6px; }
+    .results .value { font-size: 26px; color: var(--text-dark);}
+    .input, .select {
+      width: 100%;
+      height: 40px;
+      border-radius: var(--radius); /* Sharp corners */
+      background: #fff;
+      border: 1px solid var(--ast-border-color);
+      padding: 0 12px;
+      color: var(--text);
+      outline: none;
+      transition: box-shadow .2s, border-color .2s;
+      font-family: var(--sans);
+    }
+    .input:focus, .select:focus {
+      border-color: var(--brand);
+      box-shadow: 0 0 0 3px rgba(27, 156, 133, 0.1);
+    }
+
+    @media (max-width: 820px){ .field { grid-column: span 12 } }
+
+    /* Sliders */
+    .sliders { padding: 6px 18px 18px; display: grid; gap: 10px; }
+    .row {
+      display: grid;
+      grid-template-columns: 220px 1fr 76px;
+      align-items: center;
+      gap: 14px;
+      padding: 12px;
+      border-radius: var(--radius); /* Sharp corners */
+      background: #fafafa;
+      border: 1px solid var(--ast-border-color);
+    }
+    .row:hover { border-color: var(--brand); }
+
+    .asset { font-weight: 700; letter-spacing: .01em; }
+    .meta { font-size: 12px; color: var(--muted); margin-top: 2px; }
+    .value { text-align: right; font-variant-numeric: tabular-nums; font-weight: 800; }
+
+    input[type="range"].slider {
+      appearance: none; -webkit-appearance: none; width: 100%; height: 8px; border-radius: 999px; outline: none;
+      background: linear-gradient(90deg, var(--brand) var(--fill, 0%), #e0e0e0 var(--fill, 0%));
+    }
+    /* Track (Firefox) */
+    .slider::-moz-range-track { height: 8px; border-radius: 999px; background: transparent; }
+    /* Thumb */
+    .slider::-webkit-slider-thumb { -webkit-appearance: none; appearance: none; width: 22px; height: 22px; border-radius: 50%;
+      background: var(--brand); border: 2px solid #fff; box-shadow: 0 2px 8px rgba(27, 156, 133, 0.3);
+      transition: transform .08s ease;
+    }
+    .slider::-moz-range-thumb { width: 22px; height: 22px; border-radius: 50%; background: var(--brand); border: 2px solid #fff; box-shadow: 0 2px 8px rgba(27, 156, 133, 0.3); }
+    .slider:active::-webkit-slider-thumb { transform: scale(1.08) }
+    .slider:focus-visible { outline: none; box-shadow: 0 0 0 4px rgba(27, 156, 133, 0.1) }
+
+    /* Total */
+    .totalbar {
+      display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 12px 18px; border-top: 1px solid var(--ast-border-color); background: #fafafa;
+    }
+    .chip { font-size: 12px; font-weight: 700; letter-spacing: .04em; padding: 6px 10px; border-radius: 999px; border: 1px solid var(--ast-border-color); background: #f5f5f5; }
+    .chip.ok { color: #065f46; background: rgba(16,185,129,.18); border-color: var(--brand); }
+    .chip.bad { color: #7f1d1d; background: rgba(244,63,94,.20); border-color: #f87171; }
+
+    /* Actions */
+    .actions { padding: 16px 18px; display: grid; gap: 10px; grid-template-columns: 1fr 1fr; }
+    .btn {
+      height: 44px; border-radius: var(--radius); border: none; font-weight: 700; letter-spacing: .02em; cursor: pointer; font-family: var(--sans);
+      background: var(--brand); color: white; box-shadow: var(--shadow);
+      transition: background-color .2s ease, box-shadow .2s ease, opacity .2s ease;
+    }
+    .btn:hover { background-color: var(--brand-2); box-shadow: var(--shadow-hover); }
+    .btn:disabled { opacity: .55; cursor: not-allowed; box-shadow: none }
+    .btn.secondary { background: transparent; color: var(--text); border: 1px solid var(--ast-border-color); }
+    .btn.secondary:hover { border-color: var(--brand); color: var(--brand); }
+
+    /* Results */
+    .results { padding: 18px; display: none }
+    .results.visible { display: block }
+    .grid {
+      display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 14px;
+    }
+    .card {
+        border-radius: var(--radius); /* Sharp corners */
+        padding: 16px;
+        color: var(--text-dark);
+        background: #fff;
+        border: 1px solid var(--ast-border-color);
+        box-shadow: var(--shadow);
+    }
+
+    /* Error + Loading */
+    .error { display: none; margin: 12px 18px 0; padding: 12px; border-radius: var(--radius); border: 1px solid #f87171; color: #991b1b; background: rgba(254,202,202,0.3); font-family: var(--mono); white-space: pre-wrap }
+    .error.visible { display: block }
+
+    .loading { display: none; text-align: center; padding: 18px; color: var(--muted) }
+    .loading.visible { display: block }
+    .spinner{ width: 36px; height: 36px; border-radius: 50%; border: 3px solid #e0e0e0; border-top-color: var(--brand); margin: 0 auto 8px; animation: spin 1s linear infinite }
+    @keyframes spin { to { transform: rotate(360deg) } }
+
+    /* Debug */
+    details.debug { border-top: 1px solid var(--ast-border-color); padding: 10px 18px 18px }
+    details.debug pre { background: #f5f5f5; color: var(--text-dark); border: 1px solid var(--ast-border-color); border-radius: var(--radius); padding: 12px; overflow: auto; font-family: var(--mono); }
+  
+    .results .label { font-size: 14px; font-weight: 600; opacity: 1; color: var(--text); }
+    .results .value { font-size: 26px; color: var(--text-dark); font-weight: 700; }
+
+    /* Two-column layout inside the main panel */
+    .panel .layout {
+      display: grid;
+      grid-template-columns: 1fr 700px; /* main | right sidebar width */
+      gap: 16px;
+      align-items: start;
+    }
+
+    /* Make the chart stick to the top while you scroll */
+    .sidebar {
+      position: sticky;
+      top: 16px;
+      align-self: start;
+    }
+
+    /* Mobile: stack */
+    @media (max-width: 980px) {
+      .panel .layout {
+        grid-template-columns: 1fr;
+      }
+      .sidebar {
+        position: static;
+      }
+    }
+
+    #portfolio-chart {
+      display: block;
+      height: 400px !important;   /* tighten here */
+      max-height: 400px;          /* and cap it */
+      width: 100% !important;
+    }
+
+  </style>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<body>
+  <div class="shell">
+    <div class="header">
+      <div>
+        <div class="title">Portfolio Return Calculator</div>
+        <div class="subtitle">Tweak allocations with sliders. Total must equal 100%. Monthly returns; optional rebalancing.</div>
+      </div>
+    </div>
+
+      <section class="panel" id="app">
+        <div class="layout">
+          <div class="main">
+            <!-- Config -->
+            <div class="config">
+              <div class="field">
+                <div class="label">Start Date</div>
+                <input class="input" type="month" id="start-date" value="2020-01" />
+              </div>
+              <div class="field">
+                <div class="label">End Date</div>
+                <input class="input" type="month" id="end-date" value="2023-12" />
+              </div>
+              <div class="field">
+                <div class="label">Rebalance</div>
+                <select class="select" id="rebalance-freq">
+                  <option value="-1" selected>Never</option>
+                  <option value="12">Annually</option>
+                  <option value="3">Quarterly</option>
+                  <option value="1">Monthly</option>
+                </select>
+              </div>
+            </div>
+
+            <!-- Sliders -->
+            <div class="sliders">
+              <div class="row">
+                  <div>
+                  <div class="asset">Total US Equity (VTI)</div>
+                  <div class="meta">Only: 2001-07-31 → 2025-10-31</div>
+                  </div>
+                  <input type="range" min="0" max="100" value="45" class="slider" id="slider-0" data-asset="VTI" />
+                  <div class="value"><span id="value-0">45</span>%</div>
+              </div>
+
+              <div class="row">
+                  <div>
+                  <div class="asset">Int'l Developed Equity (SPDW)</div>
+                  <div class="meta">Only: 2007-05-31 → 2025-10-31</div>
+                  </div>
+                  <input type="range" min="0" max="100" value="10" class="slider" id="slider-1" data-asset="SPDW" />
+                  <div class="value"><span id="value-1">10</span>%</div>
+              </div>
+
+              <div class="row">
+                  <div>
+                  <div class="asset">Emerging Markets (EEM)</div>
+                  <div class="meta">Only: 2003-05-31 → 2025-10-31</div>
+                  </div>
+                  <input type="range" min="0" max="100" value="5" class="slider" id="slider-2" data-asset="EEM" />
+                  <div class="value"><span id="value-2">5</span>%</div>
+              </div>
+
+              <div class="row">
+                  <div>
+                  <div class="asset">Gold (GLD)</div>
+                  <div class="meta">Only: 2004-12-31 → 2025-10-31</div>
+                  </div>
+                  <input type="range" min="0" max="100" value="10" class="slider" id="slider-3" data-asset="GLD" />
+                  <div class="value"><span id="value-3">10</span>%</div>
+              </div>
+
+              <div class="row">
+                  <div>
+                  <div class="asset">Bitcoin (IBIT)</div>
+                  <div class="meta">Only: 2024-02-29 → 2025-10-31</div>
+                  </div>
+                  <input type="range" min="0" max="100" value="0" class="slider" id="slider-4" data-asset="IBIT" />
+                  <div class="value"><span id="value-4">0</span>%</div>
+              </div>
+
+              <div class="row">
+                  <div>
+                  <div class="asset">Short-Term Bonds (BIL)</div>
+                  <div class="meta">BIL • 2007-06-30 → 2025-10-31</div>
+                  </div>
+                  <input type="range" min="0" max="100" value="15" class="slider" id="slider-5" data-asset="BIL" />
+                  <div class="value"><span id="value-5">15</span>%</div>
+              </div>
+
+              <div class="row">
+                  <div>
+                  <div class="asset">Aggregate Bonds (AGG)</div>
+                  <div class="meta">Only: 2003-10-31 → 2025-10-31</div>
+                  </div>
+                  <input type="range" min="0" max="100" value="15" class="slider" id="slider-6" data-asset="AGG" />
+                  <div class="value"><span id="value-6">15</span>%</div>
+              </div>
+            </div>
+
+
+            <!-- Total and actions -->
+            <div class="totalbar">
+              <div class="subtitle">Total Allocation</div>
+              <div class="chip" id="total-chip"><strong><span id="total-value">100</span>%</strong></div>
+            </div>
+            <div class="actions">
+              <button class="btn secondary" id="force-btn" type="button">⚡ Force to 100%</button>
+              <button class="btn" id="calculate-btn" type="button">Calculate Portfolio Returns</button>
+            </div>
+
+            <div class="loading" id="loading">
+              <div class="spinner"></div>
+              <div>Calculating returns…</div>
+            </div>
+            <div class="error" id="error-message"></div>
+
+            <section class="results" id="results-section">
+              <div class="grid">
+                <div class="card"><div class="label">Total Return</div><div class="value" id="total-return">--</div></div>
+                <div class="card"><div class="label">Annualized Return</div><div class="value" id="annualized-return">--</div></div>
+                <div class="card"><div class="label">Volatility</div><div class="value" id="volatility">--</div></div>
+                <div class="card"><div class="label">Time Period</div><div class="value" id="time-period">--</div></div>
+                <div class="card"><div class="label">Final Portfolio Value</div><div class="value" id="final-value">--</div></div>
+              </div>
+            </section>
+
+            <details class="debug">
+              <summary>🔍 Debug: Function Arguments</summary>
+              <pre id="debug-output">No calculation performed yet</pre>
+            </details>
+          </div>
+
+          <aside class="sidebar">
+            <!-- Chart Section -->
+            <section class="results" id="chart-section" style="display:none">
+              <div class="grid">
+                <div class="card" style="background: #fff; color: #0f172a;">
+                  <div class="label">Portfolio Growth of $10,000 invested</div>
+                  <div class="value" style="font-size:14px; font-weight:600; margin-top:4px;">—</div>
+                  <canvas id="portfolio-chart" height="160" style="margin-top:8px"></canvas>
+                </div>
+              </div>
+            </section>
+          </aside>
+        </div>
+    </section>
+  </div>
+
+  <script>
+    // Keep the user's original logic but with small enhancements for slider fill + focus
+    const sliders = document.querySelectorAll('.slider');
+    const totalChip = document.getElementById('total-chip');
+    const totalValue = document.getElementById('total-value');
+    const calculateBtn = document.getElementById('calculate-btn');
+    const forceBtn = document.getElementById('force-btn');
+
+    const setSliderFill = (el) => {
+      const pct = Number(el.value);
+      el.style.setProperty('--fill', pct + '%');
+    };
+
+    function updateSliderDisplay(sliderId, value) {
+      document.getElementById(`value-${sliderId}`).textContent = value;
+    }
+
+    function updateTotal() {
+      let total = 0;
+      sliders.forEach((s) => total += parseInt(s.value, 10));
+      totalValue.textContent = total;
+
+      // visual state
+      totalChip.classList.remove('ok', 'bad');
+      if (total === 100) {
+        totalChip.classList.add('ok');
+        calculateBtn.disabled = false;
+      } else {
+        totalChip.classList.add('bad');
+        calculateBtn.disabled = true;
+      }
+      return total;
+    }
+
+    sliders.forEach((slider, index) => {
+      setSliderFill(slider);
+      slider.addEventListener('input', (e) => {
+        setSliderFill(slider);
+        updateSliderDisplay(index, e.target.value);
+        updateTotal();
+      });
+      slider.addEventListener('focus', () => slider.parentElement.style.outline = '2px solid rgba(124,140,255,.35)');
+      slider.addEventListener('blur', () => slider.parentElement.style.outline = 'none');
+    });
+    updateTotal();
+
+    function forceTo100() {
+      let currentTotal = 0;
+      sliders.forEach((s) => currentTotal += parseInt(s.value, 10));
+
+      if (currentTotal === 0) {
+        const equal = Math.floor(100 / sliders.length);
+        const rem = 100 - (equal * sliders.length);
+        sliders.forEach((s, i) => { const v = i === 0 ? equal + rem : equal; s.value = v; setSliderFill(s); });
+      } else {
+        const scale = 100 / currentTotal;
+        let running = 0;
+        sliders.forEach((s, i) => {
+          let nv;
+          if (i === sliders.length - 1) { nv = 100 - running; }
+          else { nv = Math.round(parseInt(s.value, 10) * scale); running += nv; }
+          s.value = nv; setSliderFill(s);
+        });
+      }
+      sliders.forEach((s, i) => updateSliderDisplay(i, s.value));
+      updateTotal();
+    }
+
+    forceBtn.addEventListener('click', forceTo100);
+
+    function updateDebugOutput(requestBody) {
+      const debugEl = document.getElementById('debug-output');
+      const formatted = JSON.stringify(requestBody, null, 2)
+        .replace(/"([^\"]+)":/g, '<span style="color:#a5b4fc">"$1"</span>:')
+        .replace(/: "([^\"]+)"/g, ': <span style="color:#f9a8d4">"$1"</span>')
+        .replace(/: (\d+\.?\d*)/g, ': <span style="color:#93c5fd">$1</span>');
+      debugEl.innerHTML = `<strong>Request Body:</strong>\n${formatted}`;
+    }
+
+    async function calculateReturns() {
+      const apiEndpoint = 'https://investment-chatbot-1.vercel.app/api/portfolio/calculate';
+      const startDate = document.getElementById('start-date').value + '-01';
+      const [y, m] = document.getElementById('end-date').value.split('-');
+      const lastDay = new Date(y, m, 0).getDate();
+      const endDate = `${y}-${m}-${String(lastDay).padStart(2,'0')}`;
+      const rebalanceMonths = parseInt(document.getElementById('rebalance-freq').value, 10);
+
+      // Build payload arrays but skip any zero-weight assets
+      const assets = [];
+      const weights = [];
+      sliders.forEach((s) => {
+      const w = parseInt(s.value, 10) / 100;
+      if (w > 0) { // only include non-zero weights
+      assets.push(s.dataset.asset);
+      weights.push(w);
+      }
+      });
+
+      const requestBody = { assets, weights, startDate, endDate, rebalanceMonths, generateCSV: false };
+      updateDebugOutput(requestBody);
+
+      document.getElementById('loading').classList.add('visible');
+      document.getElementById('error-message').classList.remove('visible');
+      document.getElementById('results-section').classList.remove('visible');
+      calculateBtn.disabled = true;
+
+      try {
+        const res = await fetch(apiEndpoint, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(requestBody), mode: 'cors' });
+        const data = await res.json();
+        if (!res.ok || !data.success) throw new Error(data.error || `HTTP ${res.status}: Failed to calculate returns`);
+        displayResults(data);
+      } catch (err) {
+        let msg = err.message;
+        if (msg === 'Failed to fetch') {
+          msg = 'Network error. Possible causes:\n• CORS restrictions (host this file on a web server)\n• API endpoint unreachable\n• Connectivity issues';
+        }
+        showError(msg);
+      } finally {
+        document.getElementById('loading').classList.remove('visible');
+        calculateBtn.disabled = false;
+      }
+    }
+
+    function displayResults(data) {
+      const r = data.results;
+      document.getElementById('total-return').textContent = r.totalReturnPercent.toFixed(2) + '%';
+      document.getElementById('annualized-return').textContent = r.annualizedReturnPercent.toFixed(2) + '%';
+      document.getElementById('volatility').textContent = r.volatilityPercent.toFixed(2) + '%';
+      document.getElementById('time-period').textContent = r.numYears.toFixed(1) + ' yrs';
+      
+      // Calculate and display final portfolio value ($10,000 invested)
+      const series = (r && (r.monthlySeries || r.monthlyValues)) ? (r.monthlySeries || r.monthlyValues) : null;
+      if (series && series.length > 0) {
+        const lastValue = series[series.length - 1];
+        const finalValue = (typeof lastValue === 'object' ? lastValue.value : lastValue) * 10000;
+        document.getElementById('final-value').textContent = '$' + Math.round(finalValue).toLocaleString('en-US');
+      }
+      
+      document.getElementById('results-section').classList.add('visible');
+
+      // Render monthly chart if provided
+      if (series) { try { renderPortfolioChart(series); } catch (e) { /* no-op */ } }
+    }
+
+    let _portfolioChart;
+    function renderPortfolioChart(series) {
+      console.log('renderPortfolioChart called with series:', series ? `${series.length} items` : 'null/undefined');
+      
+      // Accept either [{date:'YYYY-MM', value:1.00}, ...] or [1.0, 1.02, ...]
+      let labels = [];
+      let values = [];
+
+      if (Array.isArray(series) && series.length && typeof series[0] === 'object') {
+        labels = series.map(p => p.date);
+        values = series.map(p => Number(p.value) * 10000); // Convert to $10,000 invested
+      } else if (Array.isArray(series)) {
+        const [sy, sm] = document.getElementById('start-date').value.split('-').map(n=>parseInt(n,10));
+        const [ey, em] = document.getElementById('end-date').value.split('-').map(n=>parseInt(n,10));
+        const d = new Date(sy, sm-1, 1);
+        const last = new Date(ey, em-1, 1);
+        while (d <= last) {
+          labels.push(`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`);
+          d.setMonth(d.getMonth()+1);
+        }
+        values = series.map(n => Number(n) * 10000); // Convert to $10,000 invested
+      }
+
+      // Validation: ensure we have data
+      if (!labels.length || !values.length || labels.length !== values.length) {
+        console.error('Chart rendering error: Invalid data', { labels: labels.length, values: values.length });
+        return;
+      }
+      
+      console.log(`Chart data ready: ${values.length} points, range: $${Math.min(...values).toFixed(0)} - $${Math.max(...values).toFixed(0)}`);
+
+      const section = document.getElementById('chart-section');
+      if (section) section.style.display = 'block';
+      const ctx = document.getElementById('portfolio-chart').getContext('2d');
+
+      if (_portfolioChart) _portfolioChart.destroy();
+
+      // SAFE OPTIMIZATION: Detect large datasets and adjust settings
+      const isLargeDataset = values.length > 100;
+      console.log(`Rendering chart with ${values.length} data points (large dataset mode: ${isLargeDataset})`);
+
+      _portfolioChart = new Chart(ctx, {
+        type: 'line',
+        data: {
+          labels,
+          datasets: [{
+            label: 'Portfolio Value ($10,000 invested)',
+            data: values,
+            fill: false,
+            tension: 0.25,
+            borderWidth: 2,
+            borderColor: '#1B9C85', // Arcvest Teal
+            backgroundColor: 'rgba(27, 156, 133, 0.1)', // Light teal fill
+            pointRadius: 0,
+            pointHoverRadius: 0,
+            pointHitRadius: 0
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          // CRITICAL: Disable animations for large datasets (huge performance win)
+          animation: isLargeDataset ? false : { duration: 750, easing: 'easeInOutQuart' },
+          plugins: {
+            legend: { display: false },
+            tooltip: { 
+              mode: 'index', 
+              intersect: false,
+              callbacks: {
+                label: function(context) {
+                  let label = context.dataset.label || '';
+                  if (label) {
+                    label += ': ';
+                  }
+                  if (context.parsed.y !== null) {
+                    label += '$' + context.parsed.y.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+                  }
+                  return label;
+                }
+              }
+            }
+          },
+          scales: {
+            x: {
+              ticks: { 
+                maxRotation: 0, 
+                autoSkip: true, 
+                autoSkipPadding: isLargeDataset ? 40 : 24,
+                // Limit tick count for large datasets to improve performance
+                maxTicksLimit: isLargeDataset ? 15 : 25
+              },
+              grid: { display: false }
+            },
+            y: {
+              ticks: { 
+                callback: (v) => {
+                  if (typeof v === 'number') {
+                    return '$' + v.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 });
+                  }
+                  return v;
+                },
+                // Limit y-axis ticks for better performance
+                maxTicksLimit: isLargeDataset ? 8 : 10
+              },
+              grid: { color: 'rgba(148,163,184,.25)' }
+            }
+          },
+          // Additional performance settings
+          interaction: {
+            mode: 'nearest',
+            axis: 'x',
+            intersect: false
+          }
+        }
+      });
+    }
+
+    function showError(message) {
+      const el = document.getElementById('error-message');
+      el.textContent = '❌ ' + message;
+      el.classList.add('visible');
+    }
+
+    // Hook up calculate button
+    calculateBtn.addEventListener('click', calculateReturns);
+  </script>
+</body>
+</html>
+
