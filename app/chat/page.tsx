@@ -16,7 +16,7 @@ export default function ChatPage() {
                 className="flex items-center text-arcvest-body hover:text-arcvest-teal transition-colors"
               >
                 <ArrowLeft className="w-5 h-5 mr-2" />
-                Back to Home
+                Back to Tools
               </Link>
               <div className="h-6 w-px bg-border" />
               <div className="flex items-center space-x-2">
