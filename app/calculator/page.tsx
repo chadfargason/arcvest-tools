@@ -11,7 +11,7 @@ export default function CalculatorPage() {
           <div className="flex items-center justify-between h-16">
             <div className="flex items-center space-x-4">
               <a 
-                href="https://arcvest.com/tools" 
+                href="https://arcvest.com/investment-tools" 
                 target="_parent"
                 className="flex items-center text-arcvest-body hover:text-arcvest-teal transition-colors"
               >
