@@ -254,15 +254,17 @@ function generateYearlyBreakdown(
         annualWithdrawalTotal += currentWithdrawal;
       }
       
-      // Calculate monthly start balance (balance before this month's changes)
-      const monthStartBalance = monthIndex > 0 ? monthlyBalances[monthIndex - 1] : startBalance;
-      const monthEndBalance = monthlyBalances[monthIndex];
+      // Calculate monthly balances - align with returns array indexing
+      // balances[monthIndex] = balance at START of month
+      // balances[monthIndex + 1] = balance at END of month (after this month's returns/contributions)
+      const monthStartBalance = monthlyBalances[monthIndex];
+      const monthEndBalance = monthlyBalances[monthIndex + 1];
       
-      // Get actual stock and bond balances at this point
-      const monthStartStockBalance = monthIndex > 0 ? monthlyStockBalances[monthIndex - 1] : startBalance * (monthlyStockBalances[0] / startBalance);
-      const monthStartBondBalance = monthIndex > 0 ? monthlyBondBalances[monthIndex - 1] : startBalance * (monthlyBondBalances[0] / startBalance);
-      const monthEndStockBalance = monthlyStockBalances[monthIndex];
-      const monthEndBondBalance = monthlyBondBalances[monthIndex];
+      // Get actual stock and bond balances at start and end of month
+      const monthStartStockBalance = monthlyStockBalances[monthIndex];
+      const monthStartBondBalance = monthlyBondBalances[monthIndex];
+      const monthEndStockBalance = monthlyStockBalances[monthIndex + 1];
+      const monthEndBondBalance = monthlyBondBalances[monthIndex + 1];
       
       // Calculate investment returns for this month
       const monthReturns = monthEndBalance - monthStartBalance - monthContribution + monthWithdrawal;
