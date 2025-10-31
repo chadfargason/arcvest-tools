@@ -1036,13 +1036,14 @@
             <tr>
               <th>Year</th>
               <th>Age</th>
-              <th>Phase</th>
               <th>Start Balance</th>
               <th>Stock Return</th>
               <th>Bond Return</th>
-              <th>Contributions</th>
-              <th>Withdrawals</th>
               <th>Total Returns</th>
+              <th>Contributions</th>
+              <th>Withdrawal (Gross)</th>
+              <th>Tax</th>
+              <th>Withdrawal (Net)</th>
               <th>End Balance</th>
               <th>Net Change</th>
             </tr>
@@ -1059,13 +1060,14 @@
           <tr class="${phaseClass} year-row" data-year="${row.year}" onclick="toggleMonthly(${row.year})">
             <td><span class="expand-icon" id="expand-${row.year}">▶</span> ${row.year || 0}</td>
             <td>${row.age || 0}</td>
-            <td>${row.phase || 'N/A'}</td>
             <td>${formatCurrency(row.startBalance || 0)}</td>
-            <td>${row.stockReturn || '0.00%'}</td>
-            <td>${row.bondReturn || '0.00%'}</td>
+            <td>${row.stockReturn || '0.0%'}</td>
+            <td>${row.bondReturn || '0.0%'}</td>
+            <td class="${(row.returns || 0) >= 0 ? 'positive' : 'negative'}">${formatCurrency(row.returns || 0, true)}</td>
             <td class="positive">${(row.contributions || 0) > 0 ? '+' + formatCurrency(row.contributions) : '—'}</td>
             <td class="negative">${(row.withdrawals || 0) > 0 ? '-' + formatCurrency(row.withdrawals) : '—'}</td>
-            <td class="${(row.returns || 0) >= 0 ? 'positive' : 'negative'}">${formatCurrency(row.returns || 0, true)}</td>
+            <td>—</td>
+            <td>—</td>
             <td><strong>${formatCurrency(row.endBalance || 0)}</strong></td>
             <td class="${netClass}">${formatCurrency(netChange, true)}</td>
           </tr>
@@ -1095,7 +1097,7 @@
             
             html += `
               <tr class="monthly-row monthly-year-${row.year}">
-                <td class="monthly-label" colspan="3">
+                <td class="monthly-label" colspan="2">
                   ${monthData.monthName || 'N/A'} (Month ${monthData.month || 0})
                   <span style="color: var(--muted); font-size: 10px; margin-left: 8px;">
                     START: Stocks ${formatCurrency(startStockBal, true)} (${startStockPct}%) | 
@@ -1103,11 +1105,13 @@
                   </span>
                 </td>
                 <td>${formatCurrency(monthData.startBalance || 0)}</td>
-                <td>${monthData.stockReturn || '0.00%'}</td>
-                <td>${monthData.bondReturn || '0.00%'}</td>
-                <td class="positive">${(monthData.contribution || 0) > 0 ? '+' + formatCurrency(monthData.contribution) : '—'}</td>
-                <td class="negative">${(monthData.withdrawal || 0) > 0 ? '-' + formatCurrency(monthData.withdrawal) : '—'}</td>
+                <td>${monthData.stockReturn || '0.0%'}</td>
+                <td>${monthData.bondReturn || '0.0%'}</td>
                 <td class="${monthReturnClass}" title="Calculated: ${formatCurrency(calculatedReturns)}">${formatCurrency(monthData.returns || 0, true)}</td>
+                <td class="positive">${(monthData.contribution || 0) > 0 ? '+' + formatCurrency(monthData.contribution) : '—'}</td>
+                <td class="negative">${(monthData.withdrawalGross || 0) > 0 ? '-' + formatCurrency(monthData.withdrawalGross) : '—'}</td>
+                <td class="negative">${(monthData.tax || 0) > 0 ? '-' + formatCurrency(monthData.tax) : '—'}</td>
+                <td style="color: var(--text-dark);">${(monthData.withdrawalNet || 0) > 0 ? formatCurrency(monthData.withdrawalNet) : '—'}</td>
                 <td><strong>${formatCurrency(monthData.balance || 0)}</strong></td>
                 <td class="${monthNetClass}">${formatCurrency(monthData.netChange || 0, true)}</td>
               </tr>

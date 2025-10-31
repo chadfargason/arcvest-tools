@@ -180,7 +180,9 @@ function runMonteCarloSimulation(params: SimulationParams): any {
     contributionGrowth,
     annualWithdrawal,
     withdrawalInflation,
-    yearsContributing * 12 // Convert to months
+    yearsContributing * 12, // Convert to months
+    taxablePortion,
+    taxRate
   );
 
   return {
@@ -210,7 +212,9 @@ function generateYearlyBreakdown(
   contributionGrowth: number,
   annualWithdrawal: number,
   withdrawalInflation: number,
-  monthsContributing: number
+  monthsContributing: number,
+  taxablePortion: number,
+  taxRate: number
 ): any[] {
   const totalYears = Math.floor(monthlyBalances.length / 12);
   const yearData = [];
@@ -219,7 +223,11 @@ function generateYearlyBreakdown(
   
   // Inflation-adjust the withdrawal amount from the start (same as simulation)
   const inflationAdjustedAnnualWithdrawal = annualWithdrawal * Math.pow(1 + withdrawalInflation, yearsToRetirement);
-  let currentWithdrawal = inflationAdjustedAnnualWithdrawal / 12;
+  
+  // Calculate tax parameters (same as simulation)
+  const effectiveTaxRate = taxablePortion * taxRate;
+  const grossWithdrawal = inflationAdjustedAnnualWithdrawal / (1 - effectiveTaxRate);
+  let currentWithdrawal = grossWithdrawal / 12;
   const monthsToRetirement = yearsToRetirement * 12;
   
   for (let year = 0; year <= totalYears; year++) {
@@ -248,7 +256,9 @@ function generateYearlyBreakdown(
       yearlyBondReturn += bondRet;
       
       let monthContribution = 0;
-      let monthWithdrawal = 0;
+      let monthWithdrawalGross = 0;
+      let monthWithdrawalNet = 0;
+      let monthTax = 0;
       
       if (monthNum <= monthsToRetirement) {
         if (monthNum <= monthsContributing) {
@@ -256,8 +266,10 @@ function generateYearlyBreakdown(
           annualContributionTotal += currentContribution;
         }
       } else if (isRetired) {
-        monthWithdrawal = currentWithdrawal;
-        annualWithdrawalTotal += currentWithdrawal;
+        monthWithdrawalGross = currentWithdrawal;
+        monthTax = monthWithdrawalGross * effectiveTaxRate;
+        monthWithdrawalNet = monthWithdrawalGross - monthTax;
+        annualWithdrawalTotal += monthWithdrawalGross;
       }
       
       // Calculate monthly balances - align with returns array indexing
@@ -273,7 +285,7 @@ function generateYearlyBreakdown(
       const monthEndBondBalance = monthlyBondBalances[monthIndex + 1] ?? monthlyBondBalances[monthIndex] ?? 0;
       
       // Calculate investment returns for this month
-      const monthReturns = monthEndBalance - monthStartBalance - monthContribution + monthWithdrawal;
+      const monthReturns = monthEndBalance - monthStartBalance - monthContribution + monthWithdrawalGross;
       const monthNetChange = monthEndBalance - monthStartBalance;
       
       // Store monthly details with actual asset balances (both start and end)
@@ -289,7 +301,9 @@ function generateYearlyBreakdown(
         stockReturn: (stockRet * 100).toFixed(1) + '%',
         bondReturn: (bondRet * 100).toFixed(1) + '%',
         contribution: monthContribution,
-        withdrawal: monthWithdrawal,
+        withdrawalGross: monthWithdrawalGross,      // ← Gross withdrawal (from portfolio)
+        withdrawalNet: monthWithdrawalNet,          // ← Net withdrawal (after taxes)
+        tax: monthTax,                               // ← Tax amount
         returns: monthReturns,
         netChange: monthNetChange
       });
