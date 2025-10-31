@@ -195,7 +195,10 @@ function generateYearlyBreakdown(
   const yearData = [];
   
   let currentContribution = annualContribution / 12;
-  let currentWithdrawal = annualWithdrawal / 12;
+  
+  // Inflation-adjust the withdrawal amount from the start (same as simulation)
+  const inflationAdjustedAnnualWithdrawal = annualWithdrawal * Math.pow(1 + withdrawalInflation, yearsToRetirement);
+  let currentWithdrawal = inflationAdjustedAnnualWithdrawal / 12;
   const monthsToRetirement = yearsToRetirement * 12;
   
   for (let year = 0; year <= totalYears; year++) {
@@ -285,7 +288,12 @@ function runSingleScenario(
   let bondBalance = balance * bondAllocation;
 
   let currentContribution = annualContribution / 12;
-  let currentWithdrawal = annualWithdrawal / 12;
+  
+  // Inflation-adjust the withdrawal amount from the start
+  // At retirement, withdrawal should be: baseAmount × (1 + inflation)^yearsToRetirement
+  const yearsUntilRetirement = monthsToRetirement / 12;
+  const inflationAdjustedAnnualWithdrawal = annualWithdrawal * Math.pow(1 + withdrawalInflation, yearsUntilRetirement);
+  let currentWithdrawal = inflationAdjustedAnnualWithdrawal / 12;
 
   for (let month = 1; month < monthsTotal; month++) {
     // Generate correlated returns using Cholesky decomposition
