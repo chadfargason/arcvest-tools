@@ -263,14 +263,14 @@ function generateYearlyBreakdown(
       // Calculate monthly balances - align with returns array indexing
       // balances[monthIndex] = balance at START of month
       // balances[monthIndex + 1] = balance at END of month (after this month's returns/contributions)
-      const monthStartBalance = monthlyBalances[monthIndex];
-      const monthEndBalance = monthlyBalances[monthIndex + 1];
+      const monthStartBalance = monthlyBalances[monthIndex] ?? 0;
+      const monthEndBalance = monthlyBalances[monthIndex + 1] ?? monthlyBalances[monthIndex] ?? 0;
       
       // Get actual stock and bond balances at start and end of month
-      const monthStartStockBalance = monthlyStockBalances[monthIndex];
-      const monthStartBondBalance = monthlyBondBalances[monthIndex];
-      const monthEndStockBalance = monthlyStockBalances[monthIndex + 1];
-      const monthEndBondBalance = monthlyBondBalances[monthIndex + 1];
+      const monthStartStockBalance = monthlyStockBalances[monthIndex] ?? 0;
+      const monthStartBondBalance = monthlyBondBalances[monthIndex] ?? 0;
+      const monthEndStockBalance = monthlyStockBalances[monthIndex + 1] ?? monthlyStockBalances[monthIndex] ?? 0;
+      const monthEndBondBalance = monthlyBondBalances[monthIndex + 1] ?? monthlyBondBalances[monthIndex] ?? 0;
       
       // Calculate investment returns for this month
       const monthReturns = monthEndBalance - monthStartBalance - monthContribution + monthWithdrawal;
