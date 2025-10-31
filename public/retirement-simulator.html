@@ -1055,9 +1055,19 @@
             const monthNetClass = (monthData.netChange || 0) >= 0 ? 'positive' : 'negative';
             const monthReturnClass = (monthData.returns || 0) >= 0 ? 'positive' : 'negative';
             
+            // Calculate allocation percentage
+            const stockPct = monthData.stockBalance && monthData.balance ? ((monthData.stockBalance / monthData.balance) * 100).toFixed(1) : '0.0';
+            const bondPct = monthData.bondBalance && monthData.balance ? ((monthData.bondBalance / monthData.balance) * 100).toFixed(1) : '0.0';
+            
             html += `
               <tr class="monthly-row monthly-year-${row.year}">
-                <td class="monthly-label" colspan="3">${monthData.monthName} (Month ${monthData.month})</td>
+                <td class="monthly-label" colspan="3">
+                  ${monthData.monthName} (Month ${monthData.month})
+                  <span style="color: var(--muted); font-size: 10px; margin-left: 8px;">
+                    Stocks: ${formatCurrency(monthData.stockBalance || 0)} (${stockPct}%) | 
+                    Bonds: ${formatCurrency(monthData.bondBalance || 0)} (${bondPct}%)
+                  </span>
+                </td>
                 <td>${formatCurrency(monthData.startBalance || 0)}</td>
                 <td>${monthData.stockReturn || '0.00%'}</td>
                 <td>${monthData.bondReturn || '0.00%'}</td>
