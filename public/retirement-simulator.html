@@ -1052,15 +1052,20 @@
         // Add monthly detail rows (hidden by default)
         if (row.monthlyDetails && row.monthlyDetails.length > 0) {
           row.monthlyDetails.forEach(monthData => {
+            const monthNetClass = (monthData.netChange || 0) >= 0 ? 'positive' : 'negative';
+            const monthReturnClass = (monthData.returns || 0) >= 0 ? 'positive' : 'negative';
+            
             html += `
               <tr class="monthly-row monthly-year-${row.year}">
                 <td class="monthly-label" colspan="3">${monthData.monthName} (Month ${monthData.month})</td>
-                <td>${formatCurrency(monthData.balance || 0)}</td>
+                <td>${formatCurrency(monthData.startBalance || 0)}</td>
                 <td>${monthData.stockReturn || '0.00%'}</td>
                 <td>${monthData.bondReturn || '0.00%'}</td>
                 <td class="positive">${(monthData.contribution || 0) > 0 ? '+' + formatCurrency(monthData.contribution) : '—'}</td>
                 <td class="negative">${(monthData.withdrawal || 0) > 0 ? '-' + formatCurrency(monthData.withdrawal) : '—'}</td>
-                <td colspan="3">—</td>
+                <td class="${monthReturnClass}">${formatCurrency(monthData.returns || 0, true)}</td>
+                <td><strong>${formatCurrency(monthData.balance || 0)}</strong></td>
+                <td class="${monthNetClass}">${formatCurrency(monthData.netChange || 0, true)}</td>
               </tr>
             `;
           });

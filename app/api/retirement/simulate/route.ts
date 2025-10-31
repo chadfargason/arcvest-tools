@@ -242,15 +242,26 @@ function generateYearlyBreakdown(
         annualWithdrawalTotal += currentWithdrawal;
       }
       
+      // Calculate monthly start balance (balance before this month's changes)
+      const monthStartBalance = monthIndex > 0 ? monthlyBalances[monthIndex - 1] : startBalance;
+      const monthEndBalance = monthlyBalances[monthIndex];
+      
+      // Calculate investment returns for this month
+      const monthReturns = monthEndBalance - monthStartBalance - monthContribution + monthWithdrawal;
+      const monthNetChange = monthEndBalance - monthStartBalance;
+      
       // Store monthly details
       monthlyDetails.push({
         month: month + 1,
         monthName: ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'][month],
-        balance: monthlyBalances[monthIndex],
+        startBalance: monthStartBalance,
+        balance: monthEndBalance,
         stockReturn: (stockRet * 100).toFixed(2) + '%',
         bondReturn: (bondRet * 100).toFixed(2) + '%',
         contribution: monthContribution,
-        withdrawal: monthWithdrawal
+        withdrawal: monthWithdrawal,
+        returns: monthReturns,
+        netChange: monthNetChange
       });
     }
     
