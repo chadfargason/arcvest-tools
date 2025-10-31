@@ -18,6 +18,7 @@ interface SimulationParams {
   bondReturn: number;
   bondVolatility: number;
   correlation: number;
+  degreesOfFreedom: number;
 }
 
 export async function POST(request: NextRequest) {
@@ -64,7 +65,8 @@ function runMonteCarloSimulation(params: SimulationParams): any {
     stockVolatility,
     bondReturn,
     bondVolatility,
-    correlation
+    correlation,
+    degreesOfFreedom
   } = params;
 
   // Calculate time periods
@@ -103,7 +105,8 @@ function runMonteCarloSimulation(params: SimulationParams): any {
       monthlyBondReturn,
       monthlyBondVol,
       correlation,
-      rebalancing === 'annual'
+      rebalancing === 'annual',
+      degreesOfFreedom
     );
 
     scenarios.push({
@@ -275,7 +278,8 @@ function runSingleScenario(
   monthlyBondReturn: number,
   monthlyBondVol: number,
   correlation: number,
-  rebalance: boolean
+  rebalance: boolean,
+  degreesOfFreedom: number
 ): { balances: number[]; returns: { stock: number[]; bond: number[] } } {
   const balances: number[] = [startingBalance];
   const stockReturns: number[] = [0]; // First month has no return
@@ -297,12 +301,14 @@ function runSingleScenario(
 
   for (let month = 1; month < monthsTotal; month++) {
     // Generate correlated returns using Cholesky decomposition
+    // Now with Student's t-distribution for fat tails
     const [stockReturn, bondReturn] = generateCorrelatedReturns(
       monthlyStockReturn,
       monthlyStockVol,
       monthlyBondReturn,
       monthlyBondVol,
-      correlation
+      correlation,
+      degreesOfFreedom
     );
 
     // Track returns
@@ -370,17 +376,20 @@ function runSingleScenario(
   };
 }
 
-// Generate correlated normal random variables using Cholesky decomposition
+// Generate correlated random variables using Cholesky decomposition
+// Now supports Student's t-distribution for fat tails
 function generateCorrelatedReturns(
   mean1: number,
   std1: number,
   mean2: number,
   std2: number,
-  correlation: number
+  correlation: number,
+  degreesOfFreedom: number
 ): [number, number] {
-  // Generate two independent standard normal random variables
-  const z1 = randomNormal();
-  const z2 = randomNormal();
+  // Generate two independent random variables
+  // Use t-distribution if df < 30, otherwise use normal (converges to normal at high df)
+  const z1 = degreesOfFreedom < 30 ? randomT(degreesOfFreedom) : randomNormal();
+  const z2 = degreesOfFreedom < 30 ? randomT(degreesOfFreedom) : randomNormal();
 
   // Apply Cholesky decomposition for correlation
   // For 2x2 correlation matrix:
@@ -391,6 +400,30 @@ function generateCorrelatedReturns(
   const return2 = mean2 + std2 * (correlation * z1 + Math.sqrt(1 - correlation * correlation) * z2);
 
   return [return1, return2];
+}
+
+// Generate Student's t-distributed random variable
+// Lower df = fatter tails (more realistic for finance)
+function randomT(df: number): number {
+  // Generate standard normal
+  const z = randomNormal();
+  
+  // Generate chi-squared with df degrees of freedom
+  // Chi-squared is sum of df squared standard normals
+  let chiSq = 0;
+  for (let i = 0; i < df; i++) {
+    const n = randomNormal();
+    chiSq += n * n;
+  }
+  
+  // t-distribution = Z / sqrt(χ²/df)
+  // Scale to have unit variance: multiply by sqrt((df-2)/df)
+  if (df > 2) {
+    return z / Math.sqrt(chiSq / df) * Math.sqrt((df - 2) / df);
+  } else {
+    // For df <= 2, variance is undefined, so just return unscaled
+    return z / Math.sqrt(chiSq / df);
+  }
 }
 
 // Box-Muller transform for generating standard normal random variables
