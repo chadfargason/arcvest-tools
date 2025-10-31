@@ -243,7 +243,9 @@ function generateYearlyBreakdown(
     let yearlyStockReturn = 0;
     let yearlyBondReturn = 0;
     let annualContributionTotal = 0;
-    let annualWithdrawalTotal = 0;
+    let annualWithdrawalGross = 0;
+    let annualWithdrawalNet = 0;
+    let annualTax = 0;
     const monthlyDetails = [];
     
     for (let month = 0; month < 12 && startMonthIndex + month < monthlyReturns.stock.length; month++) {
@@ -269,7 +271,9 @@ function generateYearlyBreakdown(
         monthWithdrawalGross = currentWithdrawal;
         monthTax = monthWithdrawalGross * effectiveTaxRate;
         monthWithdrawalNet = monthWithdrawalGross - monthTax;
-        annualWithdrawalTotal += monthWithdrawalGross;
+        annualWithdrawalGross += monthWithdrawalGross;
+        annualWithdrawalNet += monthWithdrawalNet;
+        annualTax += monthTax;
       }
       
       // Calculate monthly balances - align with returns array indexing
@@ -310,7 +314,7 @@ function generateYearlyBreakdown(
     }
     
     // Calculate investment returns (approximate)
-    const investmentReturns = endBalance - startBalance - annualContributionTotal + annualWithdrawalTotal;
+    const investmentReturns = endBalance - startBalance - annualContributionTotal + annualWithdrawalGross;
     
     yearData.push({
       year,
@@ -318,7 +322,9 @@ function generateYearlyBreakdown(
       phase: isRetired ? 'Retirement' : 'Accumulation',
       startBalance,
       contributions: annualContributionTotal,
-      withdrawals: annualWithdrawalTotal,
+      withdrawalGross: annualWithdrawalGross,
+      withdrawalNet: annualWithdrawalNet,
+      tax: annualTax,
       returns: investmentReturns,
       stockReturn: (yearlyStockReturn * 100).toFixed(1) + '%',
       bondReturn: (yearlyBondReturn * 100).toFixed(1) + '%',

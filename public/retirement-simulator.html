@@ -1065,9 +1065,9 @@
             <td>${row.bondReturn || '0.0%'}</td>
             <td class="${(row.returns || 0) >= 0 ? 'positive' : 'negative'}">${formatCurrency(row.returns || 0, true)}</td>
             <td class="positive">${(row.contributions || 0) > 0 ? '+' + formatCurrency(row.contributions) : '—'}</td>
-            <td class="negative">${(row.withdrawals || 0) > 0 ? '-' + formatCurrency(row.withdrawals) : '—'}</td>
-            <td>—</td>
-            <td>—</td>
+            <td class="negative">${(row.withdrawalGross || 0) > 0 ? '-' + formatCurrency(row.withdrawalGross) : '—'}</td>
+            <td class="negative">${(row.tax || 0) > 0 ? '-' + formatCurrency(row.tax) : '—'}</td>
+            <td style="color: var(--text-dark);">${(row.withdrawalNet || 0) > 0 ? formatCurrency(row.withdrawalNet) : '—'}</td>
             <td><strong>${formatCurrency(row.endBalance || 0)}</strong></td>
             <td class="${netClass}">${formatCurrency(netChange, true)}</td>
           </tr>
