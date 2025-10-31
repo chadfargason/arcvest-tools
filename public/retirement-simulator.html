@@ -750,20 +750,48 @@
     });
 
     function displayResults(data) {
-      // Update result cards
       const successRate = (data.successRate * 100).toFixed(1);
-      document.getElementById('successRate').textContent = `${successRate}%`;
-      document.getElementById('successRate').className = 'result-value ' + 
-        (data.successRate >= 0.9 ? 'success' : data.successRate >= 0.7 ? 'warning' : 'danger');
+      const successClass = data.successRate >= 0.9 ? 'success' : data.successRate >= 0.7 ? 'warning' : 'danger';
       
-      document.getElementById('medianBalance').textContent = formatCurrency(data.medianBalance);
-      document.getElementById('percentile10').textContent = formatCurrency(data.percentile10);
-      document.getElementById('percentile90').textContent = formatCurrency(data.percentile90);
+      // Rebuild entire results HTML
+      const resultsDiv = document.getElementById('results');
+      resultsDiv.innerHTML = `
+        <h2>Simulation Results</h2>
 
-      // Show results section
-      document.getElementById('results').innerHTML = document.getElementById('results').innerHTML;
+        <div class="results-grid">
+          <div class="result-card">
+            <div class="result-label">Success Rate</div>
+            <div class="result-value ${successClass}">${successRate}%</div>
+          </div>
+
+          <div class="result-card">
+            <div class="result-label">Median Final Balance</div>
+            <div class="result-value">${formatCurrency(data.medianBalance)}</div>
+          </div>
+
+          <div class="result-card">
+            <div class="result-label">10th Percentile</div>
+            <div class="result-value">${formatCurrency(data.percentile10)}</div>
+          </div>
+
+          <div class="result-card">
+            <div class="result-label">90th Percentile</div>
+            <div class="result-value">${formatCurrency(data.percentile90)}</div>
+          </div>
+        </div>
+
+        <div class="chart-container">
+          <h3>Portfolio Balance Over Time</h3>
+          <canvas id="portfolioChart"></canvas>
+        </div>
+
+        <div class="chart-container">
+          <h3>Distribution of Final Balances</h3>
+          <canvas id="distributionChart"></canvas>
+        </div>
+      `;
       
-      // Draw charts
+      // Draw charts after HTML is ready
       drawPortfolioChart(data);
       drawDistributionChart(data);
     }
