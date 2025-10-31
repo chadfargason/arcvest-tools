@@ -442,6 +442,52 @@
       color: #dc2626;
     }
 
+    .detailed-table .year-row {
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+
+    .detailed-table .year-row:hover {
+      background: rgba(27, 156, 133, 0.1) !important;
+    }
+
+    .detailed-table .expand-icon {
+      display: inline-block;
+      margin-right: 8px;
+      transition: transform 0.2s;
+      color: var(--brand);
+      font-weight: bold;
+    }
+
+    .detailed-table .expand-icon.expanded {
+      transform: rotate(90deg);
+    }
+
+    .detailed-table .monthly-row {
+      background: #f5f5f5;
+      font-size: 12px;
+      display: none;
+    }
+
+    .detailed-table .monthly-row.visible {
+      display: table-row;
+    }
+
+    .detailed-table .monthly-row td {
+      padding: 6px 8px;
+      border-bottom: 1px dashed #e5e5e5;
+    }
+
+    .detailed-table .monthly-row:last-of-type td {
+      border-bottom: 1px solid var(--ast-border-color);
+    }
+
+    .detailed-table .monthly-label {
+      padding-left: 32px;
+      color: var(--muted);
+      font-size: 11px;
+    }
+
     .detailed-summary {
       background: #fafafa;
       border: 1px solid var(--ast-border-color);
@@ -982,14 +1028,14 @@
           <tbody>
       `;
 
-      yearData.forEach(row => {
+      yearData.forEach((row, index) => {
         const phaseClass = row.phase === 'Accumulation' ? 'phase-accumulation' : 'phase-retirement';
         const netChange = row.netChange || 0;
         const netClass = netChange >= 0 ? 'positive' : 'negative';
 
         html += `
-          <tr class="${phaseClass}">
-            <td>${row.year || 0}</td>
+          <tr class="${phaseClass} year-row" data-year="${row.year}" onclick="toggleMonthly(${row.year})">
+            <td><span class="expand-icon" id="expand-${row.year}">▶</span> ${row.year || 0}</td>
             <td>${row.age || 0}</td>
             <td>${row.phase || 'N/A'}</td>
             <td>${formatCurrency(row.startBalance || 0)}</td>
@@ -1002,6 +1048,23 @@
             <td class="${netClass}">${formatCurrency(netChange, true)}</td>
           </tr>
         `;
+
+        // Add monthly detail rows (hidden by default)
+        if (row.monthlyDetails && row.monthlyDetails.length > 0) {
+          row.monthlyDetails.forEach(monthData => {
+            html += `
+              <tr class="monthly-row monthly-year-${row.year}">
+                <td class="monthly-label" colspan="3">${monthData.monthName} (Month ${monthData.month})</td>
+                <td>${formatCurrency(monthData.balance || 0)}</td>
+                <td>${monthData.stockReturn || '0.00%'}</td>
+                <td>${monthData.bondReturn || '0.00%'}</td>
+                <td class="positive">${(monthData.contribution || 0) > 0 ? '+' + formatCurrency(monthData.contribution) : '—'}</td>
+                <td class="negative">${(monthData.withdrawal || 0) > 0 ? '-' + formatCurrency(monthData.withdrawal) : '—'}</td>
+                <td colspan="3">—</td>
+              </tr>
+            `;
+          });
+        }
       });
 
       html += `
@@ -1015,6 +1078,34 @@
         detailedDiv.innerHTML = `<div class="alert alert-error">Error displaying detailed results: ${error.message}</div>`;
       }
     }
+
+    // Toggle monthly details for a year
+    window.toggleMonthly = function(year) {
+      const monthlyRows = document.querySelectorAll(`.monthly-year-${year}`);
+      const expandIcon = document.getElementById(`expand-${year}`);
+      
+      if (monthlyRows.length === 0) return;
+      
+      const isVisible = monthlyRows[0].classList.contains('visible');
+      
+      monthlyRows.forEach(row => {
+        if (isVisible) {
+          row.classList.remove('visible');
+        } else {
+          row.classList.add('visible');
+        }
+      });
+      
+      if (expandIcon) {
+        if (isVisible) {
+          expandIcon.classList.remove('expanded');
+          expandIcon.textContent = '▶';
+        } else {
+          expandIcon.classList.add('expanded');
+          expandIcon.textContent = '▼';
+        }
+      }
+    };
 
     function drawPortfolioChart(data) {
       const ctx = document.getElementById('portfolioChart');

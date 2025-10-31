@@ -213,24 +213,45 @@ function generateYearlyBreakdown(
     const startBalance = monthlyBalances[startMonthIndex];
     const endBalance = monthlyBalances[endMonthIndex];
     
-    // Sum up returns for the year
+    // Sum up returns for the year and track monthly details
     let yearlyStockReturn = 0;
     let yearlyBondReturn = 0;
     let annualContributionTotal = 0;
     let annualWithdrawalTotal = 0;
+    const monthlyDetails = [];
     
     for (let month = 0; month < 12 && startMonthIndex + month < monthlyReturns.stock.length; month++) {
-      yearlyStockReturn += monthlyReturns.stock[startMonthIndex + month];
-      yearlyBondReturn += monthlyReturns.bond[startMonthIndex + month];
+      const monthIndex = startMonthIndex + month;
+      const monthNum = monthIndex;
       
-      const monthNum = startMonthIndex + month;
+      const stockRet = monthlyReturns.stock[monthIndex];
+      const bondRet = monthlyReturns.bond[monthIndex];
+      yearlyStockReturn += stockRet;
+      yearlyBondReturn += bondRet;
+      
+      let monthContribution = 0;
+      let monthWithdrawal = 0;
+      
       if (monthNum <= monthsToRetirement) {
         if (monthNum <= monthsContributing) {
+          monthContribution = currentContribution;
           annualContributionTotal += currentContribution;
         }
       } else if (isRetired) {
+        monthWithdrawal = currentWithdrawal;
         annualWithdrawalTotal += currentWithdrawal;
       }
+      
+      // Store monthly details
+      monthlyDetails.push({
+        month: month + 1,
+        monthName: ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'][month],
+        balance: monthlyBalances[monthIndex],
+        stockReturn: (stockRet * 100).toFixed(2) + '%',
+        bondReturn: (bondRet * 100).toFixed(2) + '%',
+        contribution: monthContribution,
+        withdrawal: monthWithdrawal
+      });
     }
     
     // Calculate investment returns (approximate)
@@ -247,7 +268,8 @@ function generateYearlyBreakdown(
       stockReturn: (yearlyStockReturn * 100).toFixed(2) + '%',
       bondReturn: (yearlyBondReturn * 100).toFixed(2) + '%',
       endBalance,
-      netChange: endBalance - startBalance
+      netChange: endBalance - startBalance,
+      monthlyDetails  // ← Include monthly data
     });
     
     // Update contribution/withdrawal for next year
