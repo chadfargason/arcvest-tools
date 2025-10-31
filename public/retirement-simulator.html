@@ -1,0 +1,883 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Retirement Simulator — ArcVest</title>
+  <link href="https://fonts.googleapis.com/css2?family=Lora:wght@400;600;700&display=swap" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4"></script>
+  <style>
+    /* ---------- Arcvest Design System ---------- */
+    :root {
+      /* Arcvest Color Palette */
+      --ast-global-color-0: #1B9C85;  /* Primary Teal */
+      --ast-global-color-1: #178E79;  /* Secondary Teal */
+      --ast-global-color-2: #0F172A;  /* Dark Navy */
+      --ast-global-color-3: #454F5E;  /* Text Gray */
+      --ast-global-color-4: rgba(207, 237, 211, 0.34);  /* Light Accent */
+      --ast-global-color-5: #FFFFFF;  /* White */
+      --ast-border-color: #dddddd;
+      
+      /* Application Variables */
+      --bg: #ffffff;
+      --panel: #ffffff;
+      --text: #454F5E;
+      --text-dark: #0F172A;
+      --text-body: #808285;
+      --muted: #808285;
+      --brand: #1B9C85; /* Primary Teal */
+      --brand-2: #178E79; /* Secondary Teal */
+      --accent: #1B9C85; /* Teal */
+      --red: #cf2e2e;
+      --green: #00d084;
+      --ring: #1B9C85;
+      --radius: 0px; /* Sharp corners like arcvest */
+      --shadow: 0 2px 8px rgba(0,0,0,.1);
+      --shadow-hover: 0 4px 16px rgba(27, 156, 133, 0.2);
+      --mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+      --sans: 'Lora', serif;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body { height: 100%; }
+    body {
+      font-family: var(--sans);
+      background: var(--bg);
+      color: var(--text);
+      -webkit-font-smoothing: antialiased;
+      -moz-osx-font-smoothing: grayscale;
+      padding: clamp(16px, 2vw, 32px);
+      line-height: 1.6;
+    }
+
+    .container {
+      max-width: 1200px;
+      margin: 0 auto;
+    }
+
+    .header {
+      margin-bottom: 32px;
+      text-align: center;
+    }
+
+    .header h1 {
+      font-size: clamp(24px, 3vw, 36px);
+      font-weight: 700;
+      color: var(--text-dark);
+      margin-bottom: 8px;
+    }
+
+    .header p {
+      color: var(--muted);
+      font-size: 16px;
+    }
+
+    /* Tabs - HonestMath Inspired */
+    .tabs {
+      display: flex;
+      gap: 0;
+      border-bottom: 2px solid var(--ast-border-color);
+      margin-bottom: 24px;
+      overflow-x: auto;
+    }
+
+    .tab {
+      background: transparent;
+      border: none;
+      padding: 16px 24px;
+      font-family: var(--sans);
+      font-size: 15px;
+      font-weight: 600;
+      color: var(--text);
+      cursor: pointer;
+      border-bottom: 3px solid transparent;
+      transition: all 0.2s;
+      white-space: nowrap;
+    }
+
+    .tab:hover {
+      color: var(--brand);
+      background: rgba(27, 156, 133, 0.05);
+    }
+
+    .tab.active {
+      color: var(--brand);
+      border-bottom-color: var(--brand);
+    }
+
+    /* Tab Content */
+    .tab-content {
+      display: none;
+    }
+
+    .tab-content.active {
+      display: block;
+      animation: fadeIn 0.3s;
+    }
+
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(8px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    /* Form Groups - Minimalist Style */
+    .form-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+      gap: 24px;
+      margin-bottom: 24px;
+    }
+
+    .form-group {
+      display: flex;
+      flex-direction: column;
+    }
+
+    .form-label {
+      font-size: 13px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      color: var(--text-dark);
+      margin-bottom: 8px;
+    }
+
+    .form-input, .form-select {
+      width: 100%;
+      height: 48px;
+      padding: 0 16px;
+      border: 1px solid var(--ast-border-color);
+      border-radius: var(--radius);
+      background: #fff;
+      font-family: var(--sans);
+      font-size: 16px;
+      color: var(--text);
+      transition: all 0.2s;
+    }
+
+    .form-input:focus, .form-select:focus {
+      outline: none;
+      border-color: var(--brand);
+      box-shadow: 0 0 0 3px rgba(27, 156, 133, 0.1);
+    }
+
+    .form-help {
+      font-size: 12px;
+      color: var(--muted);
+      margin-top: 6px;
+    }
+
+    /* Asset Allocation Table */
+    .allocation-table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-bottom: 16px;
+    }
+
+    .allocation-table th,
+    .allocation-table td {
+      padding: 12px;
+      text-align: left;
+      border-bottom: 1px solid var(--ast-border-color);
+    }
+
+    .allocation-table th {
+      font-size: 13px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      color: var(--text-dark);
+      background: #fafafa;
+    }
+
+    .allocation-table input {
+      width: 100%;
+      padding: 8px;
+      border: 1px solid var(--ast-border-color);
+      border-radius: var(--radius);
+      font-family: var(--sans);
+    }
+
+    .allocation-table input:focus {
+      outline: none;
+      border-color: var(--brand);
+      box-shadow: 0 0 0 3px rgba(27, 156, 133, 0.1);
+    }
+
+    .allocation-total {
+      font-weight: 700;
+      color: var(--text-dark);
+    }
+
+    .allocation-error {
+      color: var(--red);
+      background: rgba(207, 46, 46, 0.1);
+    }
+
+    .allocation-success {
+      color: var(--green);
+    }
+
+    /* Buttons */
+    .btn {
+      padding: 16px 32px;
+      border: none;
+      border-radius: var(--radius);
+      font-family: var(--sans);
+      font-size: 16px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s;
+      box-shadow: var(--shadow);
+    }
+
+    .btn-primary {
+      background: var(--brand);
+      color: #fff;
+    }
+
+    .btn-primary:hover {
+      background: var(--brand-2);
+      box-shadow: var(--shadow-hover);
+    }
+
+    .btn-primary:disabled {
+      background: #ccc;
+      cursor: not-allowed;
+      box-shadow: none;
+    }
+
+    .btn-secondary {
+      background: transparent;
+      border: 1px solid var(--ast-border-color);
+      color: var(--text);
+    }
+
+    .btn-secondary:hover {
+      border-color: var(--brand);
+      color: var(--brand);
+    }
+
+    .action-bar {
+      display: flex;
+      gap: 16px;
+      justify-content: center;
+      margin: 32px 0;
+    }
+
+    /* Results Panel */
+    .results {
+      background: #fafafa;
+      border: 1px solid var(--ast-border-color);
+      border-radius: var(--radius);
+      padding: 24px;
+      margin-top: 32px;
+      display: none;
+    }
+
+    .results.visible {
+      display: block;
+      animation: fadeIn 0.3s;
+    }
+
+    .results h2 {
+      font-size: 24px;
+      font-weight: 700;
+      color: var(--text-dark);
+      margin-bottom: 24px;
+      text-align: center;
+    }
+
+    .results-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 24px;
+      margin-bottom: 32px;
+    }
+
+    .result-card {
+      background: #fff;
+      border: 1px solid var(--ast-border-color);
+      border-radius: var(--radius);
+      padding: 20px;
+      text-align: center;
+    }
+
+    .result-label {
+      font-size: 12px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      color: var(--text);
+      margin-bottom: 8px;
+    }
+
+    .result-value {
+      font-size: 28px;
+      font-weight: 700;
+      color: var(--text-dark);
+    }
+
+    .result-value.success {
+      color: var(--green);
+    }
+
+    .result-value.warning {
+      color: #f59e0b;
+    }
+
+    .result-value.danger {
+      color: var(--red);
+    }
+
+    .chart-container {
+      background: #fff;
+      border: 1px solid var(--ast-border-color);
+      border-radius: var(--radius);
+      padding: 24px;
+      margin-bottom: 24px;
+    }
+
+    .chart-container h3 {
+      font-size: 18px;
+      font-weight: 600;
+      color: var(--text-dark);
+      margin-bottom: 16px;
+    }
+
+    /* Loading Spinner */
+    .spinner {
+      border: 4px solid rgba(0,0,0,.1);
+      border-top-color: var(--brand);
+      border-radius: 50%;
+      width: 40px;
+      height: 40px;
+      animation: spin 0.8s linear infinite;
+      margin: 0 auto;
+    }
+
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+
+    .loading {
+      text-align: center;
+      padding: 40px;
+    }
+
+    .loading p {
+      color: var(--muted);
+      margin-top: 16px;
+    }
+
+    /* Error Alert */
+    .alert {
+      padding: 16px;
+      border-radius: var(--radius);
+      margin-bottom: 24px;
+      border: 1px solid;
+    }
+
+    .alert-error {
+      background: rgba(239, 68, 68, 0.1);
+      border-color: #ef4444;
+      color: #991b1b;
+    }
+
+    .alert-info {
+      background: rgba(59, 130, 246, 0.1);
+      border-color: #3b82f6;
+      color: #1e40af;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <h1>Retirement Simulator</h1>
+      <p>Test your retirement plan with Monte Carlo simulation across 1,000 market scenarios</p>
+    </div>
+
+    <!-- Tabs -->
+    <div class="tabs">
+      <button class="tab active" data-tab="portfolio">Portfolio</button>
+      <button class="tab" data-tab="contributions">Contributions</button>
+      <button class="tab" data-tab="retirement">Retirement</button>
+      <button class="tab" data-tab="advanced">Advanced</button>
+    </div>
+
+    <!-- Tab 1: Portfolio -->
+    <div class="tab-content active" id="portfolio-tab">
+      <div class="form-grid">
+        <div class="form-group">
+          <label class="form-label">Starting Balance</label>
+          <input type="number" class="form-input" id="startingBalance" value="100000" min="0" step="1000">
+          <div class="form-help">Current portfolio value</div>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label">Current Age</label>
+          <input type="number" class="form-input" id="currentAge" value="30" min="18" max="100">
+          <div class="form-help">Your age today</div>
+        </div>
+      </div>
+
+      <h3 style="font-size: 18px; font-weight: 600; color: var(--text-dark); margin: 32px 0 16px;">Asset Allocation</h3>
+      <p style="color: var(--muted); margin-bottom: 16px;">Allocate across asset classes (must total 100%)</p>
+
+      <table class="allocation-table">
+        <thead>
+          <tr>
+            <th>Asset Class</th>
+            <th>Allocation (%)</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>US Stocks (SPY)</td>
+            <td><input type="number" class="allocation-input" data-ticker="SPY" value="60" min="0" max="100" step="1"></td>
+          </tr>
+          <tr>
+            <td>US Bonds (AGG)</td>
+            <td><input type="number" class="allocation-input" data-ticker="AGG" value="30" min="0" max="100" step="1"></td>
+          </tr>
+          <tr>
+            <td>International (VEA)</td>
+            <td><input type="number" class="allocation-input" data-ticker="VEA" value="10" min="0" max="100" step="1"></td>
+          </tr>
+        </tbody>
+        <tfoot>
+          <tr>
+            <td class="allocation-total">Total</td>
+            <td class="allocation-total"><span id="allocation-total">100</span>%</td>
+          </tr>
+        </tfoot>
+      </table>
+    </div>
+
+    <!-- Tab 2: Contributions -->
+    <div class="tab-content" id="contributions-tab">
+      <div class="form-grid">
+        <div class="form-group">
+          <label class="form-label">Annual Contribution</label>
+          <input type="number" class="form-input" id="annualContribution" value="10000" min="0" step="1000">
+          <div class="form-help">Amount saved per year</div>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label">Contribution Growth Rate</label>
+          <input type="number" class="form-input" id="contributionGrowth" value="3" min="0" max="10" step="0.1">
+          <div class="form-help">Annual increase in contributions (%)</div>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label">Years of Contributions</label>
+          <input type="number" class="form-input" id="yearsContributing" value="30" min="0" max="60" step="1">
+          <div class="form-help">How many years will you save?</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Tab 3: Retirement -->
+    <div class="tab-content" id="retirement-tab">
+      <div class="form-grid">
+        <div class="form-group">
+          <label class="form-label">Retirement Age</label>
+          <input type="number" class="form-input" id="retirementAge" value="65" min="40" max="100" step="1">
+          <div class="form-help">Age when withdrawals begin</div>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label">Annual Withdrawal</label>
+          <input type="number" class="form-input" id="annualWithdrawal" value="40000" min="0" step="1000">
+          <div class="form-help">Amount withdrawn per year</div>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label">Withdrawal Inflation</label>
+          <input type="number" class="form-input" id="withdrawalInflation" value="2.5" min="0" max="10" step="0.1">
+          <div class="form-help">Annual increase in withdrawals (%)</div>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label">Years in Retirement</label>
+          <input type="number" class="form-input" id="yearsInRetirement" value="30" min="1" max="60" step="1">
+          <div class="form-help">Planning horizon</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Tab 4: Advanced -->
+    <div class="tab-content" id="advanced-tab">
+      <div class="form-grid">
+        <div class="form-group">
+          <label class="form-label">Simulation Count</label>
+          <select class="form-select" id="simulationCount">
+            <option value="100">100 scenarios (Fast)</option>
+            <option value="500">500 scenarios</option>
+            <option value="1000" selected>1,000 scenarios (Recommended)</option>
+            <option value="5000">5,000 scenarios (Detailed)</option>
+          </select>
+          <div class="form-help">More scenarios = more accuracy</div>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label">Rebalancing</label>
+          <select class="form-select" id="rebalancing">
+            <option value="annual" selected>Annual Rebalancing</option>
+            <option value="none">No Rebalancing</option>
+          </select>
+          <div class="form-help">Portfolio rebalancing strategy</div>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label">Return Method</label>
+          <select class="form-select" id="returnMethod">
+            <option value="historical" selected>Historical Returns (Bootstrap)</option>
+            <option value="average">Average Returns</option>
+          </select>
+          <div class="form-help">How to model future returns</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Action Buttons -->
+    <div class="action-bar">
+      <button class="btn btn-primary" id="runSimulation">Run Simulation</button>
+      <button class="btn btn-secondary" id="resetForm">Reset to Defaults</button>
+    </div>
+
+    <!-- Results -->
+    <div class="results" id="results">
+      <h2>Simulation Results</h2>
+
+      <div class="results-grid">
+        <div class="result-card">
+          <div class="result-label">Success Rate</div>
+          <div class="result-value" id="successRate">—</div>
+        </div>
+
+        <div class="result-card">
+          <div class="result-label">Median Final Balance</div>
+          <div class="result-value" id="medianBalance">—</div>
+        </div>
+
+        <div class="result-card">
+          <div class="result-label">10th Percentile</div>
+          <div class="result-value" id="percentile10">—</div>
+        </div>
+
+        <div class="result-card">
+          <div class="result-label">90th Percentile</div>
+          <div class="result-value" id="percentile90">—</div>
+        </div>
+      </div>
+
+      <div class="chart-container">
+        <h3>Portfolio Balance Over Time</h3>
+        <canvas id="portfolioChart"></canvas>
+      </div>
+
+      <div class="chart-container">
+        <h3>Distribution of Final Balances</h3>
+        <canvas id="distributionChart"></canvas>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // State management
+    let portfolioChart = null;
+    let distributionChart = null;
+
+    // Tab switching
+    document.querySelectorAll('.tab').forEach(tab => {
+      tab.addEventListener('click', () => {
+        const tabName = tab.dataset.tab;
+        
+        // Update tab buttons
+        document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+        tab.classList.add('active');
+        
+        // Update tab content
+        document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+        document.getElementById(`${tabName}-tab`).classList.add('active');
+      });
+    });
+
+    // Allocation tracking
+    function updateAllocationTotal() {
+      const inputs = document.querySelectorAll('.allocation-input');
+      let total = 0;
+      inputs.forEach(input => {
+        total += parseFloat(input.value) || 0;
+      });
+      
+      const totalElement = document.getElementById('allocation-total');
+      totalElement.textContent = total;
+      
+      // Visual feedback
+      const row = totalElement.parentElement;
+      row.classList.remove('allocation-error', 'allocation-success');
+      if (Math.abs(total - 100) < 0.01) {
+        row.classList.add('allocation-success');
+      } else {
+        row.classList.add('allocation-error');
+      }
+      
+      return total;
+    }
+
+    document.querySelectorAll('.allocation-input').forEach(input => {
+      input.addEventListener('input', updateAllocationTotal);
+    });
+
+    // Reset form
+    document.getElementById('resetForm').addEventListener('click', () => {
+      if (confirm('Reset all inputs to default values?')) {
+        document.getElementById('startingBalance').value = 100000;
+        document.getElementById('currentAge').value = 30;
+        document.getElementById('annualContribution').value = 10000;
+        document.getElementById('contributionGrowth').value = 3;
+        document.getElementById('yearsContributing').value = 30;
+        document.getElementById('retirementAge').value = 65;
+        document.getElementById('annualWithdrawal').value = 40000;
+        document.getElementById('withdrawalInflation').value = 2.5;
+        document.getElementById('yearsInRetirement').value = 30;
+        document.getElementById('simulationCount').value = 1000;
+        document.getElementById('rebalancing').value = 'annual';
+        document.getElementById('returnMethod').value = 'historical';
+        
+        document.querySelector('[data-ticker="SPY"]').value = 60;
+        document.querySelector('[data-ticker="AGG"]').value = 30;
+        document.querySelector('[data-ticker="VEA"]').value = 10;
+        updateAllocationTotal();
+      }
+    });
+
+    // Run simulation
+    document.getElementById('runSimulation').addEventListener('click', async () => {
+      // Validate allocation
+      const total = updateAllocationTotal();
+      if (Math.abs(total - 100) > 0.01) {
+        alert('Asset allocation must total 100%');
+        return;
+      }
+
+      // Collect allocation
+      const allocation = {};
+      document.querySelectorAll('.allocation-input').forEach(input => {
+        const ticker = input.dataset.ticker;
+        const value = parseFloat(input.value) || 0;
+        if (value > 0) {
+          allocation[ticker] = value;
+        }
+      });
+
+      // Collect parameters
+      const params = {
+        startingBalance: parseFloat(document.getElementById('startingBalance').value),
+        currentAge: parseInt(document.getElementById('currentAge').value),
+        retirementAge: parseInt(document.getElementById('retirementAge').value),
+        annualContribution: parseFloat(document.getElementById('annualContribution').value),
+        contributionGrowth: parseFloat(document.getElementById('contributionGrowth').value) / 100,
+        yearsContributing: parseInt(document.getElementById('yearsContributing').value),
+        annualWithdrawal: parseFloat(document.getElementById('annualWithdrawal').value),
+        withdrawalInflation: parseFloat(document.getElementById('withdrawalInflation').value) / 100,
+        yearsInRetirement: parseInt(document.getElementById('yearsInRetirement').value),
+        simulationCount: parseInt(document.getElementById('simulationCount').value),
+        rebalancing: document.getElementById('rebalancing').value,
+        returnMethod: document.getElementById('returnMethod').value,
+        allocation
+      };
+
+      // Show loading
+      const resultsDiv = document.getElementById('results');
+      resultsDiv.classList.add('visible');
+      resultsDiv.innerHTML = '<div class="loading"><div class="spinner"></div><p>Running Monte Carlo simulation...</p></div>';
+
+      try {
+        // Call API
+        const response = await fetch('/api/retirement/simulate', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(params)
+        });
+
+        if (!response.ok) {
+          throw new Error(`API Error: ${response.status}`);
+        }
+
+        const data = await response.json();
+        displayResults(data);
+      } catch (error) {
+        console.error('Simulation error:', error);
+        resultsDiv.innerHTML = `<div class="alert alert-error">Error running simulation: ${error.message}</div>`;
+      }
+    });
+
+    function displayResults(data) {
+      // Update result cards
+      const successRate = (data.successRate * 100).toFixed(1);
+      document.getElementById('successRate').textContent = `${successRate}%`;
+      document.getElementById('successRate').className = 'result-value ' + 
+        (data.successRate >= 0.9 ? 'success' : data.successRate >= 0.7 ? 'warning' : 'danger');
+      
+      document.getElementById('medianBalance').textContent = formatCurrency(data.medianBalance);
+      document.getElementById('percentile10').textContent = formatCurrency(data.percentile10);
+      document.getElementById('percentile90').textContent = formatCurrency(data.percentile90);
+
+      // Show results section
+      document.getElementById('results').innerHTML = document.getElementById('results').innerHTML;
+      
+      // Draw charts
+      drawPortfolioChart(data);
+      drawDistributionChart(data);
+    }
+
+    function drawPortfolioChart(data) {
+      const ctx = document.getElementById('portfolioChart');
+      
+      if (portfolioChart) {
+        portfolioChart.destroy();
+      }
+
+      portfolioChart = new Chart(ctx, {
+        type: 'line',
+        data: {
+          labels: data.years,
+          datasets: [
+            {
+              label: '90th Percentile',
+              data: data.percentile90Path,
+              borderColor: 'rgba(27, 156, 133, 0.3)',
+              backgroundColor: 'rgba(27, 156, 133, 0.05)',
+              fill: '+1',
+              borderWidth: 1,
+              pointRadius: 0
+            },
+            {
+              label: 'Median',
+              data: data.medianPath,
+              borderColor: '#1B9C85',
+              backgroundColor: 'rgba(27, 156, 133, 0.1)',
+              borderWidth: 3,
+              pointRadius: 0
+            },
+            {
+              label: '10th Percentile',
+              data: data.percentile10Path,
+              borderColor: 'rgba(27, 156, 133, 0.3)',
+              backgroundColor: 'transparent',
+              borderWidth: 1,
+              pointRadius: 0
+            }
+          ]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: true,
+          aspectRatio: 2,
+          interaction: {
+            mode: 'index',
+            intersect: false
+          },
+          plugins: {
+            legend: {
+              display: true,
+              position: 'top'
+            },
+            tooltip: {
+              callbacks: {
+                label: (context) => `${context.dataset.label}: ${formatCurrency(context.parsed.y)}`
+              }
+            }
+          },
+          scales: {
+            x: {
+              title: {
+                display: true,
+                text: 'Age'
+              }
+            },
+            y: {
+              title: {
+                display: true,
+                text: 'Portfolio Balance'
+              },
+              ticks: {
+                callback: (value) => formatCurrency(value, true)
+              }
+            }
+          }
+        }
+      });
+    }
+
+    function drawDistributionChart(data) {
+      const ctx = document.getElementById('distributionChart');
+      
+      if (distributionChart) {
+        distributionChart.destroy();
+      }
+
+      distributionChart = new Chart(ctx, {
+        type: 'bar',
+        data: {
+          labels: data.distributionLabels,
+          datasets: [{
+            label: 'Number of Scenarios',
+            data: data.distributionCounts,
+            backgroundColor: 'rgba(27, 156, 133, 0.6)',
+            borderColor: '#1B9C85',
+            borderWidth: 1
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: true,
+          aspectRatio: 2,
+          plugins: {
+            legend: {
+              display: false
+            }
+          },
+          scales: {
+            x: {
+              title: {
+                display: true,
+                text: 'Final Balance Range'
+              }
+            },
+            y: {
+              title: {
+                display: true,
+                text: 'Scenarios'
+              },
+              beginAtZero: true
+            }
+          }
+        }
+      });
+    }
+
+    function formatCurrency(value, short = false) {
+      if (value < 0) {
+        return '-$' + Math.abs(value).toLocaleString('en-US', { maximumFractionDigits: 0 });
+      }
+      
+      if (short && value >= 1000000) {
+        return '$' + (value / 1000000).toFixed(1) + 'M';
+      } else if (short && value >= 1000) {
+        return '$' + (value / 1000).toFixed(0) + 'K';
+      }
+      
+      return '$' + value.toLocaleString('en-US', { maximumFractionDigits: 0 });
+    }
+
+    // Initialize
+    updateAllocationTotal();
+  </script>
+</body>
+</html>
+
