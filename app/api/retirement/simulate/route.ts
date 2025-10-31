@@ -137,14 +137,14 @@ function runMonteCarloSimulation(params: SimulationParams): any {
   const sortedBalances = [...finalBalances].sort((a, b) => a.balance - b.balance);
   const medianIndex = sortedBalances[Math.floor(simulationCount / 2)].index;
   const medianBalance = sortedBalances[Math.floor(simulationCount / 2)].balance;
-  const percentile10 = sortedBalances[Math.floor(simulationCount * 0.1)].balance;
-  const percentile90 = sortedBalances[Math.floor(simulationCount * 0.9)].balance;
+  const percentile20 = sortedBalances[Math.floor(simulationCount * 0.2)].balance;
+  const percentile80 = sortedBalances[Math.floor(simulationCount * 0.8)].balance;
 
   // Calculate percentile paths (sample annually)
   const years: number[] = [];
   const medianPath: number[] = [];
-  const percentile10Path: number[] = [];
-  const percentile90Path: number[] = [];
+  const percentile20Path: number[] = [];
+  const percentile80Path: number[] = [];
 
   for (let year = 0; year <= totalYears; year++) {
     const monthIndex = Math.min(year * 12, monthsTotal - 1);
@@ -154,8 +154,8 @@ function runMonteCarloSimulation(params: SimulationParams): any {
     const balancesAtTime = scenarios.map(s => s.balances[monthIndex]).sort((a, b) => a - b);
     
     medianPath.push(balancesAtTime[Math.floor(simulationCount / 2)]);
-    percentile10Path.push(balancesAtTime[Math.floor(simulationCount * 0.1)]);
-    percentile90Path.push(balancesAtTime[Math.floor(simulationCount * 0.9)]);
+    percentile20Path.push(balancesAtTime[Math.floor(simulationCount * 0.2)]);
+    percentile80Path.push(balancesAtTime[Math.floor(simulationCount * 0.8)]);
   }
 
   // Create distribution histogram
@@ -180,12 +180,12 @@ function runMonteCarloSimulation(params: SimulationParams): any {
   return {
     successRate,
     medianBalance,
-    percentile10,
-    percentile90,
+    percentile20,
+    percentile80,
     years,
     medianPath,
-    percentile10Path,
-    percentile90Path,
+    percentile20Path,
+    percentile80Path,
     distributionLabels: labels,
     distributionPercentages: percentages,
     medianSimulationIndex: medianIndex,
@@ -278,8 +278,8 @@ function generateYearlyBreakdown(
         startBondBalance: monthStartBondBalance,    // ← START balance (for verification)
         stockBalance: monthEndStockBalance,         // ← END balance (after returns + contributions)
         bondBalance: monthEndBondBalance,           // ← END balance (after returns + contributions)
-        stockReturn: (stockRet * 100).toFixed(2) + '%',
-        bondReturn: (bondRet * 100).toFixed(2) + '%',
+        stockReturn: (stockRet * 100).toFixed(1) + '%',
+        bondReturn: (bondRet * 100).toFixed(1) + '%',
         contribution: monthContribution,
         withdrawal: monthWithdrawal,
         returns: monthReturns,
@@ -298,8 +298,8 @@ function generateYearlyBreakdown(
       contributions: annualContributionTotal,
       withdrawals: annualWithdrawalTotal,
       returns: investmentReturns,
-      stockReturn: (yearlyStockReturn * 100).toFixed(2) + '%',
-      bondReturn: (yearlyBondReturn * 100).toFixed(2) + '%',
+      stockReturn: (yearlyStockReturn * 100).toFixed(1) + '%',
+      bondReturn: (yearlyBondReturn * 100).toFixed(1) + '%',
       endBalance,
       netChange: endBalance - startBalance,
       monthlyDetails  // ← Include monthly data
@@ -337,8 +337,8 @@ function runSingleScenario(
   degreesOfFreedom: number
 ): { balances: number[]; returns: { stock: number[]; bond: number[] }; stockBalances: number[]; bondBalances: number[] } {
   const balances: number[] = [startingBalance];
-  const stockReturns: number[] = [0]; // First month has no return
-  const bondReturns: number[] = [0];
+  const stockReturns: number[] = [];
+  const bondReturns: number[] = [];
   
   let balance = startingBalance;
 
@@ -358,7 +358,7 @@ function runSingleScenario(
   const inflationAdjustedAnnualWithdrawal = annualWithdrawal * Math.pow(1 + withdrawalInflation, yearsUntilRetirement);
   let currentWithdrawal = inflationAdjustedAnnualWithdrawal / 12;
 
-  for (let month = 1; month < monthsTotal; month++) {
+  for (let month = 0; month < monthsTotal; month++) {
     // Generate correlated returns using Cholesky decomposition
     // Now with Student's t-distribution for fat tails
     const [stockReturn, bondReturn] = generateCorrelatedReturns(

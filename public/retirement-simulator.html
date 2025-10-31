@@ -937,13 +937,13 @@
           </div>
 
           <div class="result-card">
-            <div class="result-label">10th Percentile</div>
-            <div class="result-value">${formatCurrency(data.percentile10)}</div>
+            <div class="result-label">20th Percentile</div>
+            <div class="result-value">${formatCurrency(data.percentile20)}</div>
           </div>
 
           <div class="result-card">
-            <div class="result-label">90th Percentile</div>
-            <div class="result-value">${formatCurrency(data.percentile90)}</div>
+            <div class="result-label">80th Percentile</div>
+            <div class="result-value">${formatCurrency(data.percentile80)}</div>
           </div>
         </div>
 
@@ -1143,28 +1143,28 @@
           labels: data.years,
           datasets: [
             {
-              label: '90th Percentile',
-              data: data.percentile90Path,
-              borderColor: 'rgba(27, 156, 133, 0.3)',
-              backgroundColor: 'rgba(27, 156, 133, 0.05)',
+              label: '80th Percentile',
+              data: data.percentile80Path,
+              borderColor: 'rgba(27, 156, 133, 0.5)',
+              backgroundColor: 'rgba(27, 156, 133, 0.2)',
               fill: '+1',
-              borderWidth: 1,
+              borderWidth: 2,
               pointRadius: 0
             },
             {
               label: 'Median',
               data: data.medianPath,
               borderColor: '#1B9C85',
-              backgroundColor: 'rgba(27, 156, 133, 0.1)',
+              backgroundColor: 'rgba(27, 156, 133, 0.2)',
               borderWidth: 3,
               pointRadius: 0
             },
             {
-              label: '10th Percentile',
-              data: data.percentile10Path,
-              borderColor: 'rgba(27, 156, 133, 0.3)',
+              label: '20th Percentile',
+              data: data.percentile20Path,
+              borderColor: 'rgba(27, 156, 133, 0.5)',
               backgroundColor: 'transparent',
-              borderWidth: 1,
+              borderWidth: 2,
               pointRadius: 0
             }
           ]
