@@ -915,16 +915,17 @@
     function populateDetailedOutcome(data) {
       const detailedDiv = document.getElementById('detailedOutcome');
       
-      if (!data.medianSimulationDetails || data.medianSimulationDetails.length === 0) {
-        detailedDiv.innerHTML = '<p style="color: var(--muted); text-align: center; padding: 40px;">No detailed data available</p>';
-        return;
-      }
+      try {
+        if (!data.medianSimulationDetails || data.medianSimulationDetails.length === 0) {
+          detailedDiv.innerHTML = '<p style="color: var(--muted); text-align: center; padding: 40px;">No detailed data available</p>';
+          return;
+        }
 
-      const yearData = data.medianSimulationDetails;
-      const finalBalance = yearData[yearData.length - 1].endBalance;
-      const totalContributions = yearData.reduce((sum, y) => sum + y.contributions, 0);
-      const totalWithdrawals = yearData.reduce((sum, y) => sum + y.withdrawals, 0);
-      const totalReturns = yearData.reduce((sum, y) => sum + y.returns, 0);
+        const yearData = data.medianSimulationDetails;
+        const finalBalance = yearData[yearData.length - 1].endBalance || 0;
+        const totalContributions = yearData.reduce((sum, y) => sum + (y.contributions || 0), 0);
+        const totalWithdrawals = yearData.reduce((sum, y) => sum + (y.withdrawals || 0), 0);
+        const totalReturns = yearData.reduce((sum, y) => sum + (y.returns || 0), 0);
 
       let html = `
         <div class="detailed-summary">
@@ -975,21 +976,22 @@
 
       yearData.forEach(row => {
         const phaseClass = row.phase === 'Accumulation' ? 'phase-accumulation' : 'phase-retirement';
-        const netClass = row.netChange >= 0 ? 'positive' : 'negative';
+        const netChange = row.netChange || 0;
+        const netClass = netChange >= 0 ? 'positive' : 'negative';
 
         html += `
           <tr class="${phaseClass}">
-            <td>${row.year}</td>
-            <td>${row.age}</td>
-            <td>${row.phase}</td>
-            <td>${formatCurrency(row.startBalance)}</td>
-            <td>${row.stockReturn}</td>
-            <td>${row.bondReturn}</td>
-            <td class="positive">${row.contributions > 0 ? '+' + formatCurrency(row.contributions) : '—'}</td>
-            <td class="negative">${row.withdrawals > 0 ? '-' + formatCurrency(row.withdrawals) : '—'}</td>
-            <td class="${row.returns >= 0 ? 'positive' : 'negative'}">${formatCurrency(row.returns, true)}</td>
-            <td><strong>${formatCurrency(row.endBalance)}</strong></td>
-            <td class="${netClass}">${formatCurrency(row.netChange, true)}</td>
+            <td>${row.year || 0}</td>
+            <td>${row.age || 0}</td>
+            <td>${row.phase || 'N/A'}</td>
+            <td>${formatCurrency(row.startBalance || 0)}</td>
+            <td>${row.stockReturn || '0.00%'}</td>
+            <td>${row.bondReturn || '0.00%'}</td>
+            <td class="positive">${(row.contributions || 0) > 0 ? '+' + formatCurrency(row.contributions) : '—'}</td>
+            <td class="negative">${(row.withdrawals || 0) > 0 ? '-' + formatCurrency(row.withdrawals) : '—'}</td>
+            <td class="${(row.returns || 0) >= 0 ? 'positive' : 'negative'}">${formatCurrency(row.returns || 0, true)}</td>
+            <td><strong>${formatCurrency(row.endBalance || 0)}</strong></td>
+            <td class="${netClass}">${formatCurrency(netChange, true)}</td>
           </tr>
         `;
       });
@@ -1000,6 +1002,10 @@
       `;
 
       detailedDiv.innerHTML = html;
+      } catch (error) {
+        console.error('Error populating detailed outcome:', error);
+        detailedDiv.innerHTML = `<div class="alert alert-error">Error displaying detailed results: ${error.message}</div>`;
+      }
     }
 
     function drawPortfolioChart(data) {
