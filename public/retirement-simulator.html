@@ -1077,25 +1077,29 @@
             const monthNetClass = (monthData.netChange || 0) >= 0 ? 'positive' : 'negative';
             const monthReturnClass = (monthData.returns || 0) >= 0 ? 'positive' : 'negative';
             
+            // Safely get values with defaults
+            const startStockBal = monthData.startStockBalance ?? 0;
+            const startBondBal = monthData.startBondBalance ?? 0;
+            const startBal = monthData.startBalance ?? 0;
+            
             // Calculate allocation percentage at START of month (for verification)
-            const startStockPct = monthData.startStockBalance && monthData.startBalance ? 
-              ((monthData.startStockBalance / monthData.startBalance) * 100).toFixed(1) : '0.0';
-            const startBondPct = monthData.startBondBalance && monthData.startBalance ? 
-              ((monthData.startBondBalance / monthData.startBalance) * 100).toFixed(1) : '0.0';
+            const startStockPct = (startBal > 0 && startStockBal) ? 
+              ((startStockBal / startBal) * 100).toFixed(1) : '0.0';
+            const startBondPct = (startBal > 0 && startBondBal) ? 
+              ((startBondBal / startBal) * 100).toFixed(1) : '0.0';
             
             // Verify the calculation: startStock × stockReturn + startBond × bondReturn = returns
-            const stockReturnNum = parseFloat(monthData.stockReturn) / 100;
-            const bondReturnNum = parseFloat(monthData.bondReturn) / 100;
-            const calculatedReturns = (monthData.startStockBalance || 0) * stockReturnNum + 
-                                     (monthData.startBondBalance || 0) * bondReturnNum;
+            const stockReturnNum = parseFloat(monthData.stockReturn || '0') / 100;
+            const bondReturnNum = parseFloat(monthData.bondReturn || '0') / 100;
+            const calculatedReturns = startStockBal * stockReturnNum + startBondBal * bondReturnNum;
             
             html += `
               <tr class="monthly-row monthly-year-${row.year}">
                 <td class="monthly-label" colspan="3">
-                  ${monthData.monthName} (Month ${monthData.month})
+                  ${monthData.monthName || 'N/A'} (Month ${monthData.month || 0})
                   <span style="color: var(--muted); font-size: 10px; margin-left: 8px;">
-                    START: Stocks ${formatCurrency(monthData.startStockBalance || 0, true)} (${startStockPct}%) | 
-                    Bonds ${formatCurrency(monthData.startBondBalance || 0, true)} (${startBondPct}%)
+                    START: Stocks ${formatCurrency(startStockBal, true)} (${startStockPct}%) | 
+                    Bonds ${formatCurrency(startBondBal, true)} (${startBondPct}%)
                   </span>
                 </td>
                 <td>${formatCurrency(monthData.startBalance || 0)}</td>
