@@ -18,7 +18,7 @@ export default function RetirementSimulatorDebugPage() {
               <div className="h-6 w-px bg-border" />
               <div className="flex items-center space-x-2">
                 <Bug className="w-5 h-5 text-arcvest-teal" />
-                <h1 className="text-xl font-semibold text-arcvest-navy">Debug: Simulation #37</h1>
+                <h1 className="text-xl font-semibold text-arcvest-navy">Debug: Median Simulation</h1>
               </div>
             </div>
           </div>

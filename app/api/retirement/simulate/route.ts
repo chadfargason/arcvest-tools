@@ -82,12 +82,12 @@ function runMonteCarloSimulation(params: SimulationParams): any {
   const monthlyStockVol = stockVolatility / Math.sqrt(12);
   const monthlyBondVol = bondVolatility / Math.sqrt(12);
 
-  // Run simulations
-  const scenarios: number[][] = [];
-  const finalBalances: number[] = [];
+  // Run simulations - keep track of simulation index
+  const scenarios: { index: number; balances: number[]; returns: { stock: number[]; bond: number[] } }[] = [];
+  const finalBalances: { index: number; balance: number }[] = [];
 
   for (let sim = 0; sim < simulationCount; sim++) {
-    const balances = runSingleScenario(
+    const scenarioData = runSingleScenario(
       startingBalance,
       monthsTotal,
       yearsToRetirement * 12,
@@ -106,19 +106,28 @@ function runMonteCarloSimulation(params: SimulationParams): any {
       rebalancing === 'annual'
     );
 
-    scenarios.push(balances);
-    finalBalances.push(balances[balances.length - 1]);
+    scenarios.push({
+      index: sim,
+      balances: scenarioData.balances,
+      returns: scenarioData.returns
+    });
+    
+    finalBalances.push({
+      index: sim,
+      balance: scenarioData.balances[scenarioData.balances.length - 1]
+    });
   }
 
   // Calculate statistics
-  const successCount = finalBalances.filter(b => b > 0).length;
+  const successCount = finalBalances.filter(b => b.balance > 0).length;
   const successRate = successCount / simulationCount;
 
   // Sort final balances for percentiles
-  const sortedBalances = [...finalBalances].sort((a, b) => a - b);
-  const medianBalance = sortedBalances[Math.floor(simulationCount / 2)];
-  const percentile10 = sortedBalances[Math.floor(simulationCount * 0.1)];
-  const percentile90 = sortedBalances[Math.floor(simulationCount * 0.9)];
+  const sortedBalances = [...finalBalances].sort((a, b) => a.balance - b.balance);
+  const medianIndex = sortedBalances[Math.floor(simulationCount / 2)].index;
+  const medianBalance = sortedBalances[Math.floor(simulationCount / 2)].balance;
+  const percentile10 = sortedBalances[Math.floor(simulationCount * 0.1)].balance;
+  const percentile90 = sortedBalances[Math.floor(simulationCount * 0.9)].balance;
 
   // Calculate percentile paths (sample annually)
   const years: number[] = [];
@@ -131,7 +140,7 @@ function runMonteCarloSimulation(params: SimulationParams): any {
     years.push(currentAge + year);
 
     // Get balances at this time point across all scenarios
-    const balancesAtTime = scenarios.map(s => s[monthIndex]).sort((a, b) => a - b);
+    const balancesAtTime = scenarios.map(s => s.balances[monthIndex]).sort((a, b) => a - b);
     
     medianPath.push(balancesAtTime[Math.floor(simulationCount / 2)]);
     percentile10Path.push(balancesAtTime[Math.floor(simulationCount * 0.1)]);
@@ -139,7 +148,21 @@ function runMonteCarloSimulation(params: SimulationParams): any {
   }
 
   // Create distribution histogram
-  const { labels, counts } = createDistribution(sortedBalances);
+  const { labels, counts } = createDistribution(sortedBalances.map(b => b.balance));
+
+  // Get the actual median simulation details
+  const medianSimulation = scenarios.find(s => s.index === medianIndex)!;
+  const medianSimulationDetails = generateYearlyBreakdown(
+    medianSimulation.balances,
+    medianSimulation.returns,
+    currentAge,
+    yearsToRetirement,
+    annualContribution,
+    contributionGrowth,
+    annualWithdrawal,
+    withdrawalInflation,
+    monthsContributing
+  );
 
   return {
     successRate,
@@ -151,8 +174,86 @@ function runMonteCarloSimulation(params: SimulationParams): any {
     percentile10Path,
     percentile90Path,
     distributionLabels: labels,
-    distributionCounts: counts
+    distributionCounts: counts,
+    medianSimulationIndex: medianIndex,
+    medianSimulationDetails
   };
+}
+
+function generateYearlyBreakdown(
+  monthlyBalances: number[],
+  monthlyReturns: { stock: number[]; bond: number[] },
+  startAge: number,
+  yearsToRetirement: number,
+  annualContribution: number,
+  contributionGrowth: number,
+  annualWithdrawal: number,
+  withdrawalInflation: number,
+  monthsContributing: number
+): any[] {
+  const totalYears = Math.floor(monthlyBalances.length / 12);
+  const yearData = [];
+  
+  let currentContribution = annualContribution / 12;
+  let currentWithdrawal = annualWithdrawal / 12;
+  const monthsToRetirement = yearsToRetirement * 12;
+  
+  for (let year = 0; year <= totalYears; year++) {
+    const age = startAge + year;
+    const isRetired = year > yearsToRetirement;
+    const startMonthIndex = year * 12;
+    const endMonthIndex = Math.min((year + 1) * 12 - 1, monthlyBalances.length - 1);
+    
+    const startBalance = monthlyBalances[startMonthIndex];
+    const endBalance = monthlyBalances[endMonthIndex];
+    
+    // Sum up returns for the year
+    let yearlyStockReturn = 0;
+    let yearlyBondReturn = 0;
+    let annualContributionTotal = 0;
+    let annualWithdrawalTotal = 0;
+    
+    for (let month = 0; month < 12 && startMonthIndex + month < monthlyReturns.stock.length; month++) {
+      yearlyStockReturn += monthlyReturns.stock[startMonthIndex + month];
+      yearlyBondReturn += monthlyReturns.bond[startMonthIndex + month];
+      
+      const monthNum = startMonthIndex + month;
+      if (monthNum <= monthsToRetirement) {
+        if (monthNum <= monthsContributing) {
+          annualContributionTotal += currentContribution;
+        }
+      } else if (isRetired) {
+        annualWithdrawalTotal += currentWithdrawal;
+      }
+    }
+    
+    // Calculate investment returns (approximate)
+    const investmentReturns = endBalance - startBalance - annualContributionTotal + annualWithdrawalTotal;
+    
+    yearData.push({
+      year,
+      age,
+      phase: isRetired ? 'Retirement' : 'Accumulation',
+      startBalance,
+      contributions: annualContributionTotal,
+      withdrawals: annualWithdrawalTotal,
+      returns: investmentReturns,
+      stockReturn: (yearlyStockReturn * 100).toFixed(2) + '%',
+      bondReturn: (yearlyBondReturn * 100).toFixed(2) + '%',
+      endBalance,
+      netChange: endBalance - startBalance
+    });
+    
+    // Update contribution/withdrawal for next year
+    if (!isRetired) {
+      currentContribution *= (1 + contributionGrowth);
+    }
+    if (isRetired && year > yearsToRetirement) {
+      currentWithdrawal *= (1 + withdrawalInflation);
+    }
+  }
+  
+  return yearData;
 }
 
 function runSingleScenario(
@@ -172,8 +273,11 @@ function runSingleScenario(
   monthlyBondVol: number,
   correlation: number,
   rebalance: boolean
-): number[] {
+): { balances: number[]; returns: { stock: number[]; bond: number[] } } {
   const balances: number[] = [startingBalance];
+  const stockReturns: number[] = [0]; // First month has no return
+  const bondReturns: number[] = [0];
+  
   let balance = startingBalance;
 
   // Asset balances (for rebalancing)
@@ -192,6 +296,10 @@ function runSingleScenario(
       monthlyBondVol,
       correlation
     );
+
+    // Track returns
+    stockReturns.push(stockReturn);
+    bondReturns.push(bondReturn);
 
     // Apply returns to each asset
     stockBalance *= (1 + stockReturn);
@@ -245,7 +353,13 @@ function runSingleScenario(
     balances.push(balance);
   }
 
-  return balances;
+  return {
+    balances,
+    returns: {
+      stock: stockReturns,
+      bond: bondReturns
+    }
+  };
 }
 
 // Generate correlated normal random variables using Cholesky decomposition
