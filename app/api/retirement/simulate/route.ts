@@ -161,7 +161,7 @@ function runMonteCarloSimulation(params: SimulationParams): any {
     contributionGrowth,
     annualWithdrawal,
     withdrawalInflation,
-    monthsContributing
+    yearsContributing * 12 // Convert to months
   );
 
   return {
