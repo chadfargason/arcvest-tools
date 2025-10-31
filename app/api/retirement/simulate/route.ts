@@ -151,7 +151,7 @@ function runMonteCarloSimulation(params: SimulationParams): any {
   }
 
   // Create distribution histogram
-  const { labels, counts } = createDistribution(sortedBalances.map(b => b.balance));
+  const { labels, percentages } = createDistribution(sortedBalances.map(b => b.balance));
 
   // Get the actual median simulation details
   const medianSimulation = scenarios.find(s => s.index === medianIndex)!;
@@ -177,7 +177,7 @@ function runMonteCarloSimulation(params: SimulationParams): any {
     percentile10Path,
     percentile90Path,
     distributionLabels: labels,
-    distributionCounts: counts,
+    distributionPercentages: percentages,
     medianSimulationIndex: medianIndex,
     medianSimulationDetails
   };
@@ -470,38 +470,52 @@ function randomNormal(): number {
   return z;
 }
 
-function createDistribution(sortedBalances: number[]): { labels: string[], counts: number[] } {
-  // Create histogram bins
-  const min = Math.min(...sortedBalances);
-  const max = Math.max(...sortedBalances);
-  const range = max - min;
-  const binCount = 20;
-  const binSize = range / binCount;
+function createDistribution(sortedBalances: number[]): { labels: string[], percentages: number[] } {
+  // Fixed distribution buckets (easy to modify)
+  const BUCKET_EDGES = [
+    0,           // $0 (ran out of money)
+    200_000,     // $0 to $200k
+    1_000_000,   // $200k to $1MM
+    3_000_000,   // $1MM to $3MM
+    10_000_000,  // $3MM to $10MM
+    30_000_000,  // $10MM to $30MM
+    Infinity     // $30MM+
+  ];
 
-  const bins: number[] = new Array(binCount).fill(0);
-  const labels: string[] = [];
+  const labels = [
+    '$0',
+    '$0-$200K',
+    '$200K-$1M',
+    '$1M-$3M',
+    '$3M-$10M',
+    '$10M-$30M',
+    '$30M+'
+  ];
 
-  // Create labels
-  for (let i = 0; i < binCount; i++) {
-    const binStart = min + i * binSize;
-    const binEnd = binStart + binSize;
-    
-    if (binStart < 0 && binEnd < 0) {
-      labels.push(`-$${Math.abs(binEnd / 1000).toFixed(0)}K to -$${Math.abs(binStart / 1000).toFixed(0)}K`);
-    } else if (binStart < 0 && binEnd >= 0) {
-      labels.push(`-$${Math.abs(binStart / 1000).toFixed(0)}K to $${(binEnd / 1000).toFixed(0)}K`);
-    } else if (binStart >= 1000000) {
-      labels.push(`$${(binStart / 1000000).toFixed(1)}M to $${(binEnd / 1000000).toFixed(1)}M`);
-    } else {
-      labels.push(`$${(binStart / 1000).toFixed(0)}K to $${(binEnd / 1000).toFixed(0)}K`);
-    }
-  }
+  const counts = new Array(labels.length).fill(0);
+  const totalSimulations = sortedBalances.length;
 
-  // Count balances in each bin
+  // Count balances in each bucket
   sortedBalances.forEach(balance => {
-    const binIndex = Math.min(Math.floor((balance - min) / binSize), binCount - 1);
-    bins[binIndex]++;
+    if (balance <= 0) {
+      counts[0]++; // $0 bucket
+    } else if (balance <= BUCKET_EDGES[1]) {
+      counts[1]++; // $0-$200K
+    } else if (balance <= BUCKET_EDGES[2]) {
+      counts[2]++; // $200K-$1M
+    } else if (balance <= BUCKET_EDGES[3]) {
+      counts[3]++; // $1M-$3M
+    } else if (balance <= BUCKET_EDGES[4]) {
+      counts[4]++; // $3M-$10M
+    } else if (balance <= BUCKET_EDGES[5]) {
+      counts[5]++; // $10M-$30M
+    } else {
+      counts[6]++; // $30M+
+    }
   });
 
-  return { labels, counts: bins };
+  // Convert to percentages
+  const percentages = counts.map(count => (count / totalSimulations) * 100);
+
+  return { labels, percentages };
 }

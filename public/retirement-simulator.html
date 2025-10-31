@@ -1203,8 +1203,8 @@
         data: {
           labels: data.distributionLabels,
           datasets: [{
-            label: 'Number of Scenarios',
-            data: data.distributionCounts,
+            label: 'Percentage of Simulations',
+            data: data.distributionPercentages,
             backgroundColor: 'rgba(27, 156, 133, 0.6)',
             borderColor: '#1B9C85',
             borderWidth: 1
@@ -1217,6 +1217,11 @@
           plugins: {
             legend: {
               display: false
+            },
+            tooltip: {
+              callbacks: {
+                label: (context) => `${context.parsed.y.toFixed(1)}% of simulations`
+              }
             }
           },
           scales: {
@@ -1229,9 +1234,13 @@
             y: {
               title: {
                 display: true,
-                text: 'Scenarios'
+                text: '% of Simulations'
               },
-              beginAtZero: true
+              beginAtZero: true,
+              max: 100,
+              ticks: {
+                callback: (value) => value + '%'
+              }
             }
           }
         }
