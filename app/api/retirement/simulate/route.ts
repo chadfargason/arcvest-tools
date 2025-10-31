@@ -1,8 +1,4 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@supabase/supabase-js';
-
-const supabaseUrl = process.env.SUPABASE_URL!;
-const supabaseKey = process.env.SUPABASE_KEY!;
 
 interface SimulationParams {
   startingBalance: number;
@@ -16,14 +12,12 @@ interface SimulationParams {
   yearsInRetirement: number;
   simulationCount: number;
   rebalancing: string;
-  returnMethod: string;
   allocation: Record<string, number>;
-}
-
-interface AssetReturn {
-  asset_ticker: string;
-  return_date: string;
-  monthly_return: number;
+  stockReturn: number;
+  stockVolatility: number;
+  bondReturn: number;
+  bondVolatility: number;
+  correlation: number;
 }
 
 export async function POST(request: NextRequest) {
@@ -40,44 +34,8 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Allocation must total 100%' }, { status: 400 });
     }
 
-    // Fetch historical return data from Supabase
-    const supabase = createClient(supabaseUrl, supabaseKey);
-    const tickers = Object.keys(params.allocation);
-    
-    const { data: assetReturns, error } = await supabase
-      .from('asset_returns')
-      .select('asset_ticker, return_date, monthly_return')
-      .in('asset_ticker', tickers)
-      .order('return_date', { ascending: true });
-
-    if (error) {
-      console.error('Supabase error:', error);
-      return NextResponse.json({ error: 'Failed to fetch asset data' }, { status: 500 });
-    }
-
-    if (!assetReturns || assetReturns.length === 0) {
-      return NextResponse.json({ error: 'No return data found for specified assets' }, { status: 404 });
-    }
-
-    // Organize returns by asset
-    const returnsByAsset: Record<string, number[]> = {};
-    tickers.forEach(ticker => {
-      returnsByAsset[ticker] = assetReturns
-        .filter((r: AssetReturn) => r.asset_ticker === ticker)
-        .map((r: AssetReturn) => r.monthly_return);
-    });
-
-    // Validate we have data for all assets
-    for (const ticker of tickers) {
-      if (!returnsByAsset[ticker] || returnsByAsset[ticker].length === 0) {
-        return NextResponse.json({ 
-          error: `No return data found for ${ticker}` 
-        }, { status: 404 });
-      }
-    }
-
     // Run Monte Carlo simulation
-    const results = runMonteCarloSimulation(params, returnsByAsset);
+    const results = runMonteCarloSimulation(params);
 
     return NextResponse.json(results);
   } catch (error) {
@@ -88,10 +46,7 @@ export async function POST(request: NextRequest) {
   }
 }
 
-function runMonteCarloSimulation(
-  params: SimulationParams,
-  returnsByAsset: Record<string, number[]>
-): any {
+function runMonteCarloSimulation(params: SimulationParams): any {
   const {
     startingBalance,
     currentAge,
@@ -104,8 +59,12 @@ function runMonteCarloSimulation(
     yearsInRetirement,
     simulationCount,
     rebalancing,
-    returnMethod,
-    allocation
+    allocation,
+    stockReturn,
+    stockVolatility,
+    bondReturn,
+    bondVolatility,
+    correlation
   } = params;
 
   // Calculate time periods
@@ -114,10 +73,14 @@ function runMonteCarloSimulation(
   const monthsTotal = totalYears * 12;
 
   // Normalize allocation to decimals
-  const normalizedAllocation: Record<string, number> = {};
-  Object.entries(allocation).forEach(([ticker, percent]) => {
-    normalizedAllocation[ticker] = percent / 100;
-  });
+  const stockAllocation = allocation['STOCKS'] / 100;
+  const bondAllocation = allocation['BONDS'] / 100;
+
+  // Convert annual parameters to monthly
+  const monthlyStockReturn = stockReturn / 12;
+  const monthlyBondReturn = bondReturn / 12;
+  const monthlyStockVol = stockVolatility / Math.sqrt(12);
+  const monthlyBondVol = bondVolatility / Math.sqrt(12);
 
   // Run simulations
   const scenarios: number[][] = [];
@@ -133,9 +96,13 @@ function runMonteCarloSimulation(
       yearsContributing * 12,
       annualWithdrawal,
       withdrawalInflation,
-      normalizedAllocation,
-      returnsByAsset,
-      returnMethod,
+      stockAllocation,
+      bondAllocation,
+      monthlyStockReturn,
+      monthlyStockVol,
+      monthlyBondReturn,
+      monthlyBondVol,
+      correlation,
       rebalancing === 'annual'
     );
 
@@ -197,42 +164,41 @@ function runSingleScenario(
   monthsContributing: number,
   annualWithdrawal: number,
   withdrawalInflation: number,
-  allocation: Record<string, number>,
-  returnsByAsset: Record<string, number[]>,
-  returnMethod: string,
+  stockAllocation: number,
+  bondAllocation: number,
+  monthlyStockReturn: number,
+  monthlyStockVol: number,
+  monthlyBondReturn: number,
+  monthlyBondVol: number,
+  correlation: number,
   rebalance: boolean
 ): number[] {
   const balances: number[] = [startingBalance];
   let balance = startingBalance;
 
   // Asset balances (for rebalancing)
-  const assetBalances: Record<string, number> = {};
-  Object.entries(allocation).forEach(([ticker, weight]) => {
-    assetBalances[ticker] = balance * weight;
-  });
+  let stockBalance = balance * stockAllocation;
+  let bondBalance = balance * bondAllocation;
 
   let currentContribution = annualContribution / 12;
   let currentWithdrawal = annualWithdrawal / 12;
 
   for (let month = 1; month < monthsTotal; month++) {
+    // Generate correlated returns using Cholesky decomposition
+    const [stockReturn, bondReturn] = generateCorrelatedReturns(
+      monthlyStockReturn,
+      monthlyStockVol,
+      monthlyBondReturn,
+      monthlyBondVol,
+      correlation
+    );
+
     // Apply returns to each asset
-    Object.entries(assetBalances).forEach(([ticker, assetBalance]) => {
-      const returns = returnsByAsset[ticker];
-      let monthlyReturn: number;
-
-      if (returnMethod === 'historical') {
-        // Bootstrap: random sample with replacement
-        monthlyReturn = returns[Math.floor(Math.random() * returns.length)];
-      } else {
-        // Average return
-        monthlyReturn = returns.reduce((sum, r) => sum + r, 0) / returns.length;
-      }
-
-      assetBalances[ticker] = assetBalance * (1 + monthlyReturn);
-    });
+    stockBalance *= (1 + stockReturn);
+    bondBalance *= (1 + bondReturn);
 
     // Sum up portfolio
-    balance = Object.values(assetBalances).reduce((sum, val) => sum + val, 0);
+    balance = stockBalance + bondBalance;
 
     // Apply contributions/withdrawals
     if (month <= monthsToRetirement) {
@@ -241,9 +207,8 @@ function runSingleScenario(
         balance += currentContribution;
         
         // Add contribution proportionally to assets
-        Object.entries(allocation).forEach(([ticker, weight]) => {
-          assetBalances[ticker] += currentContribution * weight;
-        });
+        stockBalance += currentContribution * stockAllocation;
+        bondBalance += currentContribution * bondAllocation;
 
         // Adjust contribution for growth (annually)
         if (month % 12 === 0) {
@@ -255,9 +220,8 @@ function runSingleScenario(
       balance -= currentWithdrawal;
 
       // Withdraw proportionally from assets
-      Object.entries(allocation).forEach(([ticker, weight]) => {
-        assetBalances[ticker] -= currentWithdrawal * weight;
-      });
+      stockBalance -= currentWithdrawal * stockAllocation;
+      bondBalance -= currentWithdrawal * bondAllocation;
 
       // Adjust withdrawal for inflation (annually)
       if (month % 12 === 0) {
@@ -267,23 +231,55 @@ function runSingleScenario(
 
     // Rebalance annually if enabled
     if (rebalance && month % 12 === 0 && balance > 0) {
-      Object.entries(allocation).forEach(([ticker, weight]) => {
-        assetBalances[ticker] = balance * weight;
-      });
+      stockBalance = balance * stockAllocation;
+      bondBalance = balance * bondAllocation;
     }
 
     // Prevent negative balances in tracking
     if (balance < 0) {
       balance = 0;
-      Object.keys(assetBalances).forEach(ticker => {
-        assetBalances[ticker] = 0;
-      });
+      stockBalance = 0;
+      bondBalance = 0;
     }
 
     balances.push(balance);
   }
 
   return balances;
+}
+
+// Generate correlated normal random variables using Cholesky decomposition
+function generateCorrelatedReturns(
+  mean1: number,
+  std1: number,
+  mean2: number,
+  std2: number,
+  correlation: number
+): [number, number] {
+  // Generate two independent standard normal random variables
+  const z1 = randomNormal();
+  const z2 = randomNormal();
+
+  // Apply Cholesky decomposition for correlation
+  // For 2x2 correlation matrix:
+  // [1    ρ  ]     [1      0    ]
+  // [ρ    1  ]  =  [ρ   √(1-ρ²)]
+  
+  const return1 = mean1 + std1 * z1;
+  const return2 = mean2 + std2 * (correlation * z1 + Math.sqrt(1 - correlation * correlation) * z2);
+
+  return [return1, return2];
+}
+
+// Box-Muller transform for generating standard normal random variables
+function randomNormal(): number {
+  let u1 = 0, u2 = 0;
+  // Ensure u1 is not 0 to avoid log(0)
+  while (u1 === 0) u1 = Math.random();
+  while (u2 === 0) u2 = Math.random();
+  
+  const z = Math.sqrt(-2.0 * Math.log(u1)) * Math.cos(2.0 * Math.PI * u2);
+  return z;
 }
 
 function createDistribution(sortedBalances: number[]): { labels: string[], counts: number[] } {
@@ -321,4 +317,3 @@ function createDistribution(sortedBalances: number[]): { labels: string[], count
 
   return { labels, counts: bins };
 }
-
