@@ -713,6 +713,23 @@
           <div class="form-help">Fat tails: Use 4 for realistic extremes, 30+ for normal distribution</div>
         </div>
       </div>
+
+      <h3 style="font-size: 18px; font-weight: 600; color: var(--text-dark); margin: 32px 0 16px;">Taxes</h3>
+      <p style="color: var(--muted); margin-bottom: 16px;">Model the impact of taxes on retirement withdrawals</p>
+      
+      <div class="form-grid">
+        <div class="form-group">
+          <label class="form-label">Taxable Portion (%)</label>
+          <input type="number" class="form-input" id="taxablePortion" value="75" min="0" max="100" step="1">
+          <div class="form-help">Estimated taxable % of your portfolio</div>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label">Estimated Tax Rate (%)</label>
+          <input type="number" class="form-input" id="taxRate" value="25" min="0" max="50" step="1">
+          <div class="form-help">Estimate of blended tax rate for portfolio withdrawals</div>
+        </div>
+      </div>
     </div>
 
     <!-- Tab 5: Detailed Outcome -->
@@ -844,6 +861,8 @@
         document.getElementById('bondVolatility').value = 7.0;
         document.getElementById('correlation').value = 0.2;
         document.getElementById('degreesOfFreedom').value = 4;
+        document.getElementById('taxablePortion').value = 75;
+        document.getElementById('taxRate').value = 25;
         
         updateAllocationTotal();
       }
@@ -888,7 +907,10 @@
         bondReturn: parseFloat(document.getElementById('bondReturn').value) / 100,
         bondVolatility: parseFloat(document.getElementById('bondVolatility').value) / 100,
         correlation: parseFloat(document.getElementById('correlation').value),
-        degreesOfFreedom: parseFloat(document.getElementById('degreesOfFreedom').value)
+        degreesOfFreedom: parseFloat(document.getElementById('degreesOfFreedom').value),
+        // Taxes
+        taxablePortion: parseFloat(document.getElementById('taxablePortion').value) / 100,
+        taxRate: parseFloat(document.getElementById('taxRate').value) / 100
       };
 
       // Show loading

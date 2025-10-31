@@ -19,6 +19,8 @@ interface SimulationParams {
   bondVolatility: number;
   correlation: number;
   degreesOfFreedom: number;
+  taxablePortion: number;
+  taxRate: number;
 }
 
 export async function POST(request: NextRequest) {
@@ -66,7 +68,9 @@ function runMonteCarloSimulation(params: SimulationParams): any {
     bondReturn,
     bondVolatility,
     correlation,
-    degreesOfFreedom
+    degreesOfFreedom,
+    taxablePortion,
+    taxRate
   } = params;
 
   // Calculate time periods
@@ -112,7 +116,9 @@ function runMonteCarloSimulation(params: SimulationParams): any {
       monthlyBondVol,
       correlation,
       rebalancing === 'annual',
-      degreesOfFreedom
+      degreesOfFreedom,
+      taxablePortion,
+      taxRate
     );
 
     scenarios.push({
@@ -336,7 +342,9 @@ function runSingleScenario(
   monthlyBondVol: number,
   correlation: number,
   rebalance: boolean,
-  degreesOfFreedom: number
+  degreesOfFreedom: number,
+  taxablePortion: number,
+  taxRate: number
 ): { balances: number[]; returns: { stock: number[]; bond: number[] }; stockBalances: number[]; bondBalances: number[] } {
   const balances: number[] = [startingBalance];
   const stockReturns: number[] = [];
@@ -358,7 +366,13 @@ function runSingleScenario(
   // At retirement, withdrawal should be: baseAmount × (1 + inflation)^yearsToRetirement
   const yearsUntilRetirement = monthsToRetirement / 12;
   const inflationAdjustedAnnualWithdrawal = annualWithdrawal * Math.pow(1 + withdrawalInflation, yearsUntilRetirement);
-  let currentWithdrawal = inflationAdjustedAnnualWithdrawal / 12;
+  
+  // Calculate effective tax rate and gross withdrawal needed
+  // The annualWithdrawal is the desired after-tax spending
+  // Need to withdraw more to cover taxes: grossWithdrawal = netSpending / (1 - effectiveTaxRate)
+  const effectiveTaxRate = taxablePortion * taxRate;
+  const grossWithdrawal = inflationAdjustedAnnualWithdrawal / (1 - effectiveTaxRate);
+  let currentWithdrawal = grossWithdrawal / 12;
 
   for (let month = 0; month < monthsTotal; month++) {
     // Generate correlated returns using Cholesky decomposition
