@@ -182,17 +182,17 @@
 </head>
 <body>
   <div class="container">
-    <h1>🔍 Retirement Simulator - Median Scenario Debug</h1>
+    <h1>🔍 Retirement Simulator - Simulation #37 Debug</h1>
     
     <div class="intro">
-      <strong>Purpose:</strong> This page shows the detailed year-by-year progression of the MEDIAN (50th percentile) scenario.
+      <strong>Purpose:</strong> This page shows the detailed year-by-year progression of <strong>Simulation #37</strong> (one actual Monte Carlo run with random returns).
       Use this to verify the simulation math is correct.
     </div>
 
     <h2>Simulation Parameters</h2>
     <div class="params" id="params"></div>
 
-    <button class="btn" id="runDebug">Run Median Scenario</button>
+    <button class="btn" id="runDebug">Run Simulation #37</button>
 
     <div id="results"></div>
   </div>
@@ -273,23 +273,59 @@
       `;
     }
 
-    // Run median scenario (using expected returns, not random)
+    // Run simulation #37 (using actual random returns)
     document.getElementById('runDebug').addEventListener('click', () => {
-      document.getElementById('results').innerHTML = '<div class="loading">Calculating median scenario...</div>';
+      document.getElementById('results').innerHTML = '<div class="loading">Running Simulation #37...</div>';
       
       setTimeout(() => {
-        const result = runMedianScenario();
+        // Seed the random number generator with simulation #37
+        seedRandom(37);
+        const result = runSingleSimulation();
         displayResults(result);
       }, 100);
     });
 
-    function runMedianScenario() {
+    // Simple seeded random number generator (for reproducibility)
+    let seed = 37;
+    function seedRandom(s) {
+      seed = s;
+    }
+
+    function seededRandom() {
+      seed = (seed * 9301 + 49297) % 233280;
+      return seed / 233280;
+    }
+
+    // Box-Muller transform for normal distribution
+    function randomNormal() {
+      let u1 = 0, u2 = 0;
+      while (u1 === 0) u1 = seededRandom();
+      while (u2 === 0) u2 = seededRandom();
+      const z = Math.sqrt(-2.0 * Math.log(u1)) * Math.cos(2.0 * Math.PI * u2);
+      return z;
+    }
+
+    // Generate correlated returns using Cholesky decomposition
+    function generateCorrelatedReturns(mean1, std1, mean2, std2, correlation) {
+      const z1 = randomNormal();
+      const z2 = randomNormal();
+      
+      const return1 = mean1 + std1 * z1;
+      const return2 = mean2 + std2 * (correlation * z1 + Math.sqrt(1 - correlation * correlation) * z2);
+      
+      return [return1, return2];
+    }
+
+    function runSingleSimulation() {
       const yearsToRetirement = params.retirementAge - params.currentAge;
       const totalYears = yearsToRetirement + params.yearsInRetirement;
+      const monthsTotal = totalYears * 12;
       
-      // Use EXPECTED returns (no randomness) for median scenario
+      // Convert annual parameters to monthly
       const monthlyStockReturn = params.stockReturn / 12;
       const monthlyBondReturn = params.bondReturn / 12;
+      const monthlyStockVol = params.stockVolatility / Math.sqrt(12);
+      const monthlyBondVol = params.bondVolatility / Math.sqrt(12);
       
       let stockBalance = params.startingBalance * params.stockAllocation;
       let bondBalance = params.startingBalance * params.bondAllocation;
@@ -297,35 +333,52 @@
       let currentWithdrawal = params.annualWithdrawal / 12;
       
       const yearData = [];
+      const monthlyReturns = []; // Track monthly returns for debugging
       
       // Track by year
       for (let year = 0; year <= totalYears; year++) {
         const age = params.currentAge + year;
+        const monthsToRetirement = yearsToRetirement * 12;
         const isRetired = year > yearsToRetirement;
         const startBalance = stockBalance + bondBalance;
         
         let annualContribution = 0;
         let annualWithdrawal = 0;
         let annualReturn = 0;
+        let yearlyStockReturn = 0;
+        let yearlyBondReturn = 0;
         
         // Process 12 months for this year
         for (let month = 0; month < 12; month++) {
           const monthNum = year * 12 + month;
           
-          // Apply monthly returns
-          const stockGain = stockBalance * monthlyStockReturn;
-          const bondGain = bondBalance * monthlyBondReturn;
+          // Generate correlated random returns
+          const [stockReturn, bondReturn] = generateCorrelatedReturns(
+            monthlyStockReturn,
+            monthlyStockVol,
+            monthlyBondReturn,
+            monthlyBondVol,
+            params.correlation
+          );
+          
+          // Apply returns
+          const stockGain = stockBalance * stockReturn;
+          const bondGain = bondBalance * bondReturn;
           stockBalance += stockGain;
           bondBalance += bondGain;
           annualReturn += stockGain + bondGain;
+          yearlyStockReturn += stockReturn;
+          yearlyBondReturn += bondReturn;
           
           // Contributions or withdrawals
-          if (!isRetired && monthNum <= params.yearsContributing * 12) {
+          if (monthNum <= monthsToRetirement) {
             // Accumulation phase
-            stockBalance += currentContribution * params.stockAllocation;
-            bondBalance += currentContribution * params.bondAllocation;
-            annualContribution += currentContribution;
-          } else if (isRetired) {
+            if (monthNum <= params.yearsContributing * 12) {
+              stockBalance += currentContribution * params.stockAllocation;
+              bondBalance += currentContribution * params.bondAllocation;
+              annualContribution += currentContribution;
+            }
+          } else {
             // Withdrawal phase
             stockBalance -= currentWithdrawal * params.stockAllocation;
             bondBalance -= currentWithdrawal * params.bondAllocation;
@@ -347,8 +400,10 @@
         
         // Rebalance annually
         const totalBalance = stockBalance + bondBalance;
-        stockBalance = totalBalance * params.stockAllocation;
-        bondBalance = totalBalance * params.bondAllocation;
+        if (totalBalance > 0) {
+          stockBalance = totalBalance * params.stockAllocation;
+          bondBalance = totalBalance * params.bondAllocation;
+        }
         
         const endBalance = stockBalance + bondBalance;
         
@@ -360,6 +415,8 @@
           contributions: annualContribution,
           withdrawals: annualWithdrawal,
           returns: annualReturn,
+          stockReturn: (yearlyStockReturn * 100).toFixed(2) + '%',
+          bondReturn: (yearlyBondReturn * 100).toFixed(2) + '%',
           endBalance: endBalance,
           netChange: endBalance - startBalance
         });
@@ -401,7 +458,7 @@
           </div>
         </div>
 
-        <h2>Year-by-Year Breakdown (Median Scenario)</h2>
+        <h2>Year-by-Year Breakdown (Simulation #37)</h2>
         <table>
           <thead>
             <tr>
@@ -409,9 +466,11 @@
               <th>Age</th>
               <th>Phase</th>
               <th>Start Balance</th>
+              <th>Stock Return</th>
+              <th>Bond Return</th>
               <th>Contributions</th>
               <th>Withdrawals</th>
-              <th>Investment Returns</th>
+              <th>Total Returns</th>
               <th>End Balance</th>
               <th>Net Change</th>
             </tr>
@@ -429,6 +488,8 @@
             <td>${row.age}</td>
             <td>${row.phase}</td>
             <td>${formatCurrency(row.startBalance)}</td>
+            <td>${row.stockReturn}</td>
+            <td>${row.bondReturn}</td>
             <td class="positive">${row.contributions > 0 ? '+' + formatCurrency(row.contributions) : '—'}</td>
             <td class="negative">${row.withdrawals > 0 ? '-' + formatCurrency(row.withdrawals) : '—'}</td>
             <td class="${row.returns >= 0 ? 'positive' : 'negative'}">${formatCurrency(row.returns, true)}</td>
