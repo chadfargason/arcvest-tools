@@ -1145,24 +1145,25 @@
             {
               label: '80th Percentile',
               data: data.percentile80Path,
-              borderColor: 'rgba(27, 156, 133, 0.5)',
-              backgroundColor: 'rgba(27, 156, 133, 0.2)',
-              fill: '+1',
+              borderColor: 'rgba(27, 156, 133, 0.6)',
+              backgroundColor: 'rgba(27, 156, 133, 0.25)',
+              fill: '+1',  // Fill down to median
               borderWidth: 2,
               pointRadius: 0
             },
             {
-              label: 'Median',
+              label: 'Median (50th)',
               data: data.medianPath,
               borderColor: '#1B9C85',
-              backgroundColor: 'rgba(27, 156, 133, 0.2)',
+              backgroundColor: 'rgba(27, 156, 133, 0.25)',
+              fill: '+1',  // Fill down to 20th percentile
               borderWidth: 3,
               pointRadius: 0
             },
             {
               label: '20th Percentile',
               data: data.percentile20Path,
-              borderColor: 'rgba(27, 156, 133, 0.5)',
+              borderColor: 'rgba(27, 156, 133, 0.6)',
               backgroundColor: 'transparent',
               borderWidth: 2,
               pointRadius: 0
