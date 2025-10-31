@@ -85,7 +85,13 @@ function runMonteCarloSimulation(params: SimulationParams): any {
   const monthlyBondVol = bondVolatility / Math.sqrt(12);
 
   // Run simulations - keep track of simulation index
-  const scenarios: { index: number; balances: number[]; returns: { stock: number[]; bond: number[] } }[] = [];
+  const scenarios: { 
+    index: number; 
+    balances: number[]; 
+    returns: { stock: number[]; bond: number[] };
+    stockBalances: number[];
+    bondBalances: number[];
+  }[] = [];
   const finalBalances: { index: number; balance: number }[] = [];
 
   for (let sim = 0; sim < simulationCount; sim++) {
@@ -112,7 +118,9 @@ function runMonteCarloSimulation(params: SimulationParams): any {
     scenarios.push({
       index: sim,
       balances: scenarioData.balances,
-      returns: scenarioData.returns
+      returns: scenarioData.returns,
+      stockBalances: scenarioData.stockBalances,
+      bondBalances: scenarioData.bondBalances
     });
     
     finalBalances.push({
@@ -158,6 +166,8 @@ function runMonteCarloSimulation(params: SimulationParams): any {
   const medianSimulationDetails = generateYearlyBreakdown(
     medianSimulation.balances,
     medianSimulation.returns,
+    medianSimulation.stockBalances,
+    medianSimulation.bondBalances,
     currentAge,
     yearsToRetirement,
     annualContribution,
@@ -186,6 +196,8 @@ function runMonteCarloSimulation(params: SimulationParams): any {
 function generateYearlyBreakdown(
   monthlyBalances: number[],
   monthlyReturns: { stock: number[]; bond: number[] },
+  monthlyStockBalances: number[],
+  monthlyBondBalances: number[],
   startAge: number,
   yearsToRetirement: number,
   annualContribution: number,
@@ -246,16 +258,26 @@ function generateYearlyBreakdown(
       const monthStartBalance = monthIndex > 0 ? monthlyBalances[monthIndex - 1] : startBalance;
       const monthEndBalance = monthlyBalances[monthIndex];
       
+      // Get actual stock and bond balances at this point
+      const monthStartStockBalance = monthIndex > 0 ? monthlyStockBalances[monthIndex - 1] : startBalance * (monthlyStockBalances[0] / startBalance);
+      const monthStartBondBalance = monthIndex > 0 ? monthlyBondBalances[monthIndex - 1] : startBalance * (monthlyBondBalances[0] / startBalance);
+      const monthEndStockBalance = monthlyStockBalances[monthIndex];
+      const monthEndBondBalance = monthlyBondBalances[monthIndex];
+      
       // Calculate investment returns for this month
       const monthReturns = monthEndBalance - monthStartBalance - monthContribution + monthWithdrawal;
       const monthNetChange = monthEndBalance - monthStartBalance;
       
-      // Store monthly details
+      // Store monthly details with actual asset balances (both start and end)
       monthlyDetails.push({
         month: month + 1,
         monthName: ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'][month],
         startBalance: monthStartBalance,
         balance: monthEndBalance,
+        startStockBalance: monthStartStockBalance,  // ← START balance (for verification)
+        startBondBalance: monthStartBondBalance,    // ← START balance (for verification)
+        stockBalance: monthEndStockBalance,         // ← END balance (after returns + contributions)
+        bondBalance: monthEndBondBalance,           // ← END balance (after returns + contributions)
         stockReturn: (stockRet * 100).toFixed(2) + '%',
         bondReturn: (bondRet * 100).toFixed(2) + '%',
         contribution: monthContribution,
@@ -313,7 +335,7 @@ function runSingleScenario(
   correlation: number,
   rebalance: boolean,
   degreesOfFreedom: number
-): { balances: number[]; returns: { stock: number[]; bond: number[] } } {
+): { balances: number[]; returns: { stock: number[]; bond: number[] }; stockBalances: number[]; bondBalances: number[] } {
   const balances: number[] = [startingBalance];
   const stockReturns: number[] = [0]; // First month has no return
   const bondReturns: number[] = [0];
@@ -323,6 +345,10 @@ function runSingleScenario(
   // Asset balances (for rebalancing)
   let stockBalance = balance * stockAllocation;
   let bondBalance = balance * bondAllocation;
+  
+  // Track individual asset balances over time
+  const stockBalances: number[] = [stockBalance];
+  const bondBalances: number[] = [bondBalance];
 
   let currentContribution = annualContribution / 12;
   
@@ -398,6 +424,8 @@ function runSingleScenario(
     }
 
     balances.push(balance);
+    stockBalances.push(stockBalance);
+    bondBalances.push(bondBalance);
   }
 
   return {
@@ -405,7 +433,9 @@ function runSingleScenario(
     returns: {
       stock: stockReturns,
       bond: bondReturns
-    }
+    },
+    stockBalances,
+    bondBalances
   };
 }
 

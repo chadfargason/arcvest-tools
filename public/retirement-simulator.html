@@ -1055,17 +1055,25 @@
             const monthNetClass = (monthData.netChange || 0) >= 0 ? 'positive' : 'negative';
             const monthReturnClass = (monthData.returns || 0) >= 0 ? 'positive' : 'negative';
             
-            // Calculate allocation percentage
-            const stockPct = monthData.stockBalance && monthData.balance ? ((monthData.stockBalance / monthData.balance) * 100).toFixed(1) : '0.0';
-            const bondPct = monthData.bondBalance && monthData.balance ? ((monthData.bondBalance / monthData.balance) * 100).toFixed(1) : '0.0';
+            // Calculate allocation percentage at START of month (for verification)
+            const startStockPct = monthData.startStockBalance && monthData.startBalance ? 
+              ((monthData.startStockBalance / monthData.startBalance) * 100).toFixed(1) : '0.0';
+            const startBondPct = monthData.startBondBalance && monthData.startBalance ? 
+              ((monthData.startBondBalance / monthData.startBalance) * 100).toFixed(1) : '0.0';
+            
+            // Verify the calculation: startStock × stockReturn + startBond × bondReturn = returns
+            const stockReturnNum = parseFloat(monthData.stockReturn) / 100;
+            const bondReturnNum = parseFloat(monthData.bondReturn) / 100;
+            const calculatedReturns = (monthData.startStockBalance || 0) * stockReturnNum + 
+                                     (monthData.startBondBalance || 0) * bondReturnNum;
             
             html += `
               <tr class="monthly-row monthly-year-${row.year}">
                 <td class="monthly-label" colspan="3">
                   ${monthData.monthName} (Month ${monthData.month})
                   <span style="color: var(--muted); font-size: 10px; margin-left: 8px;">
-                    Stocks: ${formatCurrency(monthData.stockBalance || 0)} (${stockPct}%) | 
-                    Bonds: ${formatCurrency(monthData.bondBalance || 0)} (${bondPct}%)
+                    START: Stocks ${formatCurrency(monthData.startStockBalance || 0, true)} (${startStockPct}%) | 
+                    Bonds ${formatCurrency(monthData.startBondBalance || 0, true)} (${startBondPct}%)
                   </span>
                 </td>
                 <td>${formatCurrency(monthData.startBalance || 0)}</td>
@@ -1073,7 +1081,7 @@
                 <td>${monthData.bondReturn || '0.00%'}</td>
                 <td class="positive">${(monthData.contribution || 0) > 0 ? '+' + formatCurrency(monthData.contribution) : '—'}</td>
                 <td class="negative">${(monthData.withdrawal || 0) > 0 ? '-' + formatCurrency(monthData.withdrawal) : '—'}</td>
-                <td class="${monthReturnClass}">${formatCurrency(monthData.returns || 0, true)}</td>
+                <td class="${monthReturnClass}" title="Calculated: ${formatCurrency(calculatedReturns)}">${formatCurrency(monthData.returns || 0, true)}</td>
                 <td><strong>${formatCurrency(monthData.balance || 0)}</strong></td>
                 <td class="${monthNetClass}">${formatCurrency(monthData.netChange || 0, true)}</td>
               </tr>
