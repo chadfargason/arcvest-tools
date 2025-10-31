@@ -407,8 +407,8 @@ function runSingleScenario(
         stockBalance += currentContribution * stockAllocation;
         bondBalance += currentContribution * bondAllocation;
 
-        // Adjust contribution for growth (annually)
-        if (month % 12 === 0) {
+        // Adjust contribution for growth (annually) - at end of each year
+        if ((month + 1) % 12 === 0) {
           currentContribution *= (1 + contributionGrowth);
         }
       }
@@ -420,14 +420,14 @@ function runSingleScenario(
       stockBalance -= currentWithdrawal * stockAllocation;
       bondBalance -= currentWithdrawal * bondAllocation;
 
-      // Adjust withdrawal for inflation (annually)
-      if (month % 12 === 0) {
+      // Adjust withdrawal for inflation (annually) - at end of each year
+      if ((month + 1) % 12 === 0) {
         currentWithdrawal *= (1 + withdrawalInflation);
       }
     }
 
-    // Rebalance annually if enabled
-    if (rebalance && month % 12 === 0 && balance > 0) {
+    // Rebalance annually if enabled - at end of each year (months 11, 23, 35, etc.)
+    if (rebalance && (month + 1) % 12 === 0 && balance > 0) {
       stockBalance = balance * stockAllocation;
       bondBalance = balance * bondAllocation;
     }
