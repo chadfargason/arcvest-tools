@@ -389,6 +389,104 @@
       border-color: #3b82f6;
       color: #1e40af;
     }
+
+    /* Detailed Outcome Table */
+    .detailed-table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 24px;
+      font-size: 13px;
+    }
+
+    .detailed-table th,
+    .detailed-table td {
+      padding: 10px 8px;
+      text-align: right;
+      border-bottom: 1px solid var(--ast-border-color);
+    }
+
+    .detailed-table th {
+      background: #fafafa;
+      font-weight: 600;
+      text-transform: uppercase;
+      font-size: 11px;
+      letter-spacing: 0.05em;
+      color: var(--text-dark);
+      position: sticky;
+      top: 0;
+      z-index: 1;
+    }
+
+    .detailed-table th:first-child,
+    .detailed-table td:first-child {
+      text-align: left;
+    }
+
+    .detailed-table tr:hover {
+      background: #f9f9f9;
+    }
+
+    .detailed-table .phase-accumulation {
+      background: rgba(27, 156, 133, 0.05);
+    }
+
+    .detailed-table .phase-retirement {
+      background: rgba(245, 158, 11, 0.05);
+    }
+
+    .detailed-table .positive {
+      color: #059669;
+    }
+
+    .detailed-table .negative {
+      color: #dc2626;
+    }
+
+    .detailed-summary {
+      background: #fafafa;
+      border: 1px solid var(--ast-border-color);
+      border-radius: var(--radius);
+      padding: 20px;
+      margin-bottom: 24px;
+    }
+
+    .detailed-summary h4 {
+      font-size: 16px;
+      font-weight: 600;
+      color: var(--text-dark);
+      margin-bottom: 12px;
+    }
+
+    .detailed-summary p {
+      color: var(--muted);
+      margin-bottom: 16px;
+      font-size: 14px;
+    }
+
+    .summary-stats {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 16px;
+    }
+
+    .summary-stat {
+      display: flex;
+      flex-direction: column;
+    }
+
+    .summary-stat-label {
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: var(--muted);
+      margin-bottom: 4px;
+    }
+
+    .summary-stat-value {
+      font-size: 20px;
+      font-weight: 700;
+      color: var(--text-dark);
+    }
   </style>
 </head>
 <body>
@@ -404,6 +502,7 @@
       <button class="tab" data-tab="contributions">Contributions</button>
       <button class="tab" data-tab="retirement">Retirement</button>
       <button class="tab" data-tab="advanced">Advanced</button>
+      <button class="tab" data-tab="detailed">Detailed Outcome</button>
     </div>
 
     <!-- Tab 1: Portfolio -->
@@ -561,6 +660,20 @@
           <input type="number" class="form-input" id="correlation" value="0.2" min="-1" max="1" step="0.05">
           <div class="form-help">Correlation between stocks and bonds</div>
         </div>
+      </div>
+    </div>
+
+    <!-- Tab 5: Detailed Outcome -->
+    <div class="tab-content" id="detailed-tab">
+      <h3 style="font-size: 18px; font-weight: 600; color: var(--text-dark); margin-bottom: 16px;">Year-by-Year Breakdown</h3>
+      <p style="color: var(--muted); margin-bottom: 16px;">
+        After running the simulation, this tab will show the detailed year-by-year progression of the median scenario.
+        The median scenario is the one that ranked 500th out of 1,000 simulations by final balance.
+      </p>
+      <div id="detailedOutcome">
+        <p style="color: var(--muted); text-align: center; padding: 40px;">
+          Run the simulation to see detailed year-by-year results
+        </p>
       </div>
     </div>
 
@@ -794,6 +907,99 @@
       // Draw charts after HTML is ready
       drawPortfolioChart(data);
       drawDistributionChart(data);
+      
+      // Populate Detailed Outcome tab
+      populateDetailedOutcome(data);
+    }
+
+    function populateDetailedOutcome(data) {
+      const detailedDiv = document.getElementById('detailedOutcome');
+      
+      if (!data.medianSimulationDetails || data.medianSimulationDetails.length === 0) {
+        detailedDiv.innerHTML = '<p style="color: var(--muted); text-align: center; padding: 40px;">No detailed data available</p>';
+        return;
+      }
+
+      const yearData = data.medianSimulationDetails;
+      const finalBalance = yearData[yearData.length - 1].endBalance;
+      const totalContributions = yearData.reduce((sum, y) => sum + y.contributions, 0);
+      const totalWithdrawals = yearData.reduce((sum, y) => sum + y.withdrawals, 0);
+      const totalReturns = yearData.reduce((sum, y) => sum + y.returns, 0);
+
+      let html = `
+        <div class="detailed-summary">
+          <h4>Median Scenario Details (Simulation #${data.medianSimulationIndex})</h4>
+          <p>This shows the year-by-year progression of the simulation that had the median final balance (ranked 500th out of 1,000 scenarios).</p>
+          <div class="summary-stats">
+            <div class="summary-stat">
+              <div class="summary-stat-label">Final Balance</div>
+              <div class="summary-stat-value">${formatCurrency(finalBalance)}</div>
+            </div>
+            <div class="summary-stat">
+              <div class="summary-stat-label">Total Contributions</div>
+              <div class="summary-stat-value positive">${formatCurrency(totalContributions)}</div>
+            </div>
+            <div class="summary-stat">
+              <div class="summary-stat-label">Total Withdrawals</div>
+              <div class="summary-stat-value negative">${formatCurrency(totalWithdrawals)}</div>
+            </div>
+            <div class="summary-stat">
+              <div class="summary-stat-label">Total Investment Returns</div>
+              <div class="summary-stat-value">${formatCurrency(totalReturns)}</div>
+            </div>
+            <div class="summary-stat">
+              <div class="summary-stat-label">Net Gain</div>
+              <div class="summary-stat-value">${formatCurrency(finalBalance - yearData[0].startBalance)}</div>
+            </div>
+          </div>
+        </div>
+
+        <table class="detailed-table">
+          <thead>
+            <tr>
+              <th>Year</th>
+              <th>Age</th>
+              <th>Phase</th>
+              <th>Start Balance</th>
+              <th>Stock Return</th>
+              <th>Bond Return</th>
+              <th>Contributions</th>
+              <th>Withdrawals</th>
+              <th>Total Returns</th>
+              <th>End Balance</th>
+              <th>Net Change</th>
+            </tr>
+          </thead>
+          <tbody>
+      `;
+
+      yearData.forEach(row => {
+        const phaseClass = row.phase === 'Accumulation' ? 'phase-accumulation' : 'phase-retirement';
+        const netClass = row.netChange >= 0 ? 'positive' : 'negative';
+
+        html += `
+          <tr class="${phaseClass}">
+            <td>${row.year}</td>
+            <td>${row.age}</td>
+            <td>${row.phase}</td>
+            <td>${formatCurrency(row.startBalance)}</td>
+            <td>${row.stockReturn}</td>
+            <td>${row.bondReturn}</td>
+            <td class="positive">${row.contributions > 0 ? '+' + formatCurrency(row.contributions) : '—'}</td>
+            <td class="negative">${row.withdrawals > 0 ? '-' + formatCurrency(row.withdrawals) : '—'}</td>
+            <td class="${row.returns >= 0 ? 'positive' : 'negative'}">${formatCurrency(row.returns, true)}</td>
+            <td><strong>${formatCurrency(row.endBalance)}</strong></td>
+            <td class="${netClass}">${formatCurrency(row.netChange, true)}</td>
+          </tr>
+        `;
+      });
+
+      html += `
+          </tbody>
+        </table>
+      `;
+
+      detailedDiv.innerHTML = html;
     }
 
     function drawPortfolioChart(data) {
