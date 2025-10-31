@@ -1,0 +1,459 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Retirement Simulator Debug - ArcVest</title>
+  <link href="https://fonts.googleapis.com/css2?family=Lora:wght@400;600;700&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --brand: #1B9C85;
+      --text-dark: #0F172A;
+      --text: #454F5E;
+      --muted: #808285;
+      --border: #dddddd;
+      --sans: 'Lora', serif;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: var(--sans);
+      background: #fff;
+      color: var(--text);
+      padding: 20px;
+      line-height: 1.6;
+    }
+
+    .container {
+      max-width: 1400px;
+      margin: 0 auto;
+    }
+
+    h1 {
+      font-size: 28px;
+      color: var(--text-dark);
+      margin-bottom: 10px;
+    }
+
+    h2 {
+      font-size: 20px;
+      color: var(--text-dark);
+      margin: 30px 0 15px;
+    }
+
+    .intro {
+      background: #f0f9f7;
+      border-left: 4px solid var(--brand);
+      padding: 15px;
+      margin-bottom: 30px;
+      color: var(--text-dark);
+    }
+
+    .params {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+      gap: 15px;
+      margin-bottom: 30px;
+    }
+
+    .param-card {
+      background: #fafafa;
+      border: 1px solid var(--border);
+      padding: 15px;
+    }
+
+    .param-label {
+      font-size: 12px;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: var(--muted);
+      margin-bottom: 5px;
+    }
+
+    .param-value {
+      font-size: 20px;
+      font-weight: 600;
+      color: var(--text-dark);
+    }
+
+    .btn {
+      background: var(--brand);
+      color: #fff;
+      border: none;
+      padding: 12px 24px;
+      font-family: var(--sans);
+      font-size: 16px;
+      font-weight: 600;
+      cursor: pointer;
+      margin-bottom: 20px;
+    }
+
+    .btn:hover {
+      background: #178E79;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-bottom: 30px;
+      font-size: 14px;
+    }
+
+    th, td {
+      padding: 10px;
+      text-align: right;
+      border-bottom: 1px solid var(--border);
+    }
+
+    th {
+      background: #fafafa;
+      font-weight: 600;
+      text-transform: uppercase;
+      font-size: 11px;
+      letter-spacing: 0.05em;
+      color: var(--text-dark);
+      position: sticky;
+      top: 0;
+    }
+
+    th:first-child, td:first-child {
+      text-align: left;
+    }
+
+    tr:hover {
+      background: #f9f9f9;
+    }
+
+    .phase-accumulation {
+      background: rgba(27, 156, 133, 0.05);
+    }
+
+    .phase-retirement {
+      background: rgba(245, 158, 11, 0.05);
+    }
+
+    .loading {
+      text-align: center;
+      padding: 40px;
+      color: var(--muted);
+    }
+
+    .positive { color: #059669; }
+    .negative { color: #dc2626; }
+    .zero { color: var(--muted); }
+
+    .summary {
+      background: #fafafa;
+      border: 2px solid var(--brand);
+      padding: 20px;
+      margin: 30px 0;
+    }
+
+    .summary h3 {
+      color: var(--text-dark);
+      margin-bottom: 15px;
+    }
+
+    .summary-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 15px;
+    }
+
+    .summary-item {
+      display: flex;
+      flex-direction: column;
+    }
+
+    .summary-label {
+      font-size: 12px;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: var(--muted);
+      margin-bottom: 3px;
+    }
+
+    .summary-value {
+      font-size: 22px;
+      font-weight: 700;
+      color: var(--text-dark);
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>🔍 Retirement Simulator - Median Scenario Debug</h1>
+    
+    <div class="intro">
+      <strong>Purpose:</strong> This page shows the detailed year-by-year progression of the MEDIAN (50th percentile) scenario.
+      Use this to verify the simulation math is correct.
+    </div>
+
+    <h2>Simulation Parameters</h2>
+    <div class="params" id="params"></div>
+
+    <button class="btn" id="runDebug">Run Median Scenario</button>
+
+    <div id="results"></div>
+  </div>
+
+  <script>
+    // Default parameters
+    const params = {
+      startingBalance: 100000,
+      currentAge: 30,
+      retirementAge: 65,
+      annualContribution: 10000,
+      contributionGrowth: 0.03,
+      yearsContributing: 30,
+      annualWithdrawal: 40000,
+      withdrawalInflation: 0.025,
+      yearsInRetirement: 30,
+      stockAllocation: 0.70,
+      bondAllocation: 0.30,
+      stockReturn: 0.08,
+      stockVolatility: 0.17,
+      bondReturn: 0.045,
+      bondVolatility: 0.07,
+      correlation: 0.2
+    };
+
+    // Display parameters
+    function displayParams() {
+      const paramsDiv = document.getElementById('params');
+      paramsDiv.innerHTML = `
+        <div class="param-card">
+          <div class="param-label">Starting Balance</div>
+          <div class="param-value">$${params.startingBalance.toLocaleString()}</div>
+        </div>
+        <div class="param-card">
+          <div class="param-label">Age Range</div>
+          <div class="param-value">${params.currentAge} → ${params.retirementAge + params.yearsInRetirement}</div>
+        </div>
+        <div class="param-card">
+          <div class="param-label">Retirement Age</div>
+          <div class="param-value">${params.retirementAge}</div>
+        </div>
+        <div class="param-card">
+          <div class="param-label">Allocation</div>
+          <div class="param-value">${(params.stockAllocation * 100).toFixed(0)}% stocks / ${(params.bondAllocation * 100).toFixed(0)}% bonds</div>
+        </div>
+        <div class="param-card">
+          <div class="param-label">Annual Contribution</div>
+          <div class="param-value">$${params.annualContribution.toLocaleString()}</div>
+        </div>
+        <div class="param-card">
+          <div class="param-label">Contribution Growth</div>
+          <div class="param-value">${(params.contributionGrowth * 100).toFixed(1)}%/year</div>
+        </div>
+        <div class="param-card">
+          <div class="param-label">Annual Withdrawal</div>
+          <div class="param-value">$${params.annualWithdrawal.toLocaleString()}</div>
+        </div>
+        <div class="param-card">
+          <div class="param-label">Withdrawal Inflation</div>
+          <div class="param-value">${(params.withdrawalInflation * 100).toFixed(1)}%/year</div>
+        </div>
+        <div class="param-card">
+          <div class="param-label">Stock Return (expected)</div>
+          <div class="param-value">${(params.stockReturn * 100).toFixed(1)}%</div>
+        </div>
+        <div class="param-card">
+          <div class="param-label">Bond Return (expected)</div>
+          <div class="param-value">${(params.bondReturn * 100).toFixed(1)}%</div>
+        </div>
+        <div class="param-card">
+          <div class="param-label">Stock Volatility</div>
+          <div class="param-value">${(params.stockVolatility * 100).toFixed(1)}%</div>
+        </div>
+        <div class="param-card">
+          <div class="param-label">Correlation</div>
+          <div class="param-value">${params.correlation.toFixed(2)}</div>
+        </div>
+      `;
+    }
+
+    // Run median scenario (using expected returns, not random)
+    document.getElementById('runDebug').addEventListener('click', () => {
+      document.getElementById('results').innerHTML = '<div class="loading">Calculating median scenario...</div>';
+      
+      setTimeout(() => {
+        const result = runMedianScenario();
+        displayResults(result);
+      }, 100);
+    });
+
+    function runMedianScenario() {
+      const yearsToRetirement = params.retirementAge - params.currentAge;
+      const totalYears = yearsToRetirement + params.yearsInRetirement;
+      
+      // Use EXPECTED returns (no randomness) for median scenario
+      const monthlyStockReturn = params.stockReturn / 12;
+      const monthlyBondReturn = params.bondReturn / 12;
+      
+      let stockBalance = params.startingBalance * params.stockAllocation;
+      let bondBalance = params.startingBalance * params.bondAllocation;
+      let currentContribution = params.annualContribution / 12;
+      let currentWithdrawal = params.annualWithdrawal / 12;
+      
+      const yearData = [];
+      
+      // Track by year
+      for (let year = 0; year <= totalYears; year++) {
+        const age = params.currentAge + year;
+        const isRetired = year > yearsToRetirement;
+        const startBalance = stockBalance + bondBalance;
+        
+        let annualContribution = 0;
+        let annualWithdrawal = 0;
+        let annualReturn = 0;
+        
+        // Process 12 months for this year
+        for (let month = 0; month < 12; month++) {
+          const monthNum = year * 12 + month;
+          
+          // Apply monthly returns
+          const stockGain = stockBalance * monthlyStockReturn;
+          const bondGain = bondBalance * monthlyBondReturn;
+          stockBalance += stockGain;
+          bondBalance += bondGain;
+          annualReturn += stockGain + bondGain;
+          
+          // Contributions or withdrawals
+          if (!isRetired && monthNum <= params.yearsContributing * 12) {
+            // Accumulation phase
+            stockBalance += currentContribution * params.stockAllocation;
+            bondBalance += currentContribution * params.bondAllocation;
+            annualContribution += currentContribution;
+          } else if (isRetired) {
+            // Withdrawal phase
+            stockBalance -= currentWithdrawal * params.stockAllocation;
+            bondBalance -= currentWithdrawal * params.bondAllocation;
+            annualWithdrawal += currentWithdrawal;
+          }
+          
+          // Prevent negative
+          if (stockBalance < 0) stockBalance = 0;
+          if (bondBalance < 0) bondBalance = 0;
+        }
+        
+        // Adjust contributions/withdrawals annually
+        if (year > 0 && !isRetired) {
+          currentContribution *= (1 + params.contributionGrowth);
+        }
+        if (year > 0 && isRetired) {
+          currentWithdrawal *= (1 + params.withdrawalInflation);
+        }
+        
+        // Rebalance annually
+        const totalBalance = stockBalance + bondBalance;
+        stockBalance = totalBalance * params.stockAllocation;
+        bondBalance = totalBalance * params.bondAllocation;
+        
+        const endBalance = stockBalance + bondBalance;
+        
+        yearData.push({
+          year: year,
+          age: age,
+          phase: isRetired ? 'Retirement' : 'Accumulation',
+          startBalance: startBalance,
+          contributions: annualContribution,
+          withdrawals: annualWithdrawal,
+          returns: annualReturn,
+          endBalance: endBalance,
+          netChange: endBalance - startBalance
+        });
+      }
+      
+      return yearData;
+    }
+
+    function displayResults(yearData) {
+      const finalBalance = yearData[yearData.length - 1].endBalance;
+      const totalContributions = yearData.reduce((sum, y) => sum + y.contributions, 0);
+      const totalWithdrawals = yearData.reduce((sum, y) => sum + y.withdrawals, 0);
+      const totalReturns = yearData.reduce((sum, y) => sum + y.returns, 0);
+      
+      let html = `
+        <div class="summary">
+          <h3>Median Scenario Summary</h3>
+          <div class="summary-grid">
+            <div class="summary-item">
+              <div class="summary-label">Final Balance</div>
+              <div class="summary-value">${formatCurrency(finalBalance)}</div>
+            </div>
+            <div class="summary-item">
+              <div class="summary-label">Total Contributions</div>
+              <div class="summary-value positive">${formatCurrency(totalContributions)}</div>
+            </div>
+            <div class="summary-item">
+              <div class="summary-label">Total Withdrawals</div>
+              <div class="summary-value negative">${formatCurrency(totalWithdrawals)}</div>
+            </div>
+            <div class="summary-item">
+              <div class="summary-label">Total Investment Returns</div>
+              <div class="summary-value">${formatCurrency(totalReturns)}</div>
+            </div>
+            <div class="summary-item">
+              <div class="summary-label">Net Gain</div>
+              <div class="summary-value">${formatCurrency(finalBalance - params.startingBalance)}</div>
+            </div>
+          </div>
+        </div>
+
+        <h2>Year-by-Year Breakdown (Median Scenario)</h2>
+        <table>
+          <thead>
+            <tr>
+              <th>Year</th>
+              <th>Age</th>
+              <th>Phase</th>
+              <th>Start Balance</th>
+              <th>Contributions</th>
+              <th>Withdrawals</th>
+              <th>Investment Returns</th>
+              <th>End Balance</th>
+              <th>Net Change</th>
+            </tr>
+          </thead>
+          <tbody>
+      `;
+      
+      yearData.forEach(row => {
+        const phaseClass = row.phase === 'Accumulation' ? 'phase-accumulation' : 'phase-retirement';
+        const netClass = row.netChange >= 0 ? 'positive' : 'negative';
+        
+        html += `
+          <tr class="${phaseClass}">
+            <td>${row.year}</td>
+            <td>${row.age}</td>
+            <td>${row.phase}</td>
+            <td>${formatCurrency(row.startBalance)}</td>
+            <td class="positive">${row.contributions > 0 ? '+' + formatCurrency(row.contributions) : '—'}</td>
+            <td class="negative">${row.withdrawals > 0 ? '-' + formatCurrency(row.withdrawals) : '—'}</td>
+            <td class="${row.returns >= 0 ? 'positive' : 'negative'}">${formatCurrency(row.returns, true)}</td>
+            <td><strong>${formatCurrency(row.endBalance)}</strong></td>
+            <td class="${netClass}">${formatCurrency(row.netChange, true)}</td>
+          </tr>
+        `;
+      });
+      
+      html += `
+          </tbody>
+        </table>
+      `;
+      
+      document.getElementById('results').innerHTML = html;
+    }
+
+    function formatCurrency(value, showSign = false) {
+      const sign = showSign && value > 0 ? '+' : '';
+      return sign + '$' + Math.round(value).toLocaleString();
+    }
+
+    // Initialize
+    displayParams();
+  </script>
+</body>
+</html>
+
