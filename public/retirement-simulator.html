@@ -1198,13 +1198,17 @@
         distributionChart.destroy();
       }
 
+      // Debug: Log the data
+      console.log('Distribution labels:', data.distributionLabels);
+      console.log('Distribution percentages:', data.distributionPercentages);
+
       distributionChart = new Chart(ctx, {
         type: 'bar',
         data: {
-          labels: data.distributionLabels,
+          labels: data.distributionLabels || [],
           datasets: [{
             label: 'Percentage of Simulations',
-            data: data.distributionPercentages,
+            data: data.distributionPercentages || [],
             backgroundColor: 'rgba(27, 156, 133, 0.6)',
             borderColor: '#1B9C85',
             borderWidth: 1
@@ -1239,7 +1243,9 @@
               beginAtZero: true,
               max: 100,
               ticks: {
-                callback: (value) => value + '%'
+                callback: function(value) {
+                  return value.toFixed(0) + '%';
+                }
               }
             }
           }
