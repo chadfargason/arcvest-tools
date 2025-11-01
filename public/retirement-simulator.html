@@ -973,22 +973,22 @@
         <div class="results-grid">
           <div class="result-card">
             <div class="result-label">Stock Return (Median)</div>
-            <div class="result-value">${calculateMedian(data.stockReturnDistribution).toFixed(2)}%</div>
+            <div class="result-value">${(data.stockReturnDistribution && data.stockReturnDistribution.length > 0) ? calculateMedian(data.stockReturnDistribution).toFixed(2) + '%' : 'N/A'}</div>
           </div>
 
           <div class="result-card">
             <div class="result-label">Stock Return (20th-80th)</div>
-            <div class="result-value">${calculatePercentile(data.stockReturnDistribution, 0.2).toFixed(2)}% to ${calculatePercentile(data.stockReturnDistribution, 0.8).toFixed(2)}%</div>
+            <div class="result-value">${(data.stockReturnDistribution && data.stockReturnDistribution.length > 0) ? calculatePercentile(data.stockReturnDistribution, 0.2).toFixed(2) + '% to ' + calculatePercentile(data.stockReturnDistribution, 0.8).toFixed(2) + '%' : 'N/A'}</div>
           </div>
 
           <div class="result-card">
             <div class="result-label">Bond Return (Median)</div>
-            <div class="result-value">${calculateMedian(data.bondReturnDistribution).toFixed(2)}%</div>
+            <div class="result-value">${(data.bondReturnDistribution && data.bondReturnDistribution.length > 0) ? calculateMedian(data.bondReturnDistribution).toFixed(2) + '%' : 'N/A'}</div>
           </div>
 
           <div class="result-card">
             <div class="result-label">Bond Return (20th-80th)</div>
-            <div class="result-value">${calculatePercentile(data.bondReturnDistribution, 0.2).toFixed(2)}% to ${calculatePercentile(data.bondReturnDistribution, 0.8).toFixed(2)}%</div>
+            <div class="result-value">${(data.bondReturnDistribution && data.bondReturnDistribution.length > 0) ? calculatePercentile(data.bondReturnDistribution, 0.2).toFixed(2) + '% to ' + calculatePercentile(data.bondReturnDistribution, 0.8).toFixed(2) + '%' : 'N/A'}</div>
           </div>
         </div>
 
@@ -1108,15 +1108,21 @@
             const startBal = monthData.startBalance ?? 0;
             
             // Calculate allocation percentage at START of month (for verification)
-            const startStockPct = (startBal > 0 && startStockBal) ? 
-              ((startStockBal / startBal) * 100).toFixed(1) : '0.0';
-            const startBondPct = (startBal > 0 && startBondBal) ? 
-              ((startBondBal / startBal) * 100).toFixed(1) : '0.0';
+            let startStockPct = '0.0';
+            let startBondPct = '0.0';
+            
+            if (startBal > 0 && !isNaN(startBal)) {
+              const stockPctVal = (startStockBal / startBal) * 100;
+              const bondPctVal = (startBondBal / startBal) * 100;
+              startStockPct = !isNaN(stockPctVal) ? stockPctVal.toFixed(1) : '0.0';
+              startBondPct = !isNaN(bondPctVal) ? bondPctVal.toFixed(1) : '0.0';
+            }
             
             // Verify the calculation: startStock × stockReturn + startBond × bondReturn = returns
             const stockReturnNum = parseFloat(monthData.stockReturn || '0') / 100;
             const bondReturnNum = parseFloat(monthData.bondReturn || '0') / 100;
-            const calculatedReturns = startStockBal * stockReturnNum + startBondBal * bondReturnNum;
+            const calculatedReturns = (startStockBal * stockReturnNum) + (startBondBal * bondReturnNum);
+            const safeCalculatedReturns = !isNaN(calculatedReturns) ? calculatedReturns : 0;
             
             html += `
               <tr class="monthly-row monthly-year-${row.year}">
@@ -1130,11 +1136,11 @@
                 <td>${formatCurrency(monthData.startBalance || 0)}</td>
                 <td>${monthData.stockReturn || '0.0%'}</td>
                 <td>${monthData.bondReturn || '0.0%'}</td>
-                <td class="${monthReturnClass}" title="Calculated: ${formatCurrency(calculatedReturns)}">${formatCurrency(monthData.returns || 0, true)}</td>
-                <td class="positive">${(monthData.contribution || 0) > 0 ? '+' + formatCurrency(monthData.contribution) : '—'}</td>
-                <td class="negative">${(monthData.withdrawalGross || 0) > 0 ? '-' + formatCurrency(monthData.withdrawalGross) : '—'}</td>
-                <td class="negative">${(monthData.tax || 0) > 0 ? '-' + formatCurrency(monthData.tax) : '—'}</td>
-                <td style="color: var(--text-dark);">${(monthData.withdrawalNet || 0) > 0 ? formatCurrency(monthData.withdrawalNet) : '—'}</td>
+                <td class="${monthReturnClass}" title="Calculated: ${formatCurrency(safeCalculatedReturns)}">${formatCurrency(monthData.returns || 0, true)}</td>
+                <td class="positive">${(monthData.contribution || 0) > 0 ? '+' + formatCurrency(monthData.contribution || 0) : '—'}</td>
+                <td class="negative">${(monthData.withdrawalGross || 0) > 0 ? '-' + formatCurrency(monthData.withdrawalGross || 0) : '—'}</td>
+                <td class="negative">${(monthData.tax || 0) > 0 ? '-' + formatCurrency(monthData.tax || 0) : '—'}</td>
+                <td style="color: var(--text-dark);">${(monthData.withdrawalNet || 0) > 0 ? formatCurrency(monthData.withdrawalNet || 0) : '—'}</td>
                 <td><strong>${formatCurrency(monthData.balance || 0)}</strong></td>
                 <td class="${monthNetClass}">${formatCurrency(monthData.netChange || 0, true)}</td>
               </tr>
@@ -1326,6 +1332,11 @@
     }
 
     function formatCurrency(value, short = false) {
+      // Handle null, undefined, NaN
+      if (value === null || value === undefined || isNaN(value)) {
+        return '$0';
+      }
+      
       if (value < 0) {
         return '-$' + Math.abs(value).toLocaleString('en-US', { maximumFractionDigits: 0 });
       }
