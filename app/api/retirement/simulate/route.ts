@@ -375,7 +375,14 @@ function runSingleScenario(
   degreesOfFreedom: number,
   taxablePortion: number,
   taxRate: number
-): { balances: number[]; returns: { stock: number[]; bond: number[] }; stockBalances: number[]; bondBalances: number[] } {
+): { 
+  balances: number[]; 
+  returns: { stock: number[]; bond: number[] }; 
+  stockBalances: number[]; 
+  bondBalances: number[];
+  annualizedStockReturn: number;
+  annualizedBondReturn: number;
+} {
   const balances: number[] = [startingBalance];
   const stockReturns: number[] = [];
   const bondReturns: number[] = [];
