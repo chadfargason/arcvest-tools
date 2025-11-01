@@ -877,14 +877,12 @@
         return;
       }
 
-      // Collect allocation
+      // Collect allocation - include 0% allocations!
       const allocation = {};
       document.querySelectorAll('.allocation-input').forEach(input => {
         const ticker = input.dataset.ticker;
         const value = parseFloat(input.value) || 0;
-        if (value > 0) {
-          allocation[ticker] = value;
-        }
+        allocation[ticker] = value;  // Include even if 0!
       });
 
       // Collect parameters
