@@ -709,8 +709,8 @@
 
         <div class="form-group">
           <label class="form-label">Degrees of Freedom</label>
-          <input type="number" class="form-input" id="degreesOfFreedom" value="4" min="2" max="100" step="1">
-          <div class="form-help">Fat tails: Use 4 for realistic extremes, 30+ for normal distribution</div>
+          <input type="number" class="form-input" id="degreesOfFreedom" value="5" min="2" max="100" step="1">
+          <div class="form-help">Fat tails: Use 5 for realistic extremes, 30+ for normal distribution</div>
         </div>
       </div>
 
@@ -860,7 +860,7 @@
         document.getElementById('bondReturn').value = 4.5;
         document.getElementById('bondVolatility').value = 7.0;
         document.getElementById('correlation').value = 0.2;
-        document.getElementById('degreesOfFreedom').value = 4;
+        document.getElementById('degreesOfFreedom').value = 5;
         document.getElementById('taxablePortion').value = 75;
         document.getElementById('taxRate').value = 25;
         
@@ -966,6 +966,29 @@
           <div class="result-card">
             <div class="result-label">80th Percentile</div>
             <div class="result-value">${formatCurrency(data.percentile80)}</div>
+          </div>
+        </div>
+
+        <h3 style="font-size: 18px; font-weight: 600; color: var(--text-dark); margin: 24px 0 16px;">Annualized Return Distributions</h3>
+        <div class="results-grid">
+          <div class="result-card">
+            <div class="result-label">Stock Return (Median)</div>
+            <div class="result-value">${calculateMedian(data.stockReturnDistribution).toFixed(2)}%</div>
+          </div>
+
+          <div class="result-card">
+            <div class="result-label">Stock Return (20th-80th)</div>
+            <div class="result-value">${calculatePercentile(data.stockReturnDistribution, 0.2).toFixed(2)}% to ${calculatePercentile(data.stockReturnDistribution, 0.8).toFixed(2)}%</div>
+          </div>
+
+          <div class="result-card">
+            <div class="result-label">Bond Return (Median)</div>
+            <div class="result-value">${calculateMedian(data.bondReturnDistribution).toFixed(2)}%</div>
+          </div>
+
+          <div class="result-card">
+            <div class="result-label">Bond Return (20th-80th)</div>
+            <div class="result-value">${calculatePercentile(data.bondReturnDistribution, 0.2).toFixed(2)}% to ${calculatePercentile(data.bondReturnDistribution, 0.8).toFixed(2)}%</div>
           </div>
         </div>
 
@@ -1314,6 +1337,19 @@
       }
       
       return '$' + value.toLocaleString('en-US', { maximumFractionDigits: 0 });
+    }
+
+    // Helper functions for return distribution statistics
+    function calculateMedian(arr) {
+      if (!arr || arr.length === 0) return 0;
+      const sorted = [...arr].sort((a, b) => a - b);
+      return sorted[Math.floor(sorted.length / 2)];
+    }
+
+    function calculatePercentile(arr, percentile) {
+      if (!arr || arr.length === 0) return 0;
+      const sorted = [...arr].sort((a, b) => a - b);
+      return sorted[Math.floor(sorted.length * percentile)];
     }
 
     // Initialize

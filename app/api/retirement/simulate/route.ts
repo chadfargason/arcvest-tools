@@ -95,6 +95,8 @@ function runMonteCarloSimulation(params: SimulationParams): any {
     returns: { stock: number[]; bond: number[] };
     stockBalances: number[];
     bondBalances: number[];
+    annualizedStockReturn: number;
+    annualizedBondReturn: number;
   }[] = [];
   const finalBalances: { index: number; balance: number }[] = [];
 
@@ -126,7 +128,9 @@ function runMonteCarloSimulation(params: SimulationParams): any {
       balances: scenarioData.balances,
       returns: scenarioData.returns,
       stockBalances: scenarioData.stockBalances,
-      bondBalances: scenarioData.bondBalances
+      bondBalances: scenarioData.bondBalances,
+      annualizedStockReturn: scenarioData.annualizedStockReturn,
+      annualizedBondReturn: scenarioData.annualizedBondReturn
     });
     
     finalBalances.push({
@@ -134,6 +138,10 @@ function runMonteCarloSimulation(params: SimulationParams): any {
       balance: scenarioData.balances[scenarioData.balances.length - 1]
     });
   }
+
+  // Collect annualized returns for distribution analysis
+  const stockReturnDistribution = scenarios.map(s => s.annualizedStockReturn * 100); // Convert to percentage
+  const bondReturnDistribution = scenarios.map(s => s.annualizedBondReturn * 100);
 
   // Calculate statistics
   const successCount = finalBalances.filter(b => b.balance > 0).length;
@@ -197,7 +205,9 @@ function runMonteCarloSimulation(params: SimulationParams): any {
     distributionLabels: labels,
     distributionPercentages: percentages,
     medianSimulationIndex: medianIndex,
-    medianSimulationDetails
+    medianSimulationDetails,
+    stockReturnDistribution,
+    bondReturnDistribution
   };
 }
 
@@ -464,6 +474,24 @@ function runSingleScenario(
     bondBalances.push(bondBalance);
   }
 
+  // Calculate cumulative geometric returns for the entire period
+  let cumulativeStockReturn = 1.0;
+  let cumulativeBondReturn = 1.0;
+  
+  stockReturns.forEach(r => {
+    cumulativeStockReturn *= (1 + r);
+  });
+  
+  bondReturns.forEach(r => {
+    cumulativeBondReturn *= (1 + r);
+  });
+  
+  // Convert to annualized returns
+  const totalMonths = stockReturns.length;
+  const totalYears = totalMonths / 12;
+  const annualizedStockReturn = Math.pow(cumulativeStockReturn, 1 / totalYears) - 1;
+  const annualizedBondReturn = Math.pow(cumulativeBondReturn, 1 / totalYears) - 1;
+
   return {
     balances,
     returns: {
@@ -471,12 +499,14 @@ function runSingleScenario(
       bond: bondReturns
     },
     stockBalances,
-    bondBalances
+    bondBalances,
+    annualizedStockReturn,
+    annualizedBondReturn
   };
 }
 
 // Generate correlated random variables using Cholesky decomposition
-// Now supports Student's t-distribution for fat tails
+// Now supports Skewed Student's t-distribution for fat tails and asymmetry
 function generateCorrelatedReturns(
   mean1: number,
   std1: number,
@@ -485,20 +515,43 @@ function generateCorrelatedReturns(
   correlation: number,
   degreesOfFreedom: number
 ): [number, number] {
-  // Generate two independent random variables
+  const skewness = -0.3; // Negative skew = more downside risk (crash-heavy)
+  
+  // Generate two independent skewed t-distributed random variables
   // Use t-distribution if df < 30, otherwise use normal (converges to normal at high df)
-  const z1 = degreesOfFreedom < 30 ? randomT(degreesOfFreedom) : randomNormal();
-  const z2 = degreesOfFreedom < 30 ? randomT(degreesOfFreedom) : randomNormal();
+  const z1 = degreesOfFreedom < 30 ? randomSkewedT(degreesOfFreedom, skewness) : randomNormal();
+  const z2 = degreesOfFreedom < 30 ? randomSkewedT(degreesOfFreedom, skewness) : randomNormal();
 
   // Apply Cholesky decomposition for correlation
   // For 2x2 correlation matrix:
   // [1    ρ  ]     [1      0    ]
   // [ρ    1  ]  =  [ρ   √(1-ρ²)]
   
+  // Handle edge case: 100% allocation to one asset (correlation doesn't apply)
+  const correlationFactor = Math.abs(correlation) < 0.999 ? Math.sqrt(1 - correlation * correlation) : 0;
+  
   const return1 = mean1 + std1 * z1;
-  const return2 = mean2 + std2 * (correlation * z1 + Math.sqrt(1 - correlation * correlation) * z2);
+  const return2 = mean2 + std2 * (correlation * z1 + correlationFactor * z2);
 
   return [return1, return2];
+}
+
+// Generate Skewed Student's t-distributed random variable
+// Implements Hansen's (1994) skewed-t distribution
+// skew < 0 = left tail fatter (more crash risk)
+// skew > 0 = right tail fatter (more boom potential)
+function randomSkewedT(df: number, skew: number): number {
+  // Generate standard t-distributed variable
+  const t = randomT(df);
+  
+  // Apply skewness transformation
+  // Simple approximation: if t is negative, scale by (1 + skew), if positive scale by (1 - skew)
+  // This creates asymmetry in the tails
+  if (t < 0) {
+    return t * (1 + Math.abs(skew));
+  } else {
+    return t * (1 - Math.abs(skew) * 0.5);
+  }
 }
 
 // Generate Student's t-distributed random variable
