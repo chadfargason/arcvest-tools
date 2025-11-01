@@ -78,15 +78,26 @@ function runMonteCarloSimulation(params: SimulationParams): any {
   const totalYears = yearsToRetirement + yearsInRetirement;
   const monthsTotal = totalYears * 12;
 
-  // Normalize allocation to decimals
-  const stockAllocation = allocation['STOCKS'] / 100;
-  const bondAllocation = allocation['BONDS'] / 100;
+  // Normalize allocation to decimals (handle missing keys)
+  const stockAllocation = (allocation['STOCKS'] ?? 0) / 100;
+  const bondAllocation = (allocation['BONDS'] ?? 0) / 100;
 
   // Convert annual parameters to monthly
   const monthlyStockReturn = stockReturn / 12;
   const monthlyBondReturn = bondReturn / 12;
   const monthlyStockVol = stockVolatility / Math.sqrt(12);
   const monthlyBondVol = bondVolatility / Math.sqrt(12);
+  
+  // Debug logging
+  console.log('Simulation params:', { 
+    stockAllocation, 
+    bondAllocation, 
+    monthlyStockReturn: (monthlyStockReturn * 100).toFixed(3) + '%', 
+    monthlyBondReturn: (monthlyBondReturn * 100).toFixed(3) + '%',
+    annualStockReturn: (stockReturn * 100).toFixed(2) + '%',
+    annualBondReturn: (bondReturn * 100).toFixed(2) + '%',
+    degreesOfFreedom
+  });
 
   // Run simulations - keep track of simulation index
   const scenarios: { 
@@ -142,6 +153,18 @@ function runMonteCarloSimulation(params: SimulationParams): any {
   // Collect annualized returns for distribution analysis
   const stockReturnDistribution = scenarios.map(s => s.annualizedStockReturn * 100); // Convert to percentage
   const bondReturnDistribution = scenarios.map(s => s.annualizedBondReturn * 100);
+  
+  // Debug: Log return statistics
+  const avgStockReturn = stockReturnDistribution.reduce((sum, r) => sum + r, 0) / stockReturnDistribution.length;
+  const avgBondReturn = bondReturnDistribution.reduce((sum, r) => sum + r, 0) / bondReturnDistribution.length;
+  console.log('Return distribution stats:', {
+    expectedStockReturn: (stockReturn * 100).toFixed(2) + '%',
+    actualAvgStockReturn: avgStockReturn.toFixed(2) + '%',
+    expectedBondReturn: (bondReturn * 100).toFixed(2) + '%',
+    actualAvgBondReturn: avgBondReturn.toFixed(2) + '%',
+    stockMin: Math.min(...stockReturnDistribution).toFixed(2) + '%',
+    stockMax: Math.max(...stockReturnDistribution).toFixed(2) + '%'
+  });
 
   // Calculate statistics
   const successCount = finalBalances.filter(b => b.balance > 0).length;
@@ -423,13 +446,35 @@ function runSingleScenario(
       degreesOfFreedom
     );
 
+    // Check for NaN in generated returns
+    if (isNaN(stockReturn) || isNaN(bondReturn)) {
+      console.error('NaN return generated at month', month, { stockReturn, bondReturn, stockAllocation, bondAllocation });
+    }
+    
     // Track returns
     stockReturns.push(stockReturn);
     bondReturns.push(bondReturn);
 
     // Apply returns to each asset
+    const prevStockBalance = stockBalance;
+    const prevBondBalance = bondBalance;
+    
     stockBalance *= (1 + stockReturn);
     bondBalance *= (1 + bondReturn);
+    
+    // Check for NaN only (negative balances are OK temporarily)
+    if (isNaN(stockBalance) || isNaN(bondBalance)) {
+      console.error('NaN balance detected at month', month, { 
+        prevStockBalance, 
+        prevBondBalance, 
+        stockReturn, 
+        bondReturn, 
+        newStockBalance: stockBalance,
+        newBondBalance: bondBalance
+      });
+      stockBalance = isNaN(stockBalance) ? prevStockBalance : stockBalance;
+      bondBalance = isNaN(bondBalance) ? prevBondBalance : bondBalance;
+    }
 
     // Sum up portfolio
     balance = stockBalance + bondBalance;
@@ -544,21 +589,43 @@ function generateCorrelatedReturns(
 }
 
 // Generate Skewed Student's t-distributed random variable
-// Implements Hansen's (1994) skewed-t distribution
+// Implements a mean-preserving skewed transformation
 // skew < 0 = left tail fatter (more crash risk)
 // skew > 0 = right tail fatter (more boom potential)
 function randomSkewedT(df: number, skew: number): number {
   // Generate standard t-distributed variable
   const t = randomT(df);
   
-  // Apply skewness transformation
-  // Simple approximation: if t is negative, scale by (1 + skew), if positive scale by (1 - skew)
-  // This creates asymmetry in the tails
-  if (t < 0) {
-    return t * (1 + Math.abs(skew));
-  } else {
-    return t * (1 - Math.abs(skew) * 0.5);
+  // Check for NaN
+  if (isNaN(t)) {
+    console.error('randomT produced NaN with df=', df);
+    return 0;
   }
+  
+  // Apply mean-preserving skewness transformation
+  // For skew = -0.3 (negative):
+  // - Makes negative deviations larger (fatter left tail)
+  // - Makes positive deviations smaller (thinner right tail)
+  // - But adds correction to preserve mean at 0
+  
+  let skewed;
+  if (t < 0) {
+    skewed = t * (1 + Math.abs(skew));  // Amplify crashes
+  } else {
+    skewed = t * (1 - Math.abs(skew) * 0.5);  // Reduce booms
+  }
+  
+  // Mean correction factor
+  // For symmetric distribution around 0:
+  // E[negative part] ≈ -0.8, E[positive part] ≈ +0.8
+  // After transformation with skew=-0.3:
+  //   E[neg] = -0.8 * 1.3 = -1.04
+  //   E[pos] = +0.8 * 0.85 = +0.68
+  //   Mean shift = 0.5*(-1.04) + 0.5*(0.68) - 0 = -0.18
+  // Need to add back +0.18 to preserve mean
+  const meanCorrection = 0.18 * Math.abs(skew) / 0.3;  // Scale by actual skew parameter
+  
+  return skewed + meanCorrection;
 }
 
 // Generate Student's t-distributed random variable
