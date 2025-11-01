@@ -267,7 +267,11 @@ function generateYearlyBreakdown(
     const age = startAge + year;
     const isRetired = year > yearsToRetirement;
     const startMonthIndex = year * 12;
-    const endMonthIndex = Math.min((year + 1) * 12 - 1, monthlyBalances.length - 1);
+    
+    // Year's end balance is after ALL 12 months
+    // Year 0: months 0-11, end balance is balances[12]
+    // Year 1: months 12-23, end balance is balances[24]
+    const endMonthIndex = Math.min((year + 1) * 12, monthlyBalances.length - 1);
     
     const startBalance = monthlyBalances[startMonthIndex];
     const endBalance = monthlyBalances[endMonthIndex];
