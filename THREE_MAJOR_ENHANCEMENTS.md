@@ -288,3 +288,5 @@ git push origin main
 ✅ **Return percentiles displayed** - Median, 20th, 80th for stocks and bonds  
 
 **Your simulator is now even more sophisticated and realistic!** 🎉
+
+
