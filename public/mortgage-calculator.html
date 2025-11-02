@@ -60,16 +60,10 @@
       text-align: center;
     }
 
-    .header h1 {
-      font-size: clamp(24px, 3vw, 36px);
-      font-weight: 700;
-      color: var(--text-dark);
-      margin-bottom: 8px;
-    }
-
     .header p {
       color: var(--muted);
       font-size: 16px;
+      margin: 0;
     }
 
     /* Tabs */
@@ -494,12 +488,117 @@
         transform: none;
       }
     }
+
+    /* Top Navigation Banner */
+    .top-banner {
+      background: #ffffff;
+      border-bottom: 1px solid var(--ast-border-color);
+      position: sticky;
+      top: 0;
+      z-index: 100;
+    }
+
+    .top-banner-inner {
+      max-width: 1400px;
+      margin: 0 auto;
+      padding: 0 clamp(16px, 2vw, 32px);
+    }
+
+    .top-banner-content {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      height: 64px;
+    }
+
+    .top-banner-left {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+    }
+
+    .back-link {
+      display: flex;
+      align-items: center;
+      color: var(--text-body);
+      text-decoration: none;
+      font-size: 15px;
+      transition: color 0.2s;
+    }
+
+    .back-link:hover {
+      color: var(--brand);
+    }
+
+    .back-link svg {
+      width: 20px;
+      height: 20px;
+      margin-right: 8px;
+    }
+
+    .divider {
+      height: 24px;
+      width: 1px;
+      background: var(--ast-border-color);
+    }
+
+    .page-title-container {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .page-title-container svg {
+      width: 20px;
+      height: 20px;
+      color: var(--brand);
+    }
+
+    .page-title {
+      font-size: 20px;
+      font-weight: 600;
+      color: var(--text-dark);
+      margin: 0;
+    }
+
+    /* Adjust container spacing to account for banner */
+    body {
+      padding: 0;
+    }
+
+    .container {
+      padding: clamp(16px, 2vw, 32px);
+    }
   </style>
 </head>
 <body>
+  <!-- Top Navigation Banner -->
+  <div class="top-banner">
+    <div class="top-banner-inner">
+      <div class="top-banner-content">
+        <div class="top-banner-left">
+          <a href="/" class="back-link">
+            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <line x1="19" y1="12" x2="5" y2="12"></line>
+              <polyline points="12 19 5 12 12 5"></polyline>
+            </svg>
+            Back to Tools
+          </a>
+          <div class="divider"></div>
+          <div class="page-title-container">
+            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path>
+              <polyline points="9 22 9 12 15 12 15 22"></polyline>
+            </svg>
+            <h1 class="page-title">Mortgage Calculator</h1>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <div class="container">
     <div class="header">
-      <h1>Mortgage Calculator</h1>
       <p>Calculate your monthly mortgage payment including taxes, insurance, and fees</p>
     </div>
 
