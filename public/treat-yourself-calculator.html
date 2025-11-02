@@ -1,0 +1,1219 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Treat Yourself Calculator — ArcVest</title>
+  <link href="https://fonts.googleapis.com/css2?family=Lora:wght@400;600;700&display=swap" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4"></script>
+  <style>
+    /* ---------- Arcvest Design System ---------- */
+    :root {
+      /* Arcvest Color Palette */
+      --ast-global-color-0: #1B9C85;  /* Primary Teal */
+      --ast-global-color-1: #178E79;  /* Secondary Teal */
+      --ast-global-color-2: #0F172A;  /* Dark Navy */
+      --ast-global-color-3: #454F5E;  /* Text Gray */
+      --ast-global-color-4: rgba(207, 237, 211, 0.34);  /* Light Accent */
+      --ast-global-color-5: #FFFFFF;  /* White */
+      --ast-border-color: #dddddd;
+      
+      /* Application Variables */
+      --bg: #ffffff;
+      --panel: #ffffff;
+      --text: #454F5E;
+      --text-dark: #0F172A;
+      --text-body: #808285;
+      --muted: #808285;
+      --brand: #1B9C85; /* Primary Teal */
+      --brand-2: #178E79; /* Secondary Teal */
+      --accent: #1B9C85; /* Teal */
+      --red: #cf2e2e;
+      --orange: #ff9800;
+      --green: #00d084;
+      --ring: #1B9C85;
+      --radius: 0px; /* Sharp corners like arcvest */
+      --shadow: 0 2px 8px rgba(0,0,0,.1);
+      --shadow-hover: 0 4px 16px rgba(27, 156, 133, 0.2);
+      --mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+      --sans: 'Lora', serif;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body { height: 100%; }
+    body {
+      font-family: var(--sans);
+      background: var(--bg);
+      color: var(--text);
+      -webkit-font-smoothing: antialiased;
+      -moz-osx-font-smoothing: grayscale;
+      padding: clamp(16px, 2vw, 32px);
+      line-height: 1.6;
+    }
+
+    .container {
+      max-width: 1200px;
+      margin: 0 auto;
+    }
+
+    .header {
+      margin-bottom: 32px;
+      text-align: center;
+    }
+
+    .header h1 {
+      font-size: clamp(24px, 3vw, 36px);
+      font-weight: 700;
+      color: var(--text-dark);
+      margin-bottom: 8px;
+    }
+
+    .header p {
+      color: var(--muted);
+      font-size: 16px;
+    }
+
+    /* Tabs */
+    .tabs {
+      display: flex;
+      gap: 0;
+      border-bottom: 2px solid var(--ast-border-color);
+      margin-bottom: 24px;
+      overflow-x: auto;
+    }
+
+    .tab {
+      background: transparent;
+      border: none;
+      padding: 16px 24px;
+      font-family: var(--sans);
+      font-size: 15px;
+      font-weight: 600;
+      color: var(--text);
+      cursor: pointer;
+      border-bottom: 3px solid transparent;
+      transition: all 0.2s;
+      white-space: nowrap;
+    }
+
+    .tab:hover {
+      color: var(--brand);
+      background: rgba(27, 156, 133, 0.05);
+    }
+
+    .tab.active {
+      color: var(--brand);
+      border-bottom-color: var(--brand);
+    }
+
+    /* Tab Content */
+    .tab-content {
+      display: none;
+    }
+
+    .tab-content.active {
+      display: block;
+      animation: fadeIn 0.3s;
+    }
+
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(8px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    /* Form Groups */
+    .form-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+      gap: 24px;
+      margin-bottom: 24px;
+    }
+
+    .form-group {
+      display: flex;
+      flex-direction: column;
+    }
+
+    .form-label {
+      font-size: 13px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      color: var(--text-dark);
+      margin-bottom: 8px;
+    }
+
+    .form-input, .form-select {
+      width: 100%;
+      height: 48px;
+      padding: 0 16px;
+      border: 1px solid var(--ast-border-color);
+      border-radius: var(--radius);
+      background: #fff;
+      font-family: var(--sans);
+      font-size: 16px;
+      color: var(--text);
+      transition: all 0.2s;
+    }
+
+    .form-input:focus, .form-select:focus {
+      outline: none;
+      border-color: var(--brand);
+      box-shadow: 0 0 0 3px rgba(27, 156, 133, 0.1);
+    }
+
+    .form-help {
+      font-size: 12px;
+      color: var(--muted);
+      margin-top: 6px;
+    }
+
+    /* Treat Options */
+    .treat-options {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 16px;
+      margin-bottom: 24px;
+    }
+
+    .treat-option {
+      position: relative;
+      display: flex;
+      flex-direction: column;
+      padding: 20px;
+      border: 2px solid var(--ast-border-color);
+      border-radius: var(--radius);
+      background: #fff;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .treat-option:hover {
+      border-color: var(--brand);
+      background: rgba(27, 156, 133, 0.02);
+    }
+
+    .treat-option input[type="radio"] {
+      position: absolute;
+      top: 16px;
+      right: 16px;
+      width: 20px;
+      height: 20px;
+      cursor: pointer;
+      accent-color: var(--brand);
+    }
+
+    .treat-option:has(input[type="radio"]:checked) {
+      border-color: var(--brand);
+      background: rgba(27, 156, 133, 0.05);
+    }
+
+    .treat-icon {
+      font-size: 32px;
+      margin-bottom: 12px;
+    }
+
+    .treat-title {
+      font-size: 16px;
+      font-weight: 600;
+      color: var(--text-dark);
+      margin-bottom: 4px;
+    }
+
+    .treat-frequency {
+      font-size: 13px;
+      color: var(--muted);
+      margin-bottom: 8px;
+    }
+
+    .treat-amount {
+      font-size: 20px;
+      font-weight: 700;
+      color: var(--brand);
+    }
+
+    /* Asset Allocation Table */
+    .allocation-table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-bottom: 16px;
+    }
+
+    .allocation-table th,
+    .allocation-table td {
+      padding: 12px;
+      text-align: left;
+      border-bottom: 1px solid var(--ast-border-color);
+    }
+
+    .allocation-table th {
+      font-size: 13px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      color: var(--text-dark);
+      background: #fafafa;
+    }
+
+    .allocation-table input {
+      width: 100%;
+      padding: 8px;
+      border: 1px solid var(--ast-border-color);
+      border-radius: var(--radius);
+      font-family: var(--sans);
+    }
+
+    .allocation-table input:focus {
+      outline: none;
+      border-color: var(--brand);
+      box-shadow: 0 0 0 3px rgba(27, 156, 133, 0.1);
+    }
+
+    .allocation-total {
+      font-weight: 700;
+      color: var(--text-dark);
+    }
+
+    .allocation-error {
+      color: var(--red);
+      background: rgba(207, 46, 46, 0.1);
+    }
+
+    .allocation-success {
+      color: var(--green);
+    }
+
+    /* Buttons */
+    .btn {
+      padding: 16px 32px;
+      border: none;
+      border-radius: var(--radius);
+      font-family: var(--sans);
+      font-size: 16px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s;
+      box-shadow: var(--shadow);
+    }
+
+    .btn-primary {
+      background: var(--brand);
+      color: #fff;
+    }
+
+    .btn-primary:hover {
+      background: var(--brand-2);
+      box-shadow: var(--shadow-hover);
+    }
+
+    .btn-primary:disabled {
+      background: #ccc;
+      cursor: not-allowed;
+      box-shadow: none;
+    }
+
+    .btn-secondary {
+      background: transparent;
+      border: 1px solid var(--ast-border-color);
+      color: var(--text);
+    }
+
+    .btn-secondary:hover {
+      border-color: var(--brand);
+      color: var(--brand);
+    }
+
+    .action-bar {
+      display: flex;
+      gap: 16px;
+      justify-content: center;
+      margin: 32px 0;
+    }
+
+    /* Results Panel */
+    .results {
+      background: #fafafa;
+      border: 1px solid var(--ast-border-color);
+      border-radius: var(--radius);
+      padding: 24px;
+      margin-top: 32px;
+      display: none;
+    }
+
+    .results.visible {
+      display: block;
+      animation: fadeIn 0.3s;
+    }
+
+    .results h2 {
+      font-size: 24px;
+      font-weight: 700;
+      color: var(--text-dark);
+      margin-bottom: 24px;
+      text-align: center;
+    }
+
+    .results-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 24px;
+      margin-bottom: 32px;
+    }
+
+    .result-card {
+      background: #fff;
+      border: 1px solid var(--ast-border-color);
+      border-radius: var(--radius);
+      padding: 20px;
+      text-align: center;
+    }
+
+    .result-label {
+      font-size: 12px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      color: var(--muted);
+      margin-bottom: 12px;
+    }
+
+    .result-value {
+      font-size: 28px;
+      font-weight: 700;
+      color: var(--text-dark);
+    }
+
+    .result-value.highlight {
+      color: var(--brand);
+    }
+
+    .result-value.warning {
+      color: var(--orange);
+    }
+
+    .chart-container {
+      background: #fff;
+      border: 1px solid var(--ast-border-color);
+      border-radius: var(--radius);
+      padding: 24px;
+      margin-bottom: 24px;
+    }
+
+    .chart-container h3 {
+      font-size: 18px;
+      font-weight: 600;
+      color: var(--text-dark);
+      margin-bottom: 16px;
+    }
+
+    .loading {
+      text-align: center;
+      padding: 40px;
+    }
+
+    .spinner {
+      width: 48px;
+      height: 48px;
+      border: 4px solid var(--ast-border-color);
+      border-top-color: var(--brand);
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+      margin: 0 auto 16px;
+    }
+
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+
+    /* Opportunity Cost Callout */
+    .opportunity-box {
+      background: linear-gradient(135deg, rgba(27, 156, 133, 0.1) 0%, rgba(27, 156, 133, 0.05) 100%);
+      border: 2px solid var(--brand);
+      border-radius: var(--radius);
+      padding: 32px;
+      margin: 32px 0;
+      text-align: center;
+    }
+
+    .opportunity-box h3 {
+      font-size: 20px;
+      font-weight: 700;
+      color: var(--text-dark);
+      margin-bottom: 16px;
+    }
+
+    .opportunity-value {
+      font-size: 48px;
+      font-weight: 700;
+      color: var(--brand);
+      margin: 16px 0;
+    }
+
+    .opportunity-subtitle {
+      font-size: 16px;
+      color: var(--muted);
+      margin-top: 8px;
+    }
+
+    /* Detailed Table */
+    .details-table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 24px;
+      background: #fff;
+      font-size: 14px;
+    }
+
+    .details-table th,
+    .details-table td {
+      padding: 12px;
+      text-align: right;
+      border-bottom: 1px solid var(--ast-border-color);
+    }
+
+    .details-table th:first-child,
+    .details-table td:first-child {
+      text-align: left;
+      font-weight: 600;
+    }
+
+    .details-table th {
+      background: #fafafa;
+      font-weight: 600;
+      text-transform: uppercase;
+      font-size: 11px;
+      letter-spacing: 0.06em;
+      color: var(--text-dark);
+    }
+
+    .details-table tbody tr:hover {
+      background: rgba(27, 156, 133, 0.02);
+    }
+
+    .year-row {
+      cursor: pointer !important;
+    }
+
+    .year-row:hover {
+      background: rgba(27, 156, 133, 0.05) !important;
+    }
+
+    .expand-icon {
+      display: inline-block;
+      width: 16px;
+      text-align: center;
+      margin-right: 4px;
+      color: var(--brand);
+      font-size: 12px;
+    }
+
+    .monthly-details td {
+      padding: 0 !important;
+      background: #fafafa;
+    }
+
+    .monthly-details table {
+      border-collapse: collapse;
+    }
+
+    .monthly-details table th {
+      padding: 8px;
+      font-size: 11px;
+      background: #f0f0f0;
+      border-bottom: 1px solid var(--ast-border-color);
+    }
+
+    .monthly-details table td {
+      padding: 6px 8px;
+      border-bottom: 1px solid #e5e5e5;
+    }
+
+    .positive {
+      color: var(--green);
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <h1>Treat Yourself Calculator</h1>
+      <p>See how much those daily treats cost you over time — the opportunity cost of small splurges</p>
+    </div>
+
+    <!-- Tabs -->
+    <div class="tabs">
+      <button class="tab active" data-tab="treats">Your Treat</button>
+      <button class="tab" data-tab="advanced">Advanced</button>
+      <button class="tab" data-tab="detailed">Detailed Outcome</button>
+    </div>
+
+    <!-- Tab 1: Your Treat -->
+    <div class="tab-content active" id="treats-tab">
+      <h3 style="font-size: 18px; font-weight: 600; color: var(--text-dark); margin-bottom: 16px;">Choose Your Treat</h3>
+      <p style="color: var(--muted); margin-bottom: 16px;">Select a daily or weekly treat to see its long-term cost</p>
+
+      <div class="treat-options">
+        <label class="treat-option">
+          <input type="radio" name="treatType" value="daily-coffee" checked>
+          <div class="treat-icon">☕</div>
+          <div class="treat-title">Nice Coffee</div>
+          <div class="treat-frequency">Daily</div>
+          <div class="treat-amount">$6.00/day</div>
+        </label>
+
+        <label class="treat-option">
+          <input type="radio" name="treatType" value="daily-lunch">
+          <div class="treat-icon">🍱</div>
+          <div class="treat-title">Lunch Out</div>
+          <div class="treat-frequency">Daily</div>
+          <div class="treat-amount">$15.00/day</div>
+        </label>
+
+        <label class="treat-option">
+          <input type="radio" name="treatType" value="weekly-skincare">
+          <div class="treat-icon">✨</div>
+          <div class="treat-title">Skincare Products</div>
+          <div class="treat-frequency">Weekly</div>
+          <div class="treat-amount">$30.00/week</div>
+        </label>
+
+        <label class="treat-option">
+          <input type="radio" name="treatType" value="weekly-entertainment">
+          <div class="treat-icon">🎬</div>
+          <div class="treat-title">Entertainment</div>
+          <div class="treat-frequency">Weekly</div>
+          <div class="treat-amount">$50.00/week</div>
+        </label>
+
+        <label class="treat-option">
+          <input type="radio" name="treatType" value="custom">
+          <div class="treat-icon">✏️</div>
+          <div class="treat-title">Custom</div>
+          <div class="treat-frequency">Your choice</div>
+          <div class="treat-amount">Set amount</div>
+        </label>
+      </div>
+
+      <div id="customTreatInputs" style="display: none;">
+        <div class="form-grid">
+          <div class="form-group">
+            <label class="form-label">What's your treat?</label>
+            <input type="text" class="form-input" id="customTreatName" placeholder="e.g., Daily smoothie">
+            <div class="form-help">Describe your treat</div>
+          </div>
+
+          <div class="form-group">
+            <label class="form-label">Frequency</label>
+            <select class="form-select" id="customFrequency">
+              <option value="daily">Daily</option>
+              <option value="weekly">Weekly</option>
+            </select>
+            <div class="form-help">How often?</div>
+          </div>
+
+          <div class="form-group">
+            <label class="form-label">Amount ($)</label>
+            <input type="number" class="form-input" id="customAmount" value="10" min="0" step="0.50">
+            <div class="form-help">Cost per occurrence</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="form-grid" style="margin-top: 32px;">
+        <div class="form-group">
+          <label class="form-label">Your Current Age</label>
+          <input type="number" class="form-input" id="currentAge" value="30" min="18" max="100">
+          <div class="form-help">We'll calculate to age 65</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Tab 2: Advanced -->
+    <div class="tab-content" id="advanced-tab">
+      <h3 style="font-size: 18px; font-weight: 600; color: var(--text-dark); margin-bottom: 16px;">Investment Assumptions</h3>
+      
+      <div class="form-grid">
+        <div class="form-group">
+          <label class="form-label">Inflation Rate (%)</label>
+          <input type="number" class="form-input" id="inflationRate" value="3.0" min="0" max="10" step="0.1">
+          <div class="form-help">Annual inflation adjustment</div>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label">Rebalancing</label>
+          <select class="form-select" id="rebalancing">
+            <option value="annual">Annual</option>
+            <option value="none">None</option>
+          </select>
+          <div class="form-help">Portfolio rebalancing frequency</div>
+        </div>
+      </div>
+
+      <h3 style="font-size: 18px; font-weight: 600; color: var(--text-dark); margin: 32px 0 16px;">Asset Allocation</h3>
+      <p style="color: var(--muted); margin-bottom: 16px;">How would you invest the saved money?</p>
+
+      <table class="allocation-table">
+        <thead>
+          <tr>
+            <th>Asset Class</th>
+            <th>Allocation (%)</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>Stocks</td>
+            <td><input type="number" class="allocation-input" data-ticker="STOCKS" value="70" min="0" max="100" step="1"></td>
+          </tr>
+          <tr>
+            <td>Bonds</td>
+            <td><input type="number" class="allocation-input" data-ticker="BONDS" value="30" min="0" max="100" step="1"></td>
+          </tr>
+        </tbody>
+        <tfoot>
+          <tr>
+            <td class="allocation-total">Total</td>
+            <td class="allocation-total"><span id="allocation-total">100</span>%</td>
+          </tr>
+        </tfoot>
+      </table>
+
+      <h3 style="font-size: 18px; font-weight: 600; color: var(--text-dark); margin: 32px 0 16px;">Expected Returns & Risk</h3>
+      
+      <div class="form-grid">
+        <div class="form-group">
+          <label class="form-label">Stock Return (%)</label>
+          <input type="number" class="form-input" id="stockReturn" value="8.0" min="0" max="20" step="0.1">
+          <div class="form-help">Expected annual stock return</div>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label">Stock Volatility (%)</label>
+          <input type="number" class="form-input" id="stockVolatility" value="17.0" min="0" max="50" step="0.1">
+          <div class="form-help">Stock standard deviation</div>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label">Bond Return (%)</label>
+          <input type="number" class="form-input" id="bondReturn" value="4.5" min="0" max="15" step="0.1">
+          <div class="form-help">Expected annual bond return</div>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label">Bond Volatility (%)</label>
+          <input type="number" class="form-input" id="bondVolatility" value="7.0" min="0" max="30" step="0.1">
+          <div class="form-help">Bond standard deviation</div>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label">Correlation</label>
+          <input type="number" class="form-input" id="correlation" value="0.2" min="-1" max="1" step="0.1">
+          <div class="form-help">Stock-bond correlation</div>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label">Degrees of Freedom</label>
+          <input type="number" class="form-input" id="degreesOfFreedom" value="5" min="3" max="30" step="1">
+          <div class="form-help">t-distribution shape (lower = fatter tails)</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Tab 3: Detailed Outcome -->
+    <div class="tab-content" id="detailed-tab">
+      <div id="detailedResults">
+        <p style="color: var(--muted); text-align: center; padding: 40px;">Run a calculation to see detailed year-by-year breakdown</p>
+      </div>
+    </div>
+
+    <!-- Action Buttons -->
+    <div class="action-bar">
+      <button class="btn btn-primary" id="runCalculation">Calculate Opportunity Cost</button>
+      <button class="btn btn-secondary" id="resetForm">Reset to Defaults</button>
+    </div>
+
+    <!-- Results -->
+    <div class="results" id="results">
+      <h2>Opportunity Cost Analysis</h2>
+
+      <!-- Key Opportunity Cost Callout -->
+      <div class="opportunity-box" id="opportunityBox">
+        <h3>By Skipping This Treat...</h3>
+        <div class="opportunity-value" id="opportunityCost">$0</div>
+        <div class="opportunity-subtitle" id="opportunitySubtitle">is what you'd have at retirement (age 65)</div>
+      </div>
+
+      <div class="results-grid">
+        <div class="result-card">
+          <div class="result-label">Daily/Weekly Cost</div>
+          <div class="result-value" id="treatCost">—</div>
+        </div>
+
+        <div class="result-card">
+          <div class="result-label">Monthly Cost</div>
+          <div class="result-value warning" id="monthlyCost">—</div>
+        </div>
+
+        <div class="result-card">
+          <div class="result-label">Annual Cost</div>
+          <div class="result-value warning" id="annualCost">—</div>
+        </div>
+
+        <div class="result-card">
+          <div class="result-label">Median at Retirement</div>
+          <div class="result-value highlight" id="retirementValue">—</div>
+        </div>
+      </div>
+
+      <div class="chart-container">
+        <h3>Growth Over Time</h3>
+        <canvas id="growthChart"></canvas>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // State management
+    let growthChart = null;
+
+    // Tab switching
+    document.querySelectorAll('.tab').forEach(tab => {
+      tab.addEventListener('click', () => {
+        const tabName = tab.dataset.tab;
+        
+        document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+        tab.classList.add('active');
+        
+        document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+        document.getElementById(`${tabName}-tab`).classList.add('active');
+      });
+    });
+
+    // Allocation tracking
+    function updateAllocationTotal() {
+      const inputs = document.querySelectorAll('.allocation-input');
+      let total = 0;
+      inputs.forEach(input => {
+        total += parseFloat(input.value) || 0;
+      });
+      
+      const totalElement = document.getElementById('allocation-total');
+      totalElement.textContent = total;
+      
+      const row = totalElement.parentElement;
+      row.classList.remove('allocation-error', 'allocation-success');
+      if (Math.abs(total - 100) < 0.01) {
+        row.classList.add('allocation-success');
+      } else {
+        row.classList.add('allocation-error');
+      }
+      
+      return total;
+    }
+
+    document.querySelectorAll('.allocation-input').forEach(input => {
+      input.addEventListener('input', updateAllocationTotal);
+    });
+
+    // Show/hide custom treat inputs
+    document.querySelectorAll('input[name="treatType"]').forEach(radio => {
+      radio.addEventListener('change', (e) => {
+        const customInputs = document.getElementById('customTreatInputs');
+        if (e.target.value === 'custom') {
+          customInputs.style.display = 'block';
+        } else {
+          customInputs.style.display = 'none';
+        }
+      });
+    });
+
+    // Get treat details
+    function getTreatDetails() {
+      const treatType = document.querySelector('input[name="treatType"]:checked').value;
+      
+      const treats = {
+        'daily-coffee': { name: 'Nice Coffee', frequency: 'daily', amount: 6.00, emoji: '☕' },
+        'daily-lunch': { name: 'Lunch Out', frequency: 'daily', amount: 15.00, emoji: '🍱' },
+        'weekly-skincare': { name: 'Skincare Products', frequency: 'weekly', amount: 30.00, emoji: '✨' },
+        'weekly-entertainment': { name: 'Entertainment', frequency: 'weekly', amount: 50.00, emoji: '🎬' },
+        'custom': {
+          name: document.getElementById('customTreatName').value || 'Custom Treat',
+          frequency: document.getElementById('customFrequency').value,
+          amount: parseFloat(document.getElementById('customAmount').value) || 10,
+          emoji: '✏️'
+        }
+      };
+      
+      return treats[treatType];
+    }
+
+    // Calculate monthly equivalent
+    function calculateMonthlyAmount(frequency, amount) {
+      if (frequency === 'daily') {
+        return amount * 365 / 12;  // Daily to monthly
+      } else {
+        return amount * 52 / 12;   // Weekly to monthly
+      }
+    }
+
+    // Reset form
+    document.getElementById('resetForm').addEventListener('click', () => {
+      if (confirm('Reset all inputs to default values?')) {
+        document.getElementById('currentAge').value = 30;
+        document.getElementById('inflationRate').value = 3.0;
+        document.getElementById('rebalancing').value = 'annual';
+        
+        document.querySelector('[data-ticker="STOCKS"]').value = 70;
+        document.querySelector('[data-ticker="BONDS"]').value = 30;
+        
+        document.getElementById('stockReturn').value = 8.0;
+        document.getElementById('stockVolatility').value = 17.0;
+        document.getElementById('bondReturn').value = 4.5;
+        document.getElementById('bondVolatility').value = 7.0;
+        document.getElementById('correlation').value = 0.2;
+        document.getElementById('degreesOfFreedom').value = 5;
+        
+        document.querySelector('input[name="treatType"][value="daily-coffee"]').checked = true;
+        document.getElementById('customTreatInputs').style.display = 'none';
+        
+        updateAllocationTotal();
+      }
+    });
+
+    // Format currency
+    function formatCurrency(value) {
+      if (value >= 1000000) {
+        return '$' + (value / 1000000).toFixed(2) + 'M';
+      } else if (value >= 1000) {
+        return '$' + (value / 1000).toFixed(0) + 'K';
+      } else {
+        return '$' + value.toFixed(0);
+      }
+    }
+
+    // Run calculation
+    document.getElementById('runCalculation').addEventListener('click', async () => {
+      // Validate allocation
+      const total = updateAllocationTotal();
+      if (Math.abs(total - 100) > 0.01) {
+        alert('Asset allocation must total 100%');
+        return;
+      }
+
+      // Get treat details
+      const treat = getTreatDetails();
+      const monthlyTreatCost = calculateMonthlyAmount(treat.frequency, treat.amount);
+      
+      // Get ages
+      const currentAge = parseInt(document.getElementById('currentAge').value);
+      const retirementAge = 65;
+      const yearsToRetirement = retirementAge - currentAge;
+
+      if (yearsToRetirement <= 0) {
+        alert('You must be younger than 65 to run this calculation');
+        return;
+      }
+
+      // Collect allocation
+      const allocation = {};
+      document.querySelectorAll('.allocation-input').forEach(input => {
+        const ticker = input.dataset.ticker;
+        const value = parseFloat(input.value) || 0;
+        allocation[ticker] = value;
+      });
+
+      // Build simulation parameters
+      const inflationRate = parseFloat(document.getElementById('inflationRate').value) / 100;
+      
+      const params = {
+        startingBalance: 0,  // Start with nothing
+        currentAge: currentAge,
+        retirementAge: retirementAge,
+        annualContribution: monthlyTreatCost * 12,  // Convert monthly to annual
+        contributionGrowth: inflationRate,  // Grows with inflation
+        yearsContributing: yearsToRetirement,
+        annualWithdrawal: 0,  // No withdrawals
+        withdrawalInflation: 0,
+        yearsInRetirement: 0,
+        simulationCount: 1000,
+        rebalancing: document.getElementById('rebalancing').value,
+        allocation,
+        stockReturn: parseFloat(document.getElementById('stockReturn').value) / 100,
+        stockVolatility: parseFloat(document.getElementById('stockVolatility').value) / 100,
+        bondReturn: parseFloat(document.getElementById('bondReturn').value) / 100,
+        bondVolatility: parseFloat(document.getElementById('bondVolatility').value) / 100,
+        correlation: parseFloat(document.getElementById('correlation').value),
+        degreesOfFreedom: parseFloat(document.getElementById('degreesOfFreedom').value),
+        taxablePortion: 0,
+        taxRate: 0,
+        investmentFee: 0
+      };
+
+      // Show loading
+      const resultsDiv = document.getElementById('results');
+      resultsDiv.classList.add('visible');
+      resultsDiv.innerHTML = '<div class="loading"><div class="spinner"></div><p>Running Monte Carlo simulation...</p></div>';
+
+      try {
+        const response = await fetch('/api/retirement/simulate', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(params)
+        });
+
+        if (!response.ok) {
+          throw new Error(`API Error: ${response.status}`);
+        }
+
+        const data = await response.json();
+        displayResults(data, treat, monthlyTreatCost, yearsToRetirement);
+      } catch (error) {
+        console.error('Calculation error:', error);
+        resultsDiv.innerHTML = `<div class="alert alert-error">Error running calculation: ${error.message}</div>`;
+      }
+    });
+
+    function displayResults(data, treat, monthlyTreatCost, yearsToRetirement) {
+      const resultsDiv = document.getElementById('results');
+      resultsDiv.classList.add('visible');
+      
+      // Restore results HTML
+      resultsDiv.innerHTML = `
+        <h2>Opportunity Cost Analysis</h2>
+
+        <div class="opportunity-box" id="opportunityBox">
+          <h3>By Skipping This Treat...</h3>
+          <div class="opportunity-value" id="opportunityCost">$0</div>
+          <div class="opportunity-subtitle" id="opportunitySubtitle">is what you'd have at retirement (age 65)</div>
+        </div>
+
+        <div class="results-grid">
+          <div class="result-card">
+            <div class="result-label">${treat.emoji} ${treat.name}</div>
+            <div class="result-value" id="treatCost">—</div>
+          </div>
+
+          <div class="result-card">
+            <div class="result-label">Monthly Cost</div>
+            <div class="result-value warning" id="monthlyCost">—</div>
+          </div>
+
+          <div class="result-card">
+            <div class="result-label">Annual Cost (Year 1)</div>
+            <div class="result-value warning" id="annualCost">—</div>
+          </div>
+
+          <div class="result-card">
+            <div class="result-label">Median at Retirement</div>
+            <div class="result-value highlight" id="retirementValue">—</div>
+          </div>
+        </div>
+
+        <div class="chart-container">
+          <h3>Growth Over Time (Median Scenario)</h3>
+          <canvas id="growthChart"></canvas>
+        </div>
+      `;
+
+      // Update values
+      const medianValue = data.medianBalance;
+      const annualCost = monthlyTreatCost * 12;
+      
+      const treatFrequencyText = treat.frequency === 'daily' ? `/day` : `/week`;
+      document.getElementById('treatCost').textContent = `$${treat.amount.toFixed(2)}${treatFrequencyText}`;
+      document.getElementById('monthlyCost').textContent = formatCurrency(monthlyTreatCost);
+      document.getElementById('annualCost').textContent = formatCurrency(annualCost);
+      document.getElementById('retirementValue').textContent = formatCurrency(medianValue);
+      document.getElementById('opportunityCost').textContent = formatCurrency(medianValue);
+      document.getElementById('opportunitySubtitle').textContent = `is what you'd have by giving up ${treat.name} for ${yearsToRetirement} years`;
+
+      // Create growth chart
+      createGrowthChart(data);
+      
+      // Update detailed tab
+      updateDetailedTab(data, treat);
+    }
+
+    function createGrowthChart(data) {
+      const ctx = document.getElementById('growthChart').getContext('2d');
+      
+      if (growthChart) {
+        growthChart.destroy();
+      }
+
+      growthChart = new Chart(ctx, {
+        type: 'line',
+        data: {
+          labels: data.years,
+          datasets: [
+            {
+              label: 'Median Portfolio Value',
+              data: data.medianPath,
+              borderColor: '#1B9C85',
+              backgroundColor: 'rgba(27, 156, 133, 0.1)',
+              borderWidth: 3,
+              fill: true,
+              tension: 0.1
+            },
+            {
+              label: '20th Percentile',
+              data: data.percentile20Path,
+              borderColor: '#ff9800',
+              backgroundColor: 'rgba(255, 152, 0, 0.05)',
+              borderWidth: 1,
+              borderDash: [5, 5],
+              fill: false,
+              tension: 0.1
+            },
+            {
+              label: '80th Percentile',
+              data: data.percentile80Path,
+              borderColor: '#00d084',
+              backgroundColor: 'rgba(0, 208, 132, 0.05)',
+              borderWidth: 1,
+              borderDash: [5, 5],
+              fill: false,
+              tension: 0.1
+            }
+          ]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: true,
+          aspectRatio: 2,
+          interaction: {
+            intersect: false,
+            mode: 'index'
+          },
+          plugins: {
+            legend: {
+              display: true,
+              position: 'top',
+              labels: {
+                font: { family: 'Lora' }
+              }
+            },
+            tooltip: {
+              callbacks: {
+                label: function(context) {
+                  return context.dataset.label + ': ' + formatCurrency(context.parsed.y);
+                }
+              }
+            }
+          },
+          scales: {
+            x: {
+              title: {
+                display: true,
+                text: 'Age',
+                font: { family: 'Lora', weight: 'bold' }
+              },
+              grid: { display: false }
+            },
+            y: {
+              title: {
+                display: true,
+                text: 'Portfolio Value',
+                font: { family: 'Lora', weight: 'bold' }
+              },
+              ticks: {
+                callback: function(value) {
+                  return formatCurrency(value);
+                }
+              }
+            }
+          }
+        }
+      });
+    }
+
+    function updateDetailedTab(data, treat) {
+      const detailedDiv = document.getElementById('detailedResults');
+      
+      const details = data.medianSimulationDetails;
+
+      let html = '<h3 style="font-size: 18px; font-weight: 600; color: var(--text-dark); margin-bottom: 16px;">Year-by-Year Growth (Median Scenario)</h3>';
+      html += `<p style="color: var(--muted); margin-bottom: 16px;">What happens when you invest the money you'd spend on ${treat.name} instead. Click any year to see monthly details.</p>`;
+      
+      html += '<table class="details-table">';
+      html += '<thead><tr>';
+      html += '<th>Year</th>';
+      html += '<th>Age</th>';
+      html += '<th>Contributions</th>';
+      html += '<th>Returns</th>';
+      html += '<th>End Balance</th>';
+      html += '<th>Stock Return</th>';
+      html += '<th>Bond Return</th>';
+      html += '</tr></thead>';
+      html += '<tbody>';
+
+      details.forEach((row, idx) => {
+        html += `<tr class="year-row" data-year="${idx}" style="cursor: pointer;">`;
+        html += `<td><span class="expand-icon">▶</span> ${row.year}</td>`;
+        html += `<td>${row.age}</td>`;
+        html += `<td>${formatCurrency(row.contributions)}</td>`;
+        html += `<td class="positive">${formatCurrency(row.returns)}</td>`;
+        html += `<td>${formatCurrency(row.endBalance)}</td>`;
+        html += `<td>${row.stockReturn}</td>`;
+        html += `<td>${row.bondReturn}</td>`;
+        html += '</tr>';
+        
+        // Monthly details
+        html += `<tr class="monthly-details" id="monthly-${idx}" style="display: none;">`;
+        html += '<td colspan="7">';
+        html += '<table style="width: 100%; margin: 10px 0; font-size: 12px;">';
+        html += '<thead><tr>';
+        html += '<th>Month</th>';
+        html += '<th>Balance</th>';
+        html += '<th>Contribution</th>';
+        html += '<th>Returns</th>';
+        html += '<th>Stock Return</th>';
+        html += '<th>Bond Return</th>';
+        html += '<th>Stock Balance</th>';
+        html += '<th>Bond Balance</th>';
+        html += '</tr></thead>';
+        html += '<tbody>';
+        
+        if (row.monthlyDetails) {
+          row.monthlyDetails.forEach((monthData) => {
+            html += '<tr>';
+            html += `<td>${monthData.monthName}</td>`;
+            html += `<td>${formatCurrency(monthData.balance)}</td>`;
+            html += `<td>${formatCurrency(monthData.contribution)}</td>`;
+            html += `<td class="positive">${formatCurrency(monthData.returns)}</td>`;
+            html += `<td>${monthData.stockReturn}</td>`;
+            html += `<td>${monthData.bondReturn}</td>`;
+            html += `<td>${formatCurrency(monthData.stockBalance)}</td>`;
+            html += `<td>${formatCurrency(monthData.bondBalance)}</td>`;
+            html += '</tr>';
+          });
+        }
+        
+        html += '</tbody></table>';
+        html += '</td></tr>';
+      });
+
+      html += '</tbody></table>';
+      
+      detailedDiv.innerHTML = html;
+      
+      // Add click handlers
+      document.querySelectorAll('.year-row').forEach(row => {
+        row.addEventListener('click', function() {
+          const yearIdx = this.dataset.year;
+          const monthlyRow = document.getElementById(`monthly-${yearIdx}`);
+          const icon = this.querySelector('.expand-icon');
+          
+          if (monthlyRow.style.display === 'none') {
+            monthlyRow.style.display = 'table-row';
+            icon.textContent = '▼';
+          } else {
+            monthlyRow.style.display = 'none';
+            icon.textContent = '▶';
+          }
+        });
+      });
+    }
+  </script>
+</body>
+</html>
+
