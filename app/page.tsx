@@ -1,5 +1,5 @@
 import Link from 'next/link'
-import { Calculator, MessageCircle, TrendingUp, Zap, Target, Home as HomeIcon } from 'lucide-react'
+import { Calculator, MessageCircle, TrendingUp, Zap, Target, Home as HomeIcon, DollarSign } from 'lucide-react'
 
 export default function Home() {
   return (
@@ -13,7 +13,7 @@ export default function Home() {
         </div>
 
         {/* Main Tools Grid */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-12 animate-slide-up">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-12 animate-slide-up">
           <Link href="/calculator" className="group">
             <div className="bg-white border border-border p-8 h-full card-hover">
               <div className="flex items-center justify-center w-16 h-16 bg-arcvest-light mb-6 mx-auto group-hover:bg-arcvest-teal/20 transition-colors">
@@ -46,6 +46,24 @@ export default function Home() {
               <div className="mt-4 flex items-center justify-center text-sm text-arcvest-teal font-medium">
                 <TrendingUp className="w-4 h-4 mr-2" />
                 Monte Carlo Analysis
+              </div>
+            </div>
+          </Link>
+
+          <Link href="/fee-calculator" className="group">
+            <div className="bg-white border border-border p-8 h-full card-hover">
+              <div className="flex items-center justify-center w-16 h-16 bg-arcvest-light mb-6 mx-auto group-hover:bg-arcvest-teal/20 transition-colors">
+                <DollarSign className="w-8 h-8 text-arcvest-teal" />
+              </div>
+              <h2 className="text-2xl font-bold text-arcvest-navy mb-3">
+                Fee Impact Calculator
+              </h2>
+              <p className="text-arcvest-body leading-relaxed">
+                See how much advisory fees cost you over time. Compare typical 1.25% fees vs ArcVest's 0.40% with Monte Carlo analysis
+              </p>
+              <div className="mt-4 flex items-center justify-center text-sm text-arcvest-teal font-medium">
+                <TrendingUp className="w-4 h-4 mr-2" />
+                Fee Comparison
               </div>
             </div>
           </Link>
