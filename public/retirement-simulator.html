@@ -218,6 +218,65 @@
       color: var(--green);
     }
 
+    /* Fee Selector */
+    .fee-selector {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 16px;
+      margin-bottom: 16px;
+    }
+
+    .fee-option {
+      position: relative;
+      display: flex;
+      align-items: center;
+      padding: 16px;
+      border: 2px solid var(--ast-border-color);
+      border-radius: var(--radius);
+      background: #fff;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .fee-option:hover {
+      border-color: var(--brand);
+      background: rgba(27, 156, 133, 0.02);
+    }
+
+    .fee-option input[type="radio"] {
+      margin-right: 12px;
+      width: 20px;
+      height: 20px;
+      cursor: pointer;
+      accent-color: var(--brand);
+    }
+
+    .fee-option input[type="radio"]:checked + .fee-label {
+      color: var(--brand);
+    }
+
+    .fee-option:has(input[type="radio"]:checked) {
+      border-color: var(--brand);
+      background: rgba(27, 156, 133, 0.05);
+    }
+
+    .fee-label {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+
+    .fee-title {
+      font-size: 14px;
+      font-weight: 600;
+      color: var(--text-dark);
+    }
+
+    .fee-value {
+      font-size: 13px;
+      color: var(--muted);
+    }
+
     /* Buttons */
     .btn {
       padding: 16px 32px;
@@ -594,6 +653,41 @@
           </tr>
         </tfoot>
       </table>
+
+      <h3 style="font-size: 18px; font-weight: 600; color: var(--text-dark); margin: 32px 0 16px;">Investment Fees</h3>
+      <p style="color: var(--muted); margin-bottom: 16px;">Annual fee charged by your advisor or platform</p>
+
+      <div class="fee-selector">
+        <label class="fee-option">
+          <input type="radio" name="feeType" value="typical" class="fee-radio">
+          <span class="fee-label">
+            <span class="fee-title">Typical Advisor</span>
+            <span class="fee-value">1.25% per year</span>
+          </span>
+        </label>
+
+        <label class="fee-option">
+          <input type="radio" name="feeType" value="arcvest" class="fee-radio" checked>
+          <span class="fee-label">
+            <span class="fee-title">ArcVest</span>
+            <span class="fee-value">0.40% per year</span>
+          </span>
+        </label>
+
+        <label class="fee-option">
+          <input type="radio" name="feeType" value="custom" class="fee-radio">
+          <span class="fee-label">
+            <span class="fee-title">Custom</span>
+            <span class="fee-value">Set your own</span>
+          </span>
+        </label>
+      </div>
+
+      <div class="form-group" id="customFeeGroup" style="display: none; margin-top: 16px; max-width: 300px;">
+        <label class="form-label">Custom Fee (%)</label>
+        <input type="number" class="form-input" id="customFee" value="1.00" min="0" max="5" step="0.01">
+        <div class="form-help">Annual fee as a percentage</div>
+      </div>
     </div>
 
     <!-- Tab 2: Contributions -->
@@ -837,6 +931,32 @@
       input.addEventListener('input', updateAllocationTotal);
     });
 
+    // Fee selection handling
+    function getFeePercentage() {
+      const feeType = document.querySelector('input[name="feeType"]:checked').value;
+      
+      if (feeType === 'typical') {
+        return 1.25;
+      } else if (feeType === 'arcvest') {
+        return 0.40;
+      } else if (feeType === 'custom') {
+        return parseFloat(document.getElementById('customFee').value) || 1.00;
+      }
+      return 0.40; // Default to ArcVest
+    }
+
+    // Show/hide custom fee input
+    document.querySelectorAll('input[name="feeType"]').forEach(radio => {
+      radio.addEventListener('change', (e) => {
+        const customFeeGroup = document.getElementById('customFeeGroup');
+        if (e.target.value === 'custom') {
+          customFeeGroup.style.display = 'block';
+        } else {
+          customFeeGroup.style.display = 'none';
+        }
+      });
+    });
+
     // Reset form
     document.getElementById('resetForm').addEventListener('click', () => {
       if (confirm('Reset all inputs to default values?')) {
@@ -863,6 +983,11 @@
         document.getElementById('degreesOfFreedom').value = 5;
         document.getElementById('taxablePortion').value = 75;
         document.getElementById('taxRate').value = 25;
+        
+        // Reset fee selection to ArcVest
+        document.querySelector('input[name="feeType"][value="arcvest"]').checked = true;
+        document.getElementById('customFeeGroup').style.display = 'none';
+        document.getElementById('customFee').value = 1.00;
         
         updateAllocationTotal();
       }
@@ -908,7 +1033,9 @@
         degreesOfFreedom: parseFloat(document.getElementById('degreesOfFreedom').value),
         // Taxes
         taxablePortion: parseFloat(document.getElementById('taxablePortion').value) / 100,
-        taxRate: parseFloat(document.getElementById('taxRate').value) / 100
+        taxRate: parseFloat(document.getElementById('taxRate').value) / 100,
+        // Investment fees
+        investmentFee: getFeePercentage() / 100
       };
 
       // Show loading

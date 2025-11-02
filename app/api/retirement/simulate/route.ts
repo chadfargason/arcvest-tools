@@ -21,6 +21,7 @@ interface SimulationParams {
   degreesOfFreedom: number;
   taxablePortion: number;
   taxRate: number;
+  investmentFee: number;
 }
 
 export async function POST(request: NextRequest) {
@@ -70,7 +71,8 @@ function runMonteCarloSimulation(params: SimulationParams): any {
     correlation,
     degreesOfFreedom,
     taxablePortion,
-    taxRate
+    taxRate,
+    investmentFee
   } = params;
 
   // Calculate time periods
@@ -81,6 +83,9 @@ function runMonteCarloSimulation(params: SimulationParams): any {
   // Normalize allocation to decimals (handle missing keys)
   const stockAllocation = (allocation['STOCKS'] ?? 0) / 100;
   const bondAllocation = (allocation['BONDS'] ?? 0) / 100;
+
+  // Default investment fee to 0 if not provided (backwards compatibility)
+  const finalInvestmentFee = investmentFee ?? 0;
 
   // Convert annual parameters to monthly
   const monthlyStockReturn = stockReturn / 12;
@@ -131,7 +136,8 @@ function runMonteCarloSimulation(params: SimulationParams): any {
       rebalancing === 'annual',
       degreesOfFreedom,
       taxablePortion,
-      taxRate
+      taxRate,
+      finalInvestmentFee
     );
 
     scenarios.push({
@@ -401,7 +407,8 @@ function runSingleScenario(
   rebalance: boolean,
   degreesOfFreedom: number,
   taxablePortion: number,
-  taxRate: number
+  taxRate: number,
+  investmentFee: number
 ): { 
   balances: number[]; 
   returns: { stock: number[]; bond: number[] }; 
@@ -482,6 +489,17 @@ function runSingleScenario(
 
     // Sum up portfolio
     balance = stockBalance + bondBalance;
+
+    // Apply investment fees (convert annual fee to monthly and deduct from portfolio)
+    if (investmentFee > 0 && balance > 0) {
+      const monthlyFee = investmentFee / 12;
+      const feeAmount = balance * monthlyFee;
+      
+      // Deduct fee proportionally from each asset
+      stockBalance -= feeAmount * stockAllocation;
+      bondBalance -= feeAmount * bondAllocation;
+      balance -= feeAmount;
+    }
 
     // Apply contributions/withdrawals
     if (month <= monthsToRetirement) {
