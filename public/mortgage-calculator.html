@@ -696,7 +696,7 @@
     <div class="tab-content" id="affordability-tab">
       <h3 style="font-size: 18px; font-weight: 600; color: var(--text-dark); margin-bottom: 16px;">Affordability Calculator</h3>
       <p style="color: var(--muted); margin-bottom: 16px;">
-        Based on recommended guidelines, here's what you should have saved and earn to afford this home.
+        This tab shows you the minimum recommended guidelines for the income and savings needed to afford this house.
       </p>
       
       <div class="form-grid">
@@ -1014,20 +1014,24 @@
       html += '</h4>';
       html += '<p style="font-size: 12px; color: var(--muted); margin-bottom: 12px;">Based on the 36% rule (total debt ≤ 36% of income)</p>';
       html += '<div class="info-stat">';
-      html += '<span class="info-stat-label">Monthly Gross Income</span>';
-      html += `<span class="info-stat-value">${formatCurrency(recommendedMonthlyIncome)}</span>`;
-      html += '</div>';
-      html += '<div class="info-stat">';
-      html += '<span class="info-stat-label">Annual Gross Income</span>';
-      html += `<span class="info-stat-value">${formatCurrency(recommendedAnnualIncome)}</span>`;
-      html += '</div>';
-      html += '<div class="info-stat">';
       html += '<span class="info-stat-label">Housing Payment</span>';
       html += `<span class="info-stat-value">${formatCurrency(totalMonthly)}</span>`;
       html += '</div>';
       html += '<div class="info-stat">';
-      html += '<span class="info-stat-label">Other Debts</span>';
+      html += '<span class="info-stat-label">Other Monthly Debt Payments</span>';
       html += `<span class="info-stat-value">${formatCurrency(otherDebts)}</span>`;
+      html += '</div>';
+      html += '<div class="info-stat">';
+      html += '<span class="info-stat-label">Total Monthly Debt Payments</span>';
+      html += `<span class="info-stat-value">${formatCurrency(totalMonthlyDebt)}</span>`;
+      html += '</div>';
+      html += '<div class="info-stat">';
+      html += '<span class="info-stat-label">Monthly Gross Income per 36% Rule</span>';
+      html += `<span class="info-stat-value">${formatCurrency(recommendedMonthlyIncome)}</span>`;
+      html += '</div>';
+      html += '<div class="info-stat" style="border-top: 2px solid var(--brand); padding-top: 12px; margin-top: 8px;">';
+      html += '<span class="info-stat-label"><strong>Total Annual Income Needed</strong></span>';
+      html += `<span class="info-stat-value" style="color: var(--brand); font-size: 18px;">${formatCurrency(recommendedAnnualIncome)}</span>`;
       html += '</div>';
       html += '</div>';
 
