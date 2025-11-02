@@ -404,6 +404,44 @@
       background: rgba(27, 156, 133, 0.02);
     }
 
+    .year-row {
+      cursor: pointer !important;
+    }
+
+    .year-row:hover {
+      background: rgba(27, 156, 133, 0.05) !important;
+    }
+
+    .expand-icon {
+      display: inline-block;
+      width: 16px;
+      text-align: center;
+      margin-right: 4px;
+      color: var(--brand);
+      font-size: 12px;
+    }
+
+    .monthly-details td {
+      padding: 0 !important;
+      background: #fafafa;
+    }
+
+    .monthly-details table {
+      border-collapse: collapse;
+    }
+
+    .monthly-details table th {
+      padding: 8px;
+      font-size: 11px;
+      background: #f0f0f0;
+      border-bottom: 1px solid var(--ast-border-color);
+    }
+
+    .monthly-details table td {
+      padding: 6px 8px;
+      border-bottom: 1px solid #e5e5e5;
+    }
+
     .positive {
       color: var(--green);
     }
@@ -801,28 +839,30 @@
         const comparisonFee = parseFloat(document.getElementById('comparisonFee').value) / 100;
         const arcvestFee = parseFloat(document.getElementById('arcvestFee').value) / 100;
 
-        // Run two simulations: one with comparison fee, one with ArcVest fee
-        const [comparisonData, arcvestData] = await Promise.all([
-          fetch('/api/retirement/simulate', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ ...baseParams, investmentFee: comparisonFee })
-          }).then(r => r.json()),
-          fetch('/api/retirement/simulate', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ ...baseParams, investmentFee: arcvestFee })
-          }).then(r => r.json())
-        ]);
+        // Run ONE simulation with both fees - ensures same market returns for fair comparison
+        const response = await fetch('/api/retirement/simulate', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ 
+            ...baseParams, 
+            investmentFee: arcvestFee,      // Primary fee (ArcVest)
+            comparisonFee: comparisonFee     // Comparison fee (runs in parallel with same returns)
+          })
+        });
 
-        displayResults(comparisonData, arcvestData, yearsToSimulate, baseParams.startingBalance, comparisonFee * 100, arcvestFee * 100);
+        if (!response.ok) {
+          throw new Error(`API Error: ${response.status}`);
+        }
+
+        const data = await response.json();
+        displayResults(data, yearsToSimulate, baseParams.startingBalance, comparisonFee * 100, arcvestFee * 100);
       } catch (error) {
         console.error('Simulation error:', error);
         resultsDiv.innerHTML = `<div class="alert alert-error">Error running simulation: ${error.message}</div>`;
       }
     });
 
-    function displayResults(comparisonData, arcvestData, years, startingBalance, comparisonFeePct, arcvestFeePct) {
+    function displayResults(data, years, startingBalance, comparisonFeePct, arcvestFeePct) {
       const resultsDiv = document.getElementById('results');
       resultsDiv.classList.add('visible');
       
@@ -857,12 +897,12 @@
         <div class="results-grid">
           <div class="result-card">
             <div class="result-label">Median Stock Return</div>
-            <div class="result-value" id="stockReturn">—</div>
+            <div class="result-value" id="stockReturnValue">—</div>
           </div>
 
           <div class="result-card">
             <div class="result-label">Median Bond Return</div>
-            <div class="result-value" id="bondReturn">—</div>
+            <div class="result-value" id="bondReturnValue">—</div>
           </div>
         </div>
 
@@ -877,9 +917,9 @@
         </div>
       `;
 
-      // Update values
-      const comparisonMedian = comparisonData.medianBalance;
-      const arcvestMedian = arcvestData.medianBalance;
+      // Update values - data now contains both scenarios
+      const comparisonMedian = data.comparisonMedianBalance;
+      const arcvestMedian = data.medianBalance;
       const difference = arcvestMedian - comparisonMedian;
 
       document.getElementById('comparisonMedian').textContent = formatCurrency(comparisonMedian);
@@ -888,25 +928,25 @@
       document.getElementById('totalSavings').textContent = formatCurrency(difference);
 
       // Calculate median returns from distributions
-      const stockReturnDist = arcvestData.stockReturnDistribution.sort((a, b) => a - b);
-      const bondReturnDist = arcvestData.bondReturnDistribution.sort((a, b) => a - b);
+      const stockReturnDist = [...data.stockReturnDistribution].sort((a, b) => a - b);
+      const bondReturnDist = [...data.bondReturnDistribution].sort((a, b) => a - b);
       const medianStockReturn = stockReturnDist[Math.floor(stockReturnDist.length / 2)];
       const medianBondReturn = bondReturnDist[Math.floor(bondReturnDist.length / 2)];
 
-      document.getElementById('stockReturn').textContent = medianStockReturn.toFixed(2) + '%';
-      document.getElementById('bondReturn').textContent = medianBondReturn.toFixed(2) + '%';
+      document.getElementById('stockReturnValue').textContent = medianStockReturn.toFixed(2) + '%';
+      document.getElementById('bondReturnValue').textContent = medianBondReturn.toFixed(2) + '%';
 
       // Create comparison chart
-      createComparisonChart(comparisonData, arcvestData, startingBalance, comparisonFeePct, arcvestFeePct);
+      createComparisonChart(data, startingBalance, comparisonFeePct, arcvestFeePct);
       
       // Create fee cost chart
-      createFeeChart(comparisonData, arcvestData, years, comparisonFeePct, arcvestFeePct);
+      createFeeChart(data, years, comparisonFeePct, arcvestFeePct);
 
       // Update detailed tab
-      updateDetailedTab(comparisonData, arcvestData, comparisonFeePct, arcvestFeePct);
+      updateDetailedTab(data, comparisonFeePct, arcvestFeePct);
     }
 
-    function createComparisonChart(comparisonData, arcvestData, startingAge, comparisonFeePct, arcvestFeePct) {
+    function createComparisonChart(data, startingAge, comparisonFeePct, arcvestFeePct) {
       const ctx = document.getElementById('comparisonChart').getContext('2d');
       
       if (comparisonChart) {
@@ -916,11 +956,11 @@
       comparisonChart = new Chart(ctx, {
         type: 'line',
         data: {
-          labels: comparisonData.years,
+          labels: data.years,
           datasets: [
             {
               label: `Comparison (${comparisonFeePct.toFixed(2)}%)`,
-              data: comparisonData.medianPath,
+              data: data.comparisonMedianPath,
               borderColor: '#ff9800',
               backgroundColor: 'rgba(255, 152, 0, 0.1)',
               borderWidth: 2,
@@ -929,7 +969,7 @@
             },
             {
               label: `ArcVest (${arcvestFeePct.toFixed(2)}%)`,
-              data: arcvestData.medianPath,
+              data: data.medianPath,
               borderColor: '#1B9C85',
               backgroundColor: 'rgba(27, 156, 133, 0.1)',
               borderWidth: 3,
@@ -988,22 +1028,22 @@
       });
     }
 
-    function createFeeChart(comparisonData, arcvestData, years, comparisonFeePct, arcvestFeePct) {
+    function createFeeChart(data, years, comparisonFeePct, arcvestFeePct) {
       const ctx = document.getElementById('feeChart').getContext('2d');
       
       if (feeChart) {
         feeChart.destroy();
       }
 
-      // Calculate difference at each point
-      const differences = comparisonData.medianPath.map((val, idx) => 
-        arcvestData.medianPath[idx] - val
+      // Calculate difference at each point (ArcVest - Comparison)
+      const differences = data.medianPath.map((val, idx) => 
+        val - data.comparisonMedianPath[idx]
       );
 
       feeChart = new Chart(ctx, {
         type: 'line',
         data: {
-          labels: comparisonData.years,
+          labels: data.years,
           datasets: [
             {
               label: 'Savings from Lower Fees',
@@ -1062,13 +1102,14 @@
       });
     }
 
-    function updateDetailedTab(comparisonData, arcvestData, comparisonFeePct, arcvestFeePct) {
+    function updateDetailedTab(data, comparisonFeePct, arcvestFeePct) {
       const detailedDiv = document.getElementById('detailedResults');
       
-      const comparisonDetails = comparisonData.medianSimulationDetails;
-      const arcvestDetails = arcvestData.medianSimulationDetails;
+      const comparisonDetails = data.comparisonMedianSimulationDetails;
+      const arcvestDetails = data.medianSimulationDetails;
 
       let html = '<h3 style="font-size: 18px; font-weight: 600; color: var(--text-dark); margin-bottom: 16px;">Year-by-Year Comparison (Median Scenario)</h3>';
+      html += '<p style="color: var(--muted); margin-bottom: 16px;">Both scenarios use the exact same market returns - only the fees differ. Click any year to see monthly details.</p>';
       
       html += '<table class="details-table">';
       html += '<thead><tr>';
@@ -1082,24 +1123,83 @@
       html += '</tr></thead>';
       html += '<tbody>';
 
-      comparisonDetails.forEach((row, idx) => {
-        const arcvestRow = arcvestDetails[idx];
-        const diff = arcvestRow.endBalance - row.endBalance;
+      arcvestDetails.forEach((row, idx) => {
+        const comparisonRow = comparisonDetails[idx];
+        const diff = row.endBalance - comparisonRow.endBalance;
         
-        html += '<tr>';
-        html += `<td>${row.year}</td>`;
+        html += `<tr class="year-row" data-year="${idx}" style="cursor: pointer;">`;
+        html += `<td><span class="expand-icon">▶</span> ${row.year}</td>`;
         html += `<td>${row.age}</td>`;
+        html += `<td>${formatCurrency(comparisonRow.endBalance)}</td>`;
         html += `<td>${formatCurrency(row.endBalance)}</td>`;
-        html += `<td>${formatCurrency(arcvestRow.endBalance)}</td>`;
         html += `<td class="positive">${formatCurrency(diff)}</td>`;
         html += `<td>${row.stockReturn}</td>`;
         html += `<td>${row.bondReturn}</td>`;
         html += '</tr>';
+        
+        // Add monthly details row (hidden by default)
+        html += `<tr class="monthly-details" id="monthly-${idx}" style="display: none;">`;
+        html += '<td colspan="7">';
+        html += '<table style="width: 100%; margin: 10px 0; font-size: 12px;">';
+        html += '<thead><tr>';
+        html += '<th>Month</th>';
+        html += '<th>Comparison Balance</th>';
+        html += '<th>ArcVest Balance</th>';
+        html += '<th>Monthly Savings</th>';
+        html += '<th>Stock</th>';
+        html += '<th>Bond</th>';
+        html += '<th>Stock Bal (Comparison)</th>';
+        html += '<th>Bond Bal (Comparison)</th>';
+        html += '<th>Stock Bal (ArcVest)</th>';
+        html += '<th>Bond Bal (ArcVest)</th>';
+        html += '</tr></thead>';
+        html += '<tbody>';
+        
+        // Add monthly rows
+        if (row.monthlyDetails && comparisonRow.monthlyDetails) {
+          row.monthlyDetails.forEach((monthData, monthIdx) => {
+            const comparisonMonthData = comparisonRow.monthlyDetails[monthIdx];
+            const monthSavings = monthData.balance - comparisonMonthData.balance;
+            
+            html += '<tr>';
+            html += `<td>${monthData.monthName}</td>`;
+            html += `<td>${formatCurrency(comparisonMonthData.balance)}</td>`;
+            html += `<td>${formatCurrency(monthData.balance)}</td>`;
+            html += `<td class="positive">${formatCurrency(monthSavings)}</td>`;
+            html += `<td>${monthData.stockReturn}</td>`;
+            html += `<td>${monthData.bondReturn}</td>`;
+            html += `<td>${formatCurrency(comparisonMonthData.stockBalance)}</td>`;
+            html += `<td>${formatCurrency(comparisonMonthData.bondBalance)}</td>`;
+            html += `<td>${formatCurrency(monthData.stockBalance)}</td>`;
+            html += `<td>${formatCurrency(monthData.bondBalance)}</td>`;
+            html += '</tr>';
+          });
+        }
+        
+        html += '</tbody></table>';
+        html += '</td></tr>';
       });
 
       html += '</tbody></table>';
       
       detailedDiv.innerHTML = html;
+      
+      // Add click handlers for year rows
+      document.querySelectorAll('.year-row').forEach(row => {
+        row.addEventListener('click', function() {
+          const yearIdx = this.dataset.year;
+          const monthlyRow = document.getElementById(`monthly-${yearIdx}`);
+          const icon = this.querySelector('.expand-icon');
+          
+          if (monthlyRow.style.display === 'none') {
+            monthlyRow.style.display = 'table-row';
+            icon.textContent = '▼';
+          } else {
+            monthlyRow.style.display = 'none';
+            icon.textContent = '▶';
+          }
+        });
+      });
     }
   </script>
 </body>

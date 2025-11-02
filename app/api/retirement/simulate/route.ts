@@ -22,6 +22,7 @@ interface SimulationParams {
   taxablePortion: number;
   taxRate: number;
   investmentFee: number;
+  comparisonFee?: number; // Optional: if provided, run both fee scenarios in parallel
 }
 
 export async function POST(request: NextRequest) {
@@ -72,7 +73,8 @@ function runMonteCarloSimulation(params: SimulationParams): any {
     degreesOfFreedom,
     taxablePortion,
     taxRate,
-    investmentFee
+    investmentFee,
+    comparisonFee
   } = params;
 
   // Calculate time periods
@@ -113,8 +115,12 @@ function runMonteCarloSimulation(params: SimulationParams): any {
     bondBalances: number[];
     annualizedStockReturn: number;
     annualizedBondReturn: number;
+    comparisonBalances?: number[];
+    comparisonStockBalances?: number[];
+    comparisonBondBalances?: number[];
   }[] = [];
   const finalBalances: { index: number; balance: number }[] = [];
+  const comparisonFinalBalances: { index: number; balance: number }[] = [];
 
   for (let sim = 0; sim < simulationCount; sim++) {
     const scenarioData = runSingleScenario(
@@ -137,7 +143,8 @@ function runMonteCarloSimulation(params: SimulationParams): any {
       degreesOfFreedom,
       taxablePortion,
       taxRate,
-      finalInvestmentFee
+      finalInvestmentFee,
+      comparisonFee
     );
 
     scenarios.push({
@@ -147,13 +154,24 @@ function runMonteCarloSimulation(params: SimulationParams): any {
       stockBalances: scenarioData.stockBalances,
       bondBalances: scenarioData.bondBalances,
       annualizedStockReturn: scenarioData.annualizedStockReturn,
-      annualizedBondReturn: scenarioData.annualizedBondReturn
+      annualizedBondReturn: scenarioData.annualizedBondReturn,
+      comparisonBalances: scenarioData.comparisonBalances,
+      comparisonStockBalances: scenarioData.comparisonStockBalances,
+      comparisonBondBalances: scenarioData.comparisonBondBalances
     });
     
     finalBalances.push({
       index: sim,
       balance: scenarioData.balances[scenarioData.balances.length - 1]
     });
+
+    // Track comparison final balances if comparison fee is provided
+    if (comparisonFee !== undefined && scenarioData.comparisonBalances) {
+      comparisonFinalBalances.push({
+        index: sim,
+        balance: scenarioData.comparisonBalances[scenarioData.comparisonBalances.length - 1]
+      });
+    }
   }
 
   // Collect annualized returns for distribution analysis
@@ -222,7 +240,7 @@ function runMonteCarloSimulation(params: SimulationParams): any {
     taxRate
   );
 
-  return {
+  const result: any = {
     successRate,
     medianBalance,
     percentile20,
@@ -238,6 +256,54 @@ function runMonteCarloSimulation(params: SimulationParams): any {
     stockReturnDistribution,
     bondReturnDistribution
   };
+
+  // Add comparison data if comparison fee was provided
+  if (comparisonFee !== undefined && medianSimulation.comparisonBalances) {
+    // Calculate comparison median path
+    const comparisonMedianPath: number[] = [];
+    const comparisonPercentile20Path: number[] = [];
+    const comparisonPercentile80Path: number[] = [];
+
+    for (let year = 0; year <= totalYears; year++) {
+      const monthIndex = Math.min(year * 12, monthsTotal - 1);
+      const comparisonBalancesAtTime = scenarios
+        .map(s => s.comparisonBalances?.[monthIndex] ?? 0)
+        .sort((a, b) => a - b);
+      
+      comparisonMedianPath.push(comparisonBalancesAtTime[Math.floor(simulationCount / 2)]);
+      comparisonPercentile20Path.push(comparisonBalancesAtTime[Math.floor(simulationCount * 0.2)]);
+      comparisonPercentile80Path.push(comparisonBalancesAtTime[Math.floor(simulationCount * 0.8)]);
+    }
+
+    // Generate comparison simulation details for the same median scenario
+    const comparisonMedianSimulationDetails = generateYearlyBreakdown(
+      medianSimulation.comparisonBalances!,
+      medianSimulation.returns, // Same returns!
+      medianSimulation.comparisonStockBalances!,
+      medianSimulation.comparisonBondBalances!,
+      currentAge,
+      yearsToRetirement,
+      annualContribution,
+      contributionGrowth,
+      annualWithdrawal,
+      withdrawalInflation,
+      yearsContributing * 12,
+      taxablePortion,
+      taxRate
+    );
+
+    // Calculate comparison median balance
+    const sortedComparisonBalances = [...comparisonFinalBalances].sort((a, b) => a.balance - b.balance);
+    const comparisonMedianBalance = sortedComparisonBalances[Math.floor(simulationCount / 2)].balance;
+
+    result.comparisonMedianBalance = comparisonMedianBalance;
+    result.comparisonMedianPath = comparisonMedianPath;
+    result.comparisonPercentile20Path = comparisonPercentile20Path;
+    result.comparisonPercentile80Path = comparisonPercentile80Path;
+    result.comparisonMedianSimulationDetails = comparisonMedianSimulationDetails;
+  }
+
+  return result;
 }
 
 function generateYearlyBreakdown(
@@ -408,7 +474,8 @@ function runSingleScenario(
   degreesOfFreedom: number,
   taxablePortion: number,
   taxRate: number,
-  investmentFee: number
+  investmentFee: number,
+  comparisonFee?: number
 ): { 
   balances: number[]; 
   returns: { stock: number[]; bond: number[] }; 
@@ -416,6 +483,9 @@ function runSingleScenario(
   bondBalances: number[];
   annualizedStockReturn: number;
   annualizedBondReturn: number;
+  comparisonBalances?: number[];
+  comparisonStockBalances?: number[];
+  comparisonBondBalances?: number[];
 } {
   const balances: number[] = [startingBalance];
   const stockReturns: number[] = [];
@@ -430,6 +500,14 @@ function runSingleScenario(
   // Track individual asset balances over time
   const stockBalances: number[] = [stockBalance];
   const bondBalances: number[] = [bondBalance];
+
+  // Comparison fee scenario (if provided) - tracks parallel portfolio with different fee
+  let comparisonBalance = comparisonFee !== undefined ? startingBalance : 0;
+  let comparisonStockBalance = comparisonFee !== undefined ? balance * stockAllocation : 0;
+  let comparisonBondBalance = comparisonFee !== undefined ? balance * bondAllocation : 0;
+  const comparisonBalances: number[] = comparisonFee !== undefined ? [startingBalance] : [];
+  const comparisonStockBalances: number[] = comparisonFee !== undefined ? [comparisonStockBalance] : [];
+  const comparisonBondBalances: number[] = comparisonFee !== undefined ? [comparisonBondBalance] : [];
 
   let currentContribution = annualContribution / 12;
   
@@ -546,6 +624,54 @@ function runSingleScenario(
     balances.push(balance);
     stockBalances.push(stockBalance);
     bondBalances.push(bondBalance);
+
+    // Track comparison fee scenario (if enabled) - apply same returns but different fee
+    if (comparisonFee !== undefined) {
+      // Apply same returns to comparison portfolio
+      comparisonStockBalance *= (1 + stockReturn);
+      comparisonBondBalance *= (1 + bondReturn);
+      comparisonBalance = comparisonStockBalance + comparisonBondBalance;
+
+      // Apply comparison fee
+      if (comparisonFee > 0 && comparisonBalance > 0) {
+        const monthlyComparisonFee = comparisonFee / 12;
+        const feeAmount = comparisonBalance * monthlyComparisonFee;
+        
+        comparisonStockBalance -= feeAmount * stockAllocation;
+        comparisonBondBalance -= feeAmount * bondAllocation;
+        comparisonBalance -= feeAmount;
+      }
+
+      // Apply same contributions/withdrawals
+      if (month <= monthsToRetirement) {
+        if (month <= monthsContributing) {
+          comparisonBalance += currentContribution;
+          comparisonStockBalance += currentContribution * stockAllocation;
+          comparisonBondBalance += currentContribution * bondAllocation;
+        }
+      } else {
+        comparisonBalance -= currentWithdrawal;
+        comparisonStockBalance -= currentWithdrawal * stockAllocation;
+        comparisonBondBalance -= currentWithdrawal * bondAllocation;
+      }
+
+      // Rebalance if enabled
+      if (rebalance && (month + 1) % 12 === 0 && comparisonBalance > 0) {
+        comparisonStockBalance = comparisonBalance * stockAllocation;
+        comparisonBondBalance = comparisonBalance * bondAllocation;
+      }
+
+      // Prevent negative balances
+      if (comparisonBalance < 0) {
+        comparisonBalance = 0;
+        comparisonStockBalance = 0;
+        comparisonBondBalance = 0;
+      }
+
+      comparisonBalances.push(comparisonBalance);
+      comparisonStockBalances.push(comparisonStockBalance);
+      comparisonBondBalances.push(comparisonBondBalance);
+    }
   }
 
   // Calculate cumulative geometric returns for the entire period
@@ -566,7 +692,7 @@ function runSingleScenario(
   const annualizedStockReturn = Math.pow(cumulativeStockReturn, 1 / totalYears) - 1;
   const annualizedBondReturn = Math.pow(cumulativeBondReturn, 1 / totalYears) - 1;
 
-  return {
+  const result: any = {
     balances,
     returns: {
       stock: stockReturns,
@@ -577,6 +703,15 @@ function runSingleScenario(
     annualizedStockReturn,
     annualizedBondReturn
   };
+
+  // Include comparison data if it was calculated
+  if (comparisonFee !== undefined) {
+    result.comparisonBalances = comparisonBalances;
+    result.comparisonStockBalances = comparisonStockBalances;
+    result.comparisonBondBalances = comparisonBondBalances;
+  }
+
+  return result;
 }
 
 // Generate correlated random variables using Cholesky decomposition
