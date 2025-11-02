@@ -676,6 +676,12 @@
           <input type="number" class="form-input" id="pmiRate" value="0.5" min="0" max="2" step="0.1">
           <div class="form-help">Private Mortgage Insurance rate</div>
         </div>
+
+        <div class="form-group">
+          <label class="form-label">Extra Monthly Payment</label>
+          <input type="number" class="form-input" id="extraPayment" value="0" min="0" step="50">
+          <div class="form-help">Additional principal payment per month</div>
+        </div>
       </div>
     </div>
 
@@ -800,6 +806,32 @@
         </div>
       </div>
 
+      <!-- Extra Payment Benefits (hidden if no extra payment) -->
+      <div class="info-grid" id="extraPaymentBenefits" style="display: none; margin-top: 24px;">
+        <div class="info-card" style="grid-column: 1 / -1; background: rgba(27, 156, 133, 0.05); border: 2px solid var(--brand);">
+          <h4 style="color: var(--brand);">💡 Extra Payment Benefits</h4>
+          <p style="font-size: 13px; color: var(--text); margin-bottom: 16px;">By making extra monthly payments, you can significantly reduce your mortgage term and save on interest.</p>
+          <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px;">
+            <div class="info-stat">
+              <span class="info-stat-label">Extra Monthly Payment</span>
+              <span class="info-stat-value" id="extraPaymentAmount">$0</span>
+            </div>
+            <div class="info-stat">
+              <span class="info-stat-label">New Payoff Time</span>
+              <span class="info-stat-value" style="color: var(--brand);" id="acceleratedYears">—</span>
+            </div>
+            <div class="info-stat">
+              <span class="info-stat-label">Time Saved</span>
+              <span class="info-stat-value" style="color: var(--green);" id="timeSaved">—</span>
+            </div>
+            <div class="info-stat">
+              <span class="info-stat-label">Interest Saved</span>
+              <span class="info-stat-value" style="color: var(--green);" id="interestSaved">—</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
       <!-- Chart -->
       <div class="chart-container">
         <h3>Mortgage Balance Over Time</h3>
@@ -859,6 +891,7 @@
         document.getElementById('homeInsurance').value = 2400;
         document.getElementById('hoaFees').value = 0;
         document.getElementById('pmiRate').value = 0.5;
+        document.getElementById('extraPayment').value = 0;
         document.getElementById('otherDebts').value = 500;
       }
     });
@@ -876,6 +909,7 @@
       const insuranceAnnual = parseFloat(document.getElementById('homeInsurance').value) || 0;
       const hoaMonthly = parseFloat(document.getElementById('hoaFees').value) || 0;
       const pmiRateAnnual = (parseFloat(document.getElementById('pmiRate').value) || 0) / 100;
+      const extraPayment = parseFloat(document.getElementById('extraPayment').value) || 0;
 
       // Calculate loan amount
       const loanAmount = price - downPayment;
@@ -898,11 +932,33 @@
       // Total monthly payment
       const totalMonthly = monthlyPI + propertyTaxMonthly + insuranceMonthly + pmiMonthly + hoaMonthly;
 
-      // Total costs over life of loan
+      // Total costs over life of loan (standard)
       const totalPrincipal = loanAmount;
       const totalInterest = (monthlyPI * numPayments) - loanAmount;
       const totalPayments = monthlyPI * numPayments;
       const totalCost = price + totalInterest + (propertyTaxAnnual * years) + (insuranceAnnual * years) + (hoaMonthly * 12 * years) + (pmiMonthly * 12 * years);
+
+      // Calculate extra payment benefits
+      let acceleratedMonths = numPayments;
+      let acceleratedInterest = totalInterest;
+      if (extraPayment > 0) {
+        let balance = loanAmount;
+        let month = 0;
+        let totalInterestPaid = 0;
+        
+        while (balance > 0 && month < numPayments) {
+          const interestPayment = balance * monthlyRate;
+          const principalPayment = monthlyPI - interestPayment + extraPayment;
+          totalInterestPaid += interestPayment;
+          balance -= principalPayment;
+          month++;
+          
+          if (balance <= 0) break;
+        }
+        
+        acceleratedMonths = month;
+        acceleratedInterest = totalInterestPaid;
+      }
 
       // Display results
       document.getElementById('totalPayment').textContent = formatCurrency(totalMonthly);
@@ -942,6 +998,26 @@
       document.getElementById('totalInterest').textContent = formatCurrency(totalInterest);
       document.getElementById('totalPayments').textContent = formatCurrency(totalPayments);
       document.getElementById('totalCost').textContent = formatCurrency(totalCost);
+
+      // Extra payment benefits
+      const extraPaymentBenefits = document.getElementById('extraPaymentBenefits');
+      if (extraPayment > 0) {
+        const monthsSaved = numPayments - acceleratedMonths;
+        const yearsSaved = Math.floor(monthsSaved / 12);
+        const remainingMonths = monthsSaved % 12;
+        const interestSavedAmount = totalInterest - acceleratedInterest;
+        
+        document.getElementById('extraPaymentAmount').textContent = formatCurrency(extraPayment);
+        document.getElementById('acceleratedYears').textContent = 
+          Math.floor(acceleratedMonths / 12) + ' yrs ' + (acceleratedMonths % 12) + ' mo';
+        document.getElementById('timeSaved').textContent = 
+          yearsSaved + ' yrs ' + remainingMonths + ' mo';
+        document.getElementById('interestSaved').textContent = formatCurrency(interestSavedAmount);
+        
+        extraPaymentBenefits.style.display = 'grid';
+      } else {
+        extraPaymentBenefits.style.display = 'none';
+      }
 
       // Show results
       document.getElementById('results').classList.add('visible');
