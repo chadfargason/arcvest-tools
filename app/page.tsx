@@ -1,5 +1,5 @@
 import Link from 'next/link'
-import { Calculator, MessageCircle, TrendingUp, Zap, Target, Home } from 'lucide-react'
+import { Calculator, MessageCircle, TrendingUp, Zap, Target, Home as HomeIcon } from 'lucide-react'
 
 export default function Home() {
   return (
@@ -53,7 +53,7 @@ export default function Home() {
           <Link href="/mortgage-calculator.html" className="group">
             <div className="bg-white border border-border p-8 h-full card-hover">
               <div className="flex items-center justify-center w-16 h-16 bg-arcvest-light mb-6 mx-auto group-hover:bg-arcvest-teal/20 transition-colors">
-                <Home className="w-8 h-8 text-arcvest-teal" />
+                <HomeIcon className="w-8 h-8 text-arcvest-teal" />
               </div>
               <h2 className="text-2xl font-bold text-arcvest-navy mb-3">
                 Mortgage Calculator
