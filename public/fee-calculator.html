@@ -474,6 +474,23 @@
         </div>
       </div>
 
+      <h3 style="font-size: 18px; font-weight: 600; color: var(--text-dark); margin: 32px 0 16px;">Fee Comparison</h3>
+      <p style="color: var(--muted); margin-bottom: 16px;">Compare ArcVest's fees against typical advisor fees or set your own</p>
+
+      <div class="form-grid">
+        <div class="form-group">
+          <label class="form-label">Comparison Fee (%)</label>
+          <input type="number" class="form-input" id="comparisonFee" value="1.25" min="0" max="5" step="0.01">
+          <div class="form-help">Typical advisor: 1.25% | Other advisor fee to compare</div>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label">ArcVest Fee (%)</label>
+          <input type="number" class="form-input" id="arcvestFee" value="0.40" min="0" max="5" step="0.01">
+          <div class="form-help">ArcVest's standard fee</div>
+        </div>
+      </div>
+
       <h3 style="font-size: 18px; font-weight: 600; color: var(--text-dark); margin: 32px 0 16px;">Asset Allocation</h3>
       <p style="color: var(--muted); margin-bottom: 16px;">Allocate between stocks and bonds (must total 100%)</p>
 
@@ -699,6 +716,8 @@
       if (confirm('Reset all inputs to default values?')) {
         document.getElementById('startingBalance').value = 500000;
         document.getElementById('yearsToSimulate').value = 20;
+        document.getElementById('comparisonFee').value = 1.25;
+        document.getElementById('arcvestFee').value = 0.40;
         document.getElementById('annualContribution').value = 10000;
         document.getElementById('contributionGrowth').value = 3;
         document.getElementById('simulationCount').value = 1000;
@@ -778,28 +797,32 @@
       resultsDiv.innerHTML = '<div class="loading"><div class="spinner"></div><p>Running Monte Carlo simulations for both fee scenarios...</p></div>';
 
       try {
-        // Run two simulations: one with 1.25% fees, one with 0.40% fees
-        const [typicalData, arcvestData] = await Promise.all([
+        // Get custom fee values
+        const comparisonFee = parseFloat(document.getElementById('comparisonFee').value) / 100;
+        const arcvestFee = parseFloat(document.getElementById('arcvestFee').value) / 100;
+
+        // Run two simulations: one with comparison fee, one with ArcVest fee
+        const [comparisonData, arcvestData] = await Promise.all([
           fetch('/api/retirement/simulate', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ ...baseParams, investmentFee: 0.0125 })
+            body: JSON.stringify({ ...baseParams, investmentFee: comparisonFee })
           }).then(r => r.json()),
           fetch('/api/retirement/simulate', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ ...baseParams, investmentFee: 0.004 })
+            body: JSON.stringify({ ...baseParams, investmentFee: arcvestFee })
           }).then(r => r.json())
         ]);
 
-        displayResults(typicalData, arcvestData, yearsToSimulate, baseParams.startingBalance);
+        displayResults(comparisonData, arcvestData, yearsToSimulate, baseParams.startingBalance, comparisonFee * 100, arcvestFee * 100);
       } catch (error) {
         console.error('Simulation error:', error);
         resultsDiv.innerHTML = `<div class="alert alert-error">Error running simulation: ${error.message}</div>`;
       }
     });
 
-    function displayResults(typicalData, arcvestData, years, startingBalance) {
+    function displayResults(comparisonData, arcvestData, years, startingBalance, comparisonFeePct, arcvestFeePct) {
       const resultsDiv = document.getElementById('results');
       resultsDiv.classList.add('visible');
       
@@ -811,17 +834,17 @@
         <div class="fee-comparison-box" id="savingsBox">
           <h3>You Could Save</h3>
           <div class="fee-comparison-value" id="totalSavings">$0</div>
-          <div class="fee-comparison-subtitle">by choosing ArcVest's 0.40% fees over typical 1.25% advisor fees</div>
+          <div class="fee-comparison-subtitle">by choosing ${arcvestFeePct.toFixed(2)}% fees over ${comparisonFeePct.toFixed(2)}% fees</div>
         </div>
 
         <div class="results-grid">
           <div class="result-card">
-            <div class="result-label">Typical Advisor (1.25%)</div>
-            <div class="result-value" id="typicalMedian">—</div>
+            <div class="result-label">Comparison (${comparisonFeePct.toFixed(2)}%)</div>
+            <div class="result-value" id="comparisonMedian">—</div>
           </div>
 
           <div class="result-card">
-            <div class="result-label">ArcVest (0.40%)</div>
+            <div class="result-label">ArcVest (${arcvestFeePct.toFixed(2)}%)</div>
             <div class="result-value highlight" id="arcvestMedian">—</div>
           </div>
 
@@ -855,11 +878,11 @@
       `;
 
       // Update values
-      const typicalMedian = typicalData.medianBalance;
+      const comparisonMedian = comparisonData.medianBalance;
       const arcvestMedian = arcvestData.medianBalance;
-      const difference = arcvestMedian - typicalMedian;
+      const difference = arcvestMedian - comparisonMedian;
 
-      document.getElementById('typicalMedian').textContent = formatCurrency(typicalMedian);
+      document.getElementById('comparisonMedian').textContent = formatCurrency(comparisonMedian);
       document.getElementById('arcvestMedian').textContent = formatCurrency(arcvestMedian);
       document.getElementById('difference').textContent = formatCurrency(difference);
       document.getElementById('totalSavings').textContent = formatCurrency(difference);
@@ -874,16 +897,16 @@
       document.getElementById('bondReturn').textContent = medianBondReturn.toFixed(2) + '%';
 
       // Create comparison chart
-      createComparisonChart(typicalData, arcvestData, startingBalance);
+      createComparisonChart(comparisonData, arcvestData, startingBalance, comparisonFeePct, arcvestFeePct);
       
       // Create fee cost chart
-      createFeeChart(typicalData, arcvestData, years);
+      createFeeChart(comparisonData, arcvestData, years, comparisonFeePct, arcvestFeePct);
 
       // Update detailed tab
-      updateDetailedTab(typicalData, arcvestData);
+      updateDetailedTab(comparisonData, arcvestData, comparisonFeePct, arcvestFeePct);
     }
 
-    function createComparisonChart(typicalData, arcvestData, startingAge) {
+    function createComparisonChart(comparisonData, arcvestData, startingAge, comparisonFeePct, arcvestFeePct) {
       const ctx = document.getElementById('comparisonChart').getContext('2d');
       
       if (comparisonChart) {
@@ -893,11 +916,11 @@
       comparisonChart = new Chart(ctx, {
         type: 'line',
         data: {
-          labels: typicalData.years,
+          labels: comparisonData.years,
           datasets: [
             {
-              label: 'Typical Advisor (1.25%)',
-              data: typicalData.medianPath,
+              label: `Comparison (${comparisonFeePct.toFixed(2)}%)`,
+              data: comparisonData.medianPath,
               borderColor: '#ff9800',
               backgroundColor: 'rgba(255, 152, 0, 0.1)',
               borderWidth: 2,
@@ -905,7 +928,7 @@
               tension: 0.1
             },
             {
-              label: 'ArcVest (0.40%)',
+              label: `ArcVest (${arcvestFeePct.toFixed(2)}%)`,
               data: arcvestData.medianPath,
               borderColor: '#1B9C85',
               backgroundColor: 'rgba(27, 156, 133, 0.1)',
@@ -965,7 +988,7 @@
       });
     }
 
-    function createFeeChart(typicalData, arcvestData, years) {
+    function createFeeChart(comparisonData, arcvestData, years, comparisonFeePct, arcvestFeePct) {
       const ctx = document.getElementById('feeChart').getContext('2d');
       
       if (feeChart) {
@@ -973,14 +996,14 @@
       }
 
       // Calculate difference at each point
-      const differences = typicalData.medianPath.map((val, idx) => 
+      const differences = comparisonData.medianPath.map((val, idx) => 
         arcvestData.medianPath[idx] - val
       );
 
       feeChart = new Chart(ctx, {
         type: 'line',
         data: {
-          labels: typicalData.years,
+          labels: comparisonData.years,
           datasets: [
             {
               label: 'Savings from Lower Fees',
@@ -1039,10 +1062,10 @@
       });
     }
 
-    function updateDetailedTab(typicalData, arcvestData) {
+    function updateDetailedTab(comparisonData, arcvestData, comparisonFeePct, arcvestFeePct) {
       const detailedDiv = document.getElementById('detailedResults');
       
-      const typicalDetails = typicalData.medianSimulationDetails;
+      const comparisonDetails = comparisonData.medianSimulationDetails;
       const arcvestDetails = arcvestData.medianSimulationDetails;
 
       let html = '<h3 style="font-size: 18px; font-weight: 600; color: var(--text-dark); margin-bottom: 16px;">Year-by-Year Comparison (Median Scenario)</h3>';
@@ -1051,15 +1074,15 @@
       html += '<thead><tr>';
       html += '<th>Year</th>';
       html += '<th>Age</th>';
-      html += '<th>Typical (1.25%)</th>';
-      html += '<th>ArcVest (0.40%)</th>';
+      html += `<th>Comparison (${comparisonFeePct.toFixed(2)}%)</th>`;
+      html += `<th>ArcVest (${arcvestFeePct.toFixed(2)}%)</th>`;
       html += '<th>Difference</th>';
       html += '<th>Stock Return</th>';
       html += '<th>Bond Return</th>';
       html += '</tr></thead>';
       html += '<tbody>';
 
-      typicalDetails.forEach((row, idx) => {
+      comparisonDetails.forEach((row, idx) => {
         const arcvestRow = arcvestDetails[idx];
         const diff = arcvestRow.endBalance - row.endBalance;
         
