@@ -736,11 +736,11 @@
       <h2>Opportunity Cost Analysis</h2>
 
       <!-- Key Opportunity Cost Callout -->
-      <div class="opportunity-box" id="opportunityBox">
-        <h3>By Skipping This Treat...</h3>
-        <div class="opportunity-value" id="opportunityCost">$0</div>
-        <div class="opportunity-subtitle" id="opportunitySubtitle">is what you'd have at retirement (age 65)</div>
-      </div>
+        <div class="opportunity-box" id="opportunityBox">
+          <h3>By Skipping This Treat...</h3>
+          <div class="opportunity-value" id="opportunityCost">$0</div>
+          <div class="opportunity-subtitle" id="opportunitySubtitle">is how much more you'd have at retirement</div>
+        </div>
 
       <div class="results-grid">
         <div class="result-card">
@@ -983,7 +983,7 @@
         <div class="opportunity-box" id="opportunityBox">
           <h3>By Skipping This Treat...</h3>
           <div class="opportunity-value" id="opportunityCost">$0</div>
-          <div class="opportunity-subtitle" id="opportunitySubtitle">is what you'd have at retirement (age 65)</div>
+          <div class="opportunity-subtitle" id="opportunitySubtitle">is how much more you'd have at retirement</div>
         </div>
 
         <div class="results-grid">
@@ -1024,7 +1024,7 @@
       document.getElementById('annualCost').textContent = formatCurrency(annualCost);
       document.getElementById('retirementValue').textContent = formatCurrency(medianValue);
       document.getElementById('opportunityCost').textContent = formatCurrency(medianValue);
-      document.getElementById('opportunitySubtitle').textContent = `is what you'd have by giving up ${treat.name} for ${yearsToRetirement} years`;
+      document.getElementById('opportunitySubtitle').textContent = `is how much more you'd have at retirement by giving up ${treat.name}`;
 
       // Create growth chart
       createGrowthChart(data);
