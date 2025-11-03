@@ -460,6 +460,7 @@
     }
 
     async function calculateReturns() {
+      // Updated API endpoint with category fallback support (Nov 2, 2025)
       const apiEndpoint = 'https://investment-chatbot-1.vercel.app/api/portfolio/calculate';
       const startDate = document.getElementById('start-date').value + '-01';
       const [y, m] = document.getElementById('end-date').value.split('-');
