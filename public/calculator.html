@@ -372,6 +372,12 @@
                   <div class="label">Portfolio Growth of $10,000 invested</div>
                   <div class="value" style="font-size:14px; font-weight:600; margin-top:4px;">—</div>
                   <canvas id="portfolio-chart" height="160" style="margin-top:8px"></canvas>
+                  
+                  <!-- Fallback Notice -->
+                  <div id="fallback-notice" style="margin-top: 16px; padding: 12px; background: #f8fafc; border-left: 3px solid #1B9C85; display: none;">
+                    <div style="font-size: 12px; font-weight: 600; color: #1B9C85; margin-bottom: 6px;">📊 Data Sources</div>
+                    <div id="fallback-messages" style="font-size: 11px; font-weight: 400; color: #64748b; line-height: 1.5;"></div>
+                  </div>
                 </div>
               </div>
             </section>
@@ -521,8 +527,72 @@
       
       document.getElementById('results-section').classList.add('visible');
 
+      // Display fallback information if present
+      displayFallbackNotice(data);
+
       // Render monthly chart if provided
       if (series) { try { renderPortfolioChart(series); } catch (e) { /* no-op */ } }
+    }
+
+    function displayFallbackNotice(data) {
+      const fallbackNotice = document.getElementById('fallback-notice');
+      const fallbackMessages = document.getElementById('fallback-messages');
+      
+      // Check if there are any fallbacks used
+      if (data.fallbacksUsed && data.fallbacksUsed.length > 0) {
+        const messages = [];
+        
+        // Map of ticker to friendly names
+        const assetNames = {
+          'IBIT': 'Bitcoin (IBIT)',
+          'BITO': 'Bitcoin (BITO)',
+          'GBTC': 'Bitcoin (GBTC)',
+          'VTI': 'Total US Equity (VTI)',
+          'SPY': 'S&P 500 (SPY)',
+          'VOO': 'S&P 500 (VOO)',
+          'IVV': 'S&P 500 (IVV)',
+          'VXUS': 'International Equity (VXUS)',
+          'SPDW': 'International Equity (SPDW)',
+          'EEM': 'Emerging Markets (EEM)',
+          'VEA': 'Developed Markets (VEA)'
+        };
+        
+        data.fallbacksUsed.forEach(fb => {
+          const assetName = assetNames[fb.originalAsset] || fb.originalAsset;
+          
+          // Format dates nicely
+          const startDate = new Date(fb.dateRange.start).toLocaleDateString('en-US', { month: 'short', year: 'numeric' });
+          const endDate = new Date(fb.dateRange.end).toLocaleDateString('en-US', { month: 'short', year: 'numeric' });
+          
+          let message = '';
+          
+          // Special case: Bitcoin before it existed
+          if (fb.originalAsset === 'BTC' && fb.reason.includes('did not exist')) {
+            message = `⚠️ <strong>Bitcoin</strong> was requested for ${startDate} to ${endDate}, but Bitcoin did not exist as a tradeable asset before 2009. Reliable pricing data begins in January 2014. Analysis only includes data from Jan 2014 onward.`;
+          } 
+          // Bitcoin ETFs using Bitcoin proxy
+          else if (fb.originalAsset === 'IBIT' || fb.originalAsset === 'BITO' || fb.originalAsset === 'GBTC') {
+            message = `<strong>${assetName}</strong> uses Bitcoin spot prices for ${startDate} to ${endDate} (before ETF inception in Feb 2024)`;
+          }
+          // US Equity ETFs using S&P 500 proxy
+          else if (fb.asset === '^SP500TR') {
+            message = `<strong>${assetName}</strong> uses S&P 500 Total Return index for ${startDate} to ${endDate} (before ETF inception)`;
+          }
+          // Generic fallback
+          else {
+            const indexName = fb.asset;
+            message = `<strong>${assetName}</strong> uses ${indexName} index for ${startDate} to ${endDate}`;
+          }
+          
+          messages.push(message);
+        });
+        
+        fallbackMessages.innerHTML = messages.join('<br>');
+        fallbackNotice.style.display = 'block';
+      } else {
+        // No fallbacks - hide the notice
+        fallbackNotice.style.display = 'none';
+      }
     }
 
     let _portfolioChart;
