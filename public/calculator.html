@@ -566,8 +566,12 @@
           
           let message = '';
           
+          // Data gap notice (when analysis starts later than requested)
+          if (fb.category === 'DATA_GAP') {
+            message = `ℹ️ Analysis begins at <strong>${endDate}</strong> (first month with complete data for all assets), not ${startDate} as requested. One or more assets have limited historical data.`;
+          }
           // Special case: Bitcoin before it existed
-          if (fb.originalAsset === 'BTC' && fb.reason.includes('did not exist')) {
+          else if (fb.originalAsset === 'BTC' && fb.reason.includes('did not exist')) {
             message = `⚠️ <strong>Bitcoin</strong> was requested for ${startDate} to ${endDate}, but Bitcoin did not exist as a tradeable asset before 2009. Reliable pricing data begins in January 2014. Analysis only includes data from Jan 2014 onward.`;
           } 
           // Bitcoin ETFs using Bitcoin proxy
