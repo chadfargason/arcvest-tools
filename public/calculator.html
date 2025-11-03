@@ -234,10 +234,10 @@
 </head>
 <body>
   <div class="shell">
-    <div class="header">
+        <div class="header">
       <div>
         <div class="title">Portfolio Return Calculator</div>
-        <div class="subtitle">Tweak allocations with sliders. Total must equal 100%. Monthly returns; optional rebalancing.</div>
+        <div class="subtitle">Tweak allocations with sliders. Total must equal 100%. Monthly returns; optional rebalancing. Historical data available from 2002 onward.</div>
       </div>
     </div>
 
@@ -248,11 +248,11 @@
             <div class="config">
               <div class="field">
                 <div class="label">Start Date</div>
-                <input class="input" type="month" id="start-date" value="2020-01" />
+                <input class="input" type="month" id="start-date" value="2020-01" min="2002-01" />
               </div>
               <div class="field">
                 <div class="label">End Date</div>
-                <input class="input" type="month" id="end-date" value="2023-12" />
+                <input class="input" type="month" id="end-date" value="2023-12" min="2002-01" />
               </div>
               <div class="field">
                 <div class="label">Rebalance</div>
