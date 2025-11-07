@@ -1,5 +1,7 @@
 import type { Metadata } from 'next'
 import './globals.css'
+import Header from '@/components/Header'
+import Footer from '@/components/Footer'
 
 export const metadata: Metadata = {
   title: 'ArcVest - Investment Portfolio Tools',
@@ -16,9 +18,14 @@ export default function RootLayout({
   children: React.ReactNode
 }) {
   return (
-    <html lang="en" className="dark">
+    <html lang="en">
+      <head>
+        <link href="https://fonts.googleapis.com/css2?family=Lato:wght@400;700&family=Lora:wght@400;500;600;700&display=swap" rel="stylesheet" />
+      </head>
       <body className="antialiased">
+        <Header />
         {children}
+        <Footer />
       </body>
     </html>
   )

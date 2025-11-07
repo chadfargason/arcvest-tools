@@ -1,5 +1,6 @@
 'use client'
 
+import Link from 'next/link'
 import { ArrowLeft } from 'lucide-react'
 
 export default function CalculatorPage() {
@@ -10,14 +11,13 @@ export default function CalculatorPage() {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex items-center justify-between h-16">
             <div className="flex items-center space-x-4">
-              <a 
-                href="https://arcvest.com/investment-tools" 
-                target="_parent"
+              <Link 
+                href="/"
                 className="flex items-center text-arcvest-body hover:text-arcvest-teal transition-colors"
               >
                 <ArrowLeft className="w-5 h-5 mr-2" />
                 Back to Tools
-              </a>
+              </Link>
               <div className="h-6 w-px bg-border" />
               <h1 className="text-xl font-semibold text-arcvest-navy">Portfolio Calculator</h1>
             </div>
