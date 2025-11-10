@@ -12,6 +12,13 @@ export default function Home() {
           </h1>
         </div>
 
+        {/* Disclaimer */}
+        <div className="mb-10 animate-fade-in">
+          <div className="inline-block bg-[#0F172A] text-white px-6 py-3 rounded-sm tracking-wide uppercase text-xs md:text-sm font-semibold">
+            For Information and Education Use Only – Not Advice
+          </div>
+        </div>
+
         {/* Main Tools Grid */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-12 animate-slide-up">
           <Link href="/calculator" className="group">
