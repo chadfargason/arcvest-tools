@@ -6,8 +6,8 @@ export default function Home() {
     <div className="min-h-screen gradient-bg flex items-center justify-center p-5">
       <div className="max-w-5xl w-full text-center">
         {/* Disclaimer */}
-        <div className="animate-fade-in mt-4 mb-8">
-          <p className="text-sm md:text-base font-semibold uppercase tracking-wide text-black">
+        <div className="animate-fade-in mt-0 mb-6">
+          <p className="text-sm md:text-base font-semibold uppercase tracking-wide text-black leading-relaxed">
             For Information and Education Use Only – Not Advice
           </p>
         </div>
