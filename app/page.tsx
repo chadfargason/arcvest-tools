@@ -5,18 +5,18 @@ export default function Home() {
   return (
     <div className="min-h-screen gradient-bg flex items-center justify-center p-5">
       <div className="max-w-5xl w-full text-center">
+        {/* Disclaimer */}
+        <div className="animate-fade-in mb-6">
+          <p className="text-xs md:text-sm font-semibold uppercase tracking-wide text-black">
+            For Information and Education Use Only – Not Advice
+          </p>
+        </div>
+
         {/* Header */}
         <div className="mb-12 animate-fade-in">
           <h1 className="text-5xl md:text-7xl font-bold tracking-tight mb-8 text-arcvest-navy">
             ArcVest Portfolio Investment Tools
           </h1>
-        </div>
-
-        {/* Disclaimer */}
-        <div className="mb-10 animate-fade-in">
-          <div className="inline-block bg-[#0F172A] text-white px-6 py-3 rounded-sm tracking-wide uppercase text-xs md:text-sm font-semibold">
-            For Information and Education Use Only – Not Advice
-          </div>
         </div>
 
         {/* Main Tools Grid */}
