@@ -43,11 +43,11 @@ export default function Header() {
           background: #ffffff;
           color: #0F172A;
           font-family: 'Lora', serif;
-          font-size: 16px;
+          font-size: 19px;
           letter-spacing: 0.5px;
           font-weight: 600;
           text-align: center;
-          padding: 10px 0;
+          padding: 12px 0;
           border-bottom: 1px solid rgba(69, 79, 94, 0.2);
         }
         .container {
