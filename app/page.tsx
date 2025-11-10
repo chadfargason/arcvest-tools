@@ -6,15 +6,15 @@ export default function Home() {
     <div className="min-h-screen gradient-bg flex items-center justify-center p-5">
       <div className="max-w-5xl w-full text-center">
         {/* Disclaimer */}
-        <div className="animate-fade-in mt-0 mb-6">
-          <p className="text-sm md:text-base font-semibold uppercase tracking-wide text-black leading-relaxed">
+        <div className="animate-fade-in mt-2 mb-5">
+          <p className="text-sm md:text-base font-semibold uppercase tracking-wide text-black">
             For Information and Education Use Only – Not Advice
           </p>
         </div>
 
         {/* Header */}
-        <div className="mb-12 animate-fade-in">
-          <h1 className="text-5xl md:text-7xl font-bold tracking-tight mb-8 text-arcvest-navy">
+        <div className="mb-10 animate-fade-in">
+          <h1 className="text-5xl md:text-7xl font-bold tracking-tight mb-6 text-arcvest-navy">
             ArcVest Portfolio Investment Tools
           </h1>
         </div>
