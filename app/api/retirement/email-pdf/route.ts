@@ -749,16 +749,16 @@ async function buildPdfBuffer({
   }> = [
     { key: 'year', title: 'Year', width: 0.07, align: 'left' },
     { key: 'age', title: 'Age', width: 0.05, align: 'left' },
-    { key: 'startBalance', title: 'Start Balance', width: 0.1, align: 'right' },
-    { key: 'stockReturn', title: 'Stock Return', width: 0.08, align: 'right' },
-    { key: 'bondReturn', title: 'Bond Return', width: 0.08, align: 'right' },
-    { key: 'returns', title: 'Total Returns', width: 0.08, align: 'right' },
+    { key: 'startBalance', title: 'Start\nBalance', width: 0.1, align: 'right' },
+    { key: 'stockReturn', title: 'Stock\nReturn', width: 0.08, align: 'right' },
+    { key: 'bondReturn', title: 'Bond\nReturn', width: 0.08, align: 'right' },
+    { key: 'returns', title: 'Total\nReturns', width: 0.08, align: 'right' },
     { key: 'contributions', title: 'Contributions', width: 0.08, align: 'right' },
-    { key: 'withdrawalGross', title: 'Withdrawal (Gross)', width: 0.1, align: 'right' },
+    { key: 'withdrawalGross', title: 'Withdrawal\n(Gross)', width: 0.1, align: 'right' },
     { key: 'tax', title: 'Tax', width: 0.06, align: 'right' },
-    { key: 'withdrawalNet', title: 'Withdrawal (Net)', width: 0.1, align: 'right' },
-    { key: 'endBalance', title: 'End Balance', width: 0.1, align: 'right' },
-    { key: 'netChange', title: 'Net Change', width: 0.1, align: 'right' },
+    { key: 'withdrawalNet', title: 'Withdrawal\n(Net)', width: 0.1, align: 'right' },
+    { key: 'endBalance', title: 'End\nBalance', width: 0.1, align: 'right' },
+    { key: 'netChange', title: 'Net\nChange', width: 0.1, align: 'right' },
   ]
 
   let detailColumnPositions: Array<{ x: number; width: number }> = []
@@ -781,7 +781,7 @@ async function buildPdfBuffer({
   }
 
   const drawTableHeader = () => {
-    const headerHeight = 20
+    const headerHeight = 24
     ensureSpace(headerHeight + 6)
     const headerTop = y
 
@@ -795,21 +795,30 @@ async function buildPdfBuffer({
 
     detailColumns.forEach((column, index) => {
       const { x, width } = detailColumnPositions[index]
-      const textWidth = boldFont.widthOfTextAtSize(column.title, 9)
-      let textX = x + 6
+      const lines = column.title.split('\n')
+      const fontSize = 9
+      const lineHeight = 10
+      let textY = headerTop - 6 - fontSize
 
-      if (column.align === 'right') {
-        textX = x + width - textWidth - 6
-      } else if (column.align === 'center') {
-        textX = x + (width - textWidth) / 2
-      }
+      const titleHeight = lines.length * lineHeight
+      textY = headerTop - (headerHeight - titleHeight) / 2 - fontSize + 4
 
-      page.drawText(column.title, {
-        x: textX,
-        y: headerTop - headerHeight + 6,
-        size: 9,
-        font: boldFont,
-        color: subtleColor,
+      lines.forEach((line, lineIndex) => {
+        const textWidth = boldFont.widthOfTextAtSize(line, fontSize)
+        let textX = x + 6
+        if (column.align === 'right') {
+          textX = x + width - textWidth - 6
+        } else if (column.align === 'center') {
+          textX = x + (width - textWidth) / 2
+        }
+
+        page.drawText(line, {
+          x: textX,
+          y: textY - lineIndex * lineHeight,
+          size: fontSize,
+          font: boldFont,
+          color: subtleColor,
+        })
       })
     })
 
