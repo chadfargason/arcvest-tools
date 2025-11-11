@@ -927,8 +927,7 @@ async function buildPdfBuffer({
     })
   }
 
-  // ---- Page 2: Portfolio Chart & Next Steps ----
-  addPage(portraitSize, marginDefault)
+  // -- Portfolio Chart & Next Steps (keep on summary page when possible) --
   await drawChartImage(charts?.portfolio ?? null, 'Portfolio Balance Over Time', {
     maxHeight: 240,
     spacingAfter: 18,
@@ -939,7 +938,7 @@ async function buildPdfBuffer({
     { size: 11, spacingAfter: 0 }
   )
 
-  // ---- Page 3: Distribution Chart ----
+  // ---- Page 2: Distribution Chart ----
   addPage(portraitSize, marginDefault)
   drawSectionHeading('Distribution of Final Balances')
   drawParagraph(
