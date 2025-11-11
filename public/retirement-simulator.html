@@ -975,6 +975,12 @@
     </div>
   </div>
 
+  <!-- Hidden static canvases for PDF generation -->
+  <div style="display: none;">
+    <canvas id="portfolioChartStatic" width="1600" height="800"></canvas>
+    <canvas id="distributionChartStatic" width="1600" height="800"></canvas>
+  </div>
+
   <!-- Email PDF Modal -->
   <div class="modal-overlay" id="emailPdfModal" aria-hidden="true">
     <div class="modal-content" role="dialog" aria-modal="true" aria-labelledby="emailPdfTitle">
@@ -1036,7 +1042,9 @@
 
     // State management
     let portfolioChart = null;
+    let portfolioChartStatic = null;
     let distributionChart = null;
+    let distributionChartStatic = null;
     let lastSimulationParams = null;
     let lastSimulationResults = null;
     let lastPortfolioChartImage = null;
@@ -1326,16 +1334,16 @@
 
     function captureChartImages() {
       try {
-        if (portfolioChart) {
-          lastPortfolioChartImage = portfolioChart.toBase64Image('image/png', 1);
+        if (portfolioChartStatic) {
+          lastPortfolioChartImage = portfolioChartStatic.toBase64Image('image/png', 1);
         }
       } catch (error) {
         console.warn('Unable to capture portfolio chart image', error);
       }
 
       try {
-        if (distributionChart) {
-          lastDistributionChartImage = distributionChart.toBase64Image('image/png', 1);
+        if (distributionChartStatic) {
+          lastDistributionChartImage = distributionChartStatic.toBase64Image('image/png', 1);
         }
       } catch (error) {
         console.warn('Unable to capture distribution chart image', error);
@@ -1672,14 +1680,8 @@
       }
     };
 
-    function drawPortfolioChart(data) {
-      const ctx = document.getElementById('portfolioChart');
-      
-      if (portfolioChart) {
-        portfolioChart.destroy();
-      }
-
-      portfolioChart = new Chart(ctx, {
+    function createPortfolioChartConfig(data) {
+      return {
         type: 'line',
         data: {
           labels: data.years,
@@ -1689,7 +1691,7 @@
               data: data.percentile80Path,
               borderColor: 'rgba(27, 156, 133, 0.6)',
               backgroundColor: 'rgba(27, 156, 133, 0.25)',
-              fill: '+1',  // Fill down to median
+              fill: '+1',
               borderWidth: 2,
               pointRadius: 0
             },
@@ -1698,7 +1700,7 @@
               data: data.medianPath,
               borderColor: '#1B9C85',
               backgroundColor: 'rgba(27, 156, 133, 0.25)',
-              fill: '+1',  // Fill down to 20th percentile
+              fill: '+1',
               borderWidth: 3,
               pointRadius: 0
             },
@@ -1750,21 +1752,11 @@
             }
           }
         }
-      });
+      };
     }
 
-    function drawDistributionChart(data) {
-      const ctx = document.getElementById('distributionChart');
-      
-      if (distributionChart) {
-        distributionChart.destroy();
-      }
-
-      // Debug: Log the data
-      console.log('Distribution labels:', data.distributionLabels);
-      console.log('Distribution percentages:', data.distributionPercentages);
-
-      distributionChart = new Chart(ctx, {
+    function createDistributionChartConfig(data) {
+      return {
         type: 'bar',
         data: {
           labels: data.distributionLabels || [],
@@ -1813,7 +1805,58 @@
             }
           }
         }
-      });
+      };
+    }
+
+    function drawPortfolioChart(data) {
+      const ctx = document.getElementById('portfolioChart');
+      const staticCanvas = document.getElementById('portfolioChartStatic');
+      
+      if (portfolioChart) {
+        portfolioChart.destroy();
+      }
+      const config = createPortfolioChartConfig(data);
+      portfolioChart = new Chart(ctx, config);
+
+      if (portfolioChartStatic) {
+        portfolioChartStatic.destroy();
+      }
+      if (staticCanvas) {
+        const staticConfig = createPortfolioChartConfig(data);
+        staticConfig.options.responsive = false;
+        staticConfig.options.maintainAspectRatio = false;
+        staticConfig.options.animation = false;
+        staticConfig.options.aspectRatio = undefined;
+        portfolioChartStatic = new Chart(staticCanvas.getContext('2d'), staticConfig);
+      }
+    }
+
+    function drawDistributionChart(data) {
+      const ctx = document.getElementById('distributionChart');
+      const staticCanvas = document.getElementById('distributionChartStatic');
+      
+      if (distributionChart) {
+        distributionChart.destroy();
+      }
+
+      // Debug: Log the data
+      console.log('Distribution labels:', data.distributionLabels);
+      console.log('Distribution percentages:', data.distributionPercentages);
+
+      const config = createDistributionChartConfig(data);
+      distributionChart = new Chart(ctx, config);
+
+      if (distributionChartStatic) {
+        distributionChartStatic.destroy();
+      }
+      if (staticCanvas) {
+        const staticConfig = createDistributionChartConfig(data);
+        staticConfig.options.responsive = false;
+        staticConfig.options.maintainAspectRatio = false;
+        staticConfig.options.animation = false;
+        staticConfig.options.aspectRatio = undefined;
+        distributionChartStatic = new Chart(staticCanvas.getContext('2d'), staticConfig);
+      }
     }
 
     function formatCurrency(value, short = false) {
