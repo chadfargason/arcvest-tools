@@ -969,6 +969,11 @@
       </div>
 
       <div class="chart-container">
+        <h3>What This Means For You</h3>
+        <p id="whatThisMeans" style="color: var(--text); font-size: 14px; line-height: 1.5;"></p>
+      </div>
+
+      <div class="chart-container">
         <h3>Distribution of Final Balances</h3>
         <canvas id="distributionChart"></canvas>
       </div>
@@ -1312,6 +1317,13 @@
       // Populate Detailed Outcome tab
       populateDetailedOutcome(data);
       notifyParentHeight();
+
+      const whatThisMeans = document.getElementById('whatThisMeans');
+      if (whatThisMeans) {
+        const successRate = data.successRate || 0;
+        const successPercent = `${Math.round(successRate * 100)}%`;
+        whatThisMeans.textContent = `Your success rate of ${successPercent} means that you would expect to not run out of money ${successPercent} of the time. If this number is above 90% you are on track. However, if it is lower, you may run out of money in retirement. Contact us for help to lower the risk this happens.`;
+      }
     }
 
     function setupEmailPdfTrigger() {

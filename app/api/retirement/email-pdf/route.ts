@@ -941,6 +941,13 @@ async function buildPdfBuffer({
     maxHeight: 240,
     spacingAfter: 18,
   })
+  const successRatePercent =
+    successRate !== null ? `${Math.round(successRate * 100)}%` : '—'
+  drawSectionHeading('What This Means For You')
+  drawParagraph(
+    `Your success rate of ${successRatePercent} means that you would expect to not run out of money ${successRatePercent} of the time. If this number is above 90% you are on track. However, if it is lower, you may run out of money in retirement. Contact us for help to lower the risk this happens.`,
+    { size: 11, spacingAfter: 18 }
+  )
   drawSectionHeading('Next Steps')
   drawParagraph(
     'Thank you for exploring your retirement readiness with ArcVest. These results are designed to help you understand potential outcomes across thousands of market scenarios. For a more personalized strategy, schedule time with our advisory team. Email wealth@arcvest.com or call 713-581-4550 or sign-up for a time to talk on our website.',
