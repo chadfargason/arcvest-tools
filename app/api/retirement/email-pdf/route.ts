@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { readFile } from 'fs/promises'
 import { join } from 'path'
-import { ChartJSNodeCanvas } from 'chartjs-node-canvas'
 
 interface ContactInfo {
   email: string
@@ -27,23 +26,6 @@ let loraFontDataPromise:
   | Promise<{ regular: Uint8Array; bold: Uint8Array; italic: Uint8Array }>
   | null = null
 
-const PORTFOLIO_CHART_WIDTH = 1600
-const PORTFOLIO_CHART_HEIGHT = 800
-const DISTRIBUTION_CHART_WIDTH = 1600
-const DISTRIBUTION_CHART_HEIGHT = 800
-
-const portfolioChartRenderer = new ChartJSNodeCanvas({
-  width: PORTFOLIO_CHART_WIDTH,
-  height: PORTFOLIO_CHART_HEIGHT,
-  backgroundColour: 'white',
-})
-
-const distributionChartRenderer = new ChartJSNodeCanvas({
-  width: DISTRIBUTION_CHART_WIDTH,
-  height: DISTRIBUTION_CHART_HEIGHT,
-  backgroundColour: 'white',
-})
-
 async function loadLoraFontData() {
   if (!loraFontDataPromise) {
     const basePath = join(process.cwd(), 'app', 'fonts', 'lora')
@@ -58,186 +40,6 @@ async function loadLoraFontData() {
     }))
   }
   return loraFontDataPromise
-}
-
-async function renderChartToDataUri(
-  renderer: ChartJSNodeCanvas,
-  configuration: Parameters<ChartJSNodeCanvas['renderToBuffer']>[0]
-) {
-  const buffer = await renderer.renderToBuffer(configuration, 'image/png')
-  return `data:image/png;base64,${buffer.toString('base64')}`
-}
-
-const compactCurrencyFormatter = new Intl.NumberFormat('en-US', {
-  style: 'currency',
-  currency: 'USD',
-  maximumFractionDigits: 0,
-})
-
-function formatCurrencyTick(value: number) {
-  if (!Number.isFinite(value)) {
-    return '$0'
-  }
-
-  if (Math.abs(value) >= 1_000_000) {
-    return `$${(value / 1_000_000).toFixed(1)}M`
-  }
-
-  if (Math.abs(value) >= 1_000) {
-    return `$${(value / 1_000).toFixed(0)}K`
-  }
-
-  return compactCurrencyFormatter.format(value)
-}
-
-function buildPortfolioChartConfig(simulation: any) {
-  const years: (string | number)[] = Array.isArray(simulation?.years) ? simulation.years : []
-  const percentile80Path: number[] = Array.isArray(simulation?.percentile80Path)
-    ? simulation.percentile80Path
-    : []
-  const medianPath: number[] = Array.isArray(simulation?.medianPath) ? simulation.medianPath : []
-  const percentile20Path: number[] = Array.isArray(simulation?.percentile20Path)
-    ? simulation.percentile20Path
-    : []
-
-  return {
-    type: 'line' as const,
-    data: {
-      labels: years,
-      datasets: [
-        {
-          label: '80th Percentile',
-          data: percentile80Path,
-          borderColor: 'rgba(27, 156, 133, 0.6)',
-          backgroundColor: 'rgba(27, 156, 133, 0.25)',
-          fill: '+1',
-          borderWidth: 2,
-          pointRadius: 0,
-        },
-        {
-          label: 'Median (50th)',
-          data: medianPath,
-          borderColor: '#1B9C85',
-          backgroundColor: 'rgba(27, 156, 133, 0.25)',
-          fill: '+1',
-          borderWidth: 3,
-          pointRadius: 0,
-        },
-        {
-          label: '20th Percentile',
-          data: percentile20Path,
-          borderColor: 'rgba(27, 156, 133, 0.6)',
-          backgroundColor: 'transparent',
-          borderWidth: 2,
-          pointRadius: 0,
-        },
-      ],
-    },
-    options: {
-      responsive: false,
-      maintainAspectRatio: false,
-      scales: {
-        x: {
-          title: {
-            display: true,
-            text: 'Age',
-          },
-        },
-        y: {
-          title: {
-            display: true,
-            text: 'Portfolio Balance',
-          },
-          ticks: {
-            callback: (value: number | string) =>
-              typeof value === 'number' ? formatCurrencyTick(value) : value,
-          },
-        },
-      },
-      plugins: {
-        legend: {
-          display: true,
-          position: 'top' as const,
-        },
-        tooltip: {
-          enabled: true,
-        },
-      },
-    },
-  }
-}
-
-function buildDistributionChartConfig(simulation: any) {
-  const labels: string[] = Array.isArray(simulation?.distributionLabels)
-    ? simulation.distributionLabels
-    : []
-  const dataPoints: number[] = Array.isArray(simulation?.distributionPercentages)
-    ? simulation.distributionPercentages
-    : []
-
-  return {
-    type: 'bar' as const,
-    data: {
-      labels,
-      datasets: [
-        {
-          label: 'Percentage of Simulations',
-          data: dataPoints,
-          backgroundColor: 'rgba(27, 156, 133, 0.6)',
-          borderColor: '#1B9C85',
-          borderWidth: 1,
-        },
-      ],
-    },
-    options: {
-      responsive: false,
-      maintainAspectRatio: false,
-      scales: {
-        x: {
-          title: {
-            display: true,
-            text: 'Final Balance Range',
-          },
-        },
-        y: {
-          title: {
-            display: true,
-            text: '% of Simulations',
-          },
-          beginAtZero: true,
-          max: 100,
-        },
-      },
-      plugins: {
-        legend: {
-          display: false,
-        },
-      },
-    },
-  }
-}
-
-async function generateChartImages(simulation: any) {
-  try {
-    const [portfolio, distribution] = await Promise.all([
-      renderChartToDataUri(portfolioChartRenderer, buildPortfolioChartConfig(simulation)),
-      renderChartToDataUri(
-        distributionChartRenderer,
-        buildDistributionChartConfig(simulation)
-      ),
-    ])
-
-    return {
-      portfolio,
-      distribution,
-    }
-  } catch (error) {
-    console.error('Chart generation error:', error)
-    return {
-      portfolio: null,
-      distribution: null,
-    }
-  }
 }
 
 export async function POST(request: NextRequest) {
@@ -260,6 +62,7 @@ export async function POST(request: NextRequest) {
       contact: body.contact,
       simulation: body.simulation,
       assumptions: body.assumptions,
+      charts: body.charts,
     })
 
     if (shouldSendEmail) {
@@ -328,10 +131,12 @@ async function buildPdfBuffer({
   contact,
   simulation,
   assumptions,
+  charts,
 }: {
   contact: ContactInfo
   simulation: any
   assumptions: any
+  charts?: { portfolio?: string | null; distribution?: string | null }
 }) {
   const { PDFDocument, rgb } = (await import('pdf-lib')) as typeof import('pdf-lib')
   const fontkit = (await import('@pdf-lib/fontkit')).default
@@ -341,8 +146,6 @@ async function buildPdfBuffer({
   const normalFont = await pdfDoc.embedFont(fonts.regular)
   const boldFont = await pdfDoc.embedFont(fonts.bold)
   const italicFont = await pdfDoc.embedFont(fonts.italic)
-
-  const generatedCharts = await generateChartImages(simulation)
 
   const portraitSize: [number, number] = [612, 792]
   const landscapeSize: [number, number] = [792, 612]
@@ -1002,19 +805,19 @@ async function buildPdfBuffer({
 
       lines.forEach((line, lineIndex) => {
         const textWidth = boldFont.widthOfTextAtSize(line, fontSize)
-      let textX = x + 6
-      if (column.align === 'right') {
-        textX = x + width - textWidth - 6
-      } else if (column.align === 'center') {
-        textX = x + (width - textWidth) / 2
-      }
+        let textX = x + 6
+        if (column.align === 'right') {
+          textX = x + width - textWidth - 6
+        } else if (column.align === 'center') {
+          textX = x + (width - textWidth) / 2
+        }
 
         page.drawText(line, {
-        x: textX,
+          x: textX,
           y: textY - lineIndex * lineHeight,
           size: fontSize,
-        font: boldFont,
-        color: subtleColor,
+          font: boldFont,
+          color: subtleColor,
         })
       })
     })
@@ -1134,7 +937,7 @@ async function buildPdfBuffer({
   }
 
   // -- Portfolio Chart & Next Steps (keep on summary page when possible) --
-  await drawChartImage(generatedCharts.portfolio ?? null, 'Portfolio Balance Over Time', {
+  await drawChartImage(charts?.portfolio ?? null, 'Portfolio Balance Over Time', {
     maxHeight: 240,
     spacingAfter: 18,
   })
@@ -1151,7 +954,7 @@ async function buildPdfBuffer({
     'Percentage of simulations grouped by ending balance range. This illustrates the spread of possible outcomes across all Monte Carlo scenarios.',
     { size: 11, spacingAfter: 16 }
   )
-  await drawChartImage(generatedCharts.distribution ?? null, 'Distribution of Final Balances')
+  await drawChartImage(charts?.distribution ?? null, 'Distribution of Final Balances')
 
   // ---- Page 3: Assumptions ----
   addPage(portraitSize, marginDefault)
