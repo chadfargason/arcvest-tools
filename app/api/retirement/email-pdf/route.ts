@@ -938,11 +938,6 @@ async function buildPdfBuffer({
     'Thank you for exploring your retirement readiness with ArcVest. These results are designed to help you understand potential outcomes across thousands of market scenarios. For a more personalized strategy, schedule time with our advisory team. Email wealth@arcvest.com or call 713-581-4550 or sign-up for a time to talk on our website.',
     { size: 11, spacingAfter: 0 }
   )
-  drawParagraph('Disclosure: this information is for information and educational use only – not advice.', {
-    font: boldFont,
-    size: 11,
-    spacingAfter: 0,
-  })
 
   // ---- Page 3: Distribution Chart ----
   addPage(portraitSize, marginDefault)
