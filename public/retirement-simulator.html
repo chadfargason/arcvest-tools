@@ -339,6 +339,97 @@
       animation: fadeIn 0.3s;
     }
 
+    .results-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+      flex-wrap: wrap;
+      margin-bottom: 24px;
+    }
+
+    .email-pdf-button {
+      font-size: 14px;
+      padding: 12px 20px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+    }
+
+    .modal-overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(15, 23, 42, 0.55);
+      display: none;
+      align-items: center;
+      justify-content: center;
+      z-index: 1000;
+      padding: 24px;
+    }
+
+    .modal-overlay.visible {
+      display: flex;
+    }
+
+    .modal-content {
+      background: #fff;
+      border-radius: 16px;
+      box-shadow: var(--shadow-hover);
+      padding: clamp(24px, 4vw, 36px);
+      max-width: 520px;
+      width: 100%;
+      max-height: 90vh;
+      overflow-y: auto;
+      position: relative;
+      animation: fadeIn 0.3s ease-out;
+    }
+
+    .modal-close {
+      position: absolute;
+      top: 16px;
+      right: 16px;
+      background: transparent;
+      border: none;
+      font-size: 24px;
+      cursor: pointer;
+      color: var(--muted);
+    }
+
+    .modal-close:hover {
+      color: var(--brand);
+    }
+
+    .modal-content h3 {
+      font-size: 20px;
+      color: var(--text-dark);
+      margin-bottom: 12px;
+    }
+
+    .modal-description {
+      color: var(--muted);
+      font-size: 14px;
+      margin-bottom: 24px;
+    }
+
+    .modal-form-grid {
+      margin-bottom: 16px;
+    }
+
+    .modal-feedback {
+      min-height: 24px;
+      font-size: 13px;
+      margin-top: 16px;
+    }
+
+    .modal-feedback.success {
+      color: #059669;
+    }
+
+    .modal-feedback.error {
+      color: #dc2626;
+    }
+
     .results h2 {
       font-size: 24px;
       font-weight: 700;
@@ -884,10 +975,47 @@
     </div>
   </div>
 
+  <!-- Email PDF Modal -->
+  <div class="modal-overlay" id="emailPdfModal" aria-hidden="true">
+    <div class="modal-content" role="dialog" aria-modal="true" aria-labelledby="emailPdfTitle">
+      <button type="button" class="modal-close" id="emailPdfClose" aria-label="Close modal">&times;</button>
+      <h3 id="emailPdfTitle">Download PDF</h3>
+      <p class="modal-description">
+        Please provide your email address and we will download and email you a detailed PDF of your Retirement Simulation Results.
+      </p>
+      <form id="emailPdfForm" novalidate>
+        <div class="form-grid modal-form-grid">
+          <div class="form-group">
+            <label class="form-label" for="emailPdfEmail">Email</label>
+            <input type="email" class="form-input" id="emailPdfEmail" name="email" placeholder="Email" required>
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="emailPdfName">Name</label>
+            <input type="text" class="form-input" id="emailPdfName" name="name" placeholder="Name" required>
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="emailPdfLastName">Last name</label>
+            <input type="text" class="form-input" id="emailPdfLastName" name="last_name" placeholder="Last name" required>
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="emailPdfPhone">Phone</label>
+            <input type="tel" class="form-input" id="emailPdfPhone" name="phone" placeholder="Phone">
+          </div>
+        </div>
+        <button type="submit" class="btn btn-primary" id="sendPdfButton">Download PDF</button>
+        <p class="modal-feedback" id="emailPdfFeedback" role="status" aria-live="polite"></p>
+      </form>
+    </div>
+  </div>
+
   <script>
     // State management
     let portfolioChart = null;
     let distributionChart = null;
+    let lastSimulationParams = null;
+    let lastSimulationResults = null;
+    let lastPortfolioChartImage = null;
+    let lastDistributionChartImage = null;
 
     // Tab switching
     document.querySelectorAll('.tab').forEach(tab => {
@@ -1038,10 +1166,19 @@
         investmentFee: getFeePercentage() / 100
       };
 
+      lastSimulationParams = params;
+      lastSimulationResults = null;
+      lastPortfolioChartImage = null;
+      lastDistributionChartImage = null;
+
       // Show loading
       const resultsDiv = document.getElementById('results');
       resultsDiv.classList.add('visible');
       resultsDiv.innerHTML = '<div class="loading"><div class="spinner"></div><p>Running Monte Carlo simulation...</p></div>';
+
+      requestAnimationFrame(() => {
+        resultsDiv.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      });
 
       try {
         // Call API
@@ -1070,7 +1207,10 @@
       // Rebuild entire results HTML
       const resultsDiv = document.getElementById('results');
       resultsDiv.innerHTML = `
-        <h2>Simulation Results</h2>
+        <div class="results-header">
+          <h2>Simulation Results</h2>
+        <button class="btn btn-primary email-pdf-button" id="emailPdfTrigger">Download PDF</button>
+        </div>
 
         <div class="results-grid">
           <div class="result-card">
@@ -1127,14 +1267,274 @@
           <canvas id="distributionChart"></canvas>
         </div>
       `;
+
+      lastSimulationResults = data;
       
       // Draw charts after HTML is ready
       drawPortfolioChart(data);
       drawDistributionChart(data);
+      setupEmailPdfTrigger();
+      captureChartImagesDelayed();
       
       // Populate Detailed Outcome tab
       populateDetailedOutcome(data);
     }
+
+    function setupEmailPdfTrigger() {
+      const trigger = document.getElementById('emailPdfTrigger');
+      if (!trigger) return;
+      if (trigger.dataset.bound === 'true') return;
+      trigger.dataset.bound = 'true';
+      trigger.addEventListener('click', (event) => {
+        event.preventDefault();
+        openEmailPdfModal();
+      });
+    }
+
+    function captureChartImagesDelayed() {
+      setTimeout(() => {
+        captureChartImages();
+      }, 400);
+    }
+
+    function captureChartImages() {
+      try {
+        if (portfolioChart) {
+          lastPortfolioChartImage = portfolioChart.toBase64Image('image/png', 1);
+        }
+      } catch (error) {
+        console.warn('Unable to capture portfolio chart image', error);
+      }
+
+      try {
+        if (distributionChart) {
+          lastDistributionChartImage = distributionChart.toBase64Image('image/png', 1);
+        }
+      } catch (error) {
+        console.warn('Unable to capture distribution chart image', error);
+      }
+    }
+
+    const emailPdfModal = document.getElementById('emailPdfModal');
+    const emailPdfForm = document.getElementById('emailPdfForm');
+    const emailPdfClose = document.getElementById('emailPdfClose');
+    const emailPdfFeedback = document.getElementById('emailPdfFeedback');
+    const sendPdfButton = document.getElementById('sendPdfButton');
+    const emailPdfEmailInput = document.getElementById('emailPdfEmail');
+    let isSendingPdf = false;
+
+    function openEmailPdfModal() {
+      if (!lastSimulationResults || !lastSimulationParams) {
+        alert('Please run a simulation before requesting a PDF.');
+        return;
+      }
+
+      if (!emailPdfModal) return;
+
+      captureChartImages();
+      emailPdfModal.classList.add('visible');
+      emailPdfModal.setAttribute('aria-hidden', 'false');
+      document.body.style.overflow = 'hidden';
+      setPdfFeedback('');
+      setPdfSendingState(false);
+      emailPdfEmailInput?.focus();
+    }
+
+    function closeEmailPdfModal() {
+      if (!emailPdfModal) return;
+      emailPdfModal.classList.remove('visible');
+      emailPdfModal.setAttribute('aria-hidden', 'true');
+      document.body.style.overflow = '';
+      setPdfSendingState(false);
+    }
+
+    function setPdfFeedback(message, isError = false) {
+      if (!emailPdfFeedback) return;
+      emailPdfFeedback.textContent = message;
+      emailPdfFeedback.classList.remove('success', 'error');
+      if (message) {
+        emailPdfFeedback.classList.add(isError ? 'error' : 'success');
+      }
+    }
+
+    function setPdfSendingState(isSending) {
+      isSendingPdf = isSending;
+      if (!sendPdfButton) return;
+      sendPdfButton.disabled = isSending;
+      sendPdfButton.textContent = isSending ? 'Generating…' : 'Download PDF';
+    }
+
+    emailPdfClose?.addEventListener('click', () => closeEmailPdfModal());
+    emailPdfModal?.addEventListener('click', (event) => {
+      if (event.target === emailPdfModal) {
+        closeEmailPdfModal();
+      }
+    });
+
+    document.addEventListener('keydown', (event) => {
+      if (event.key === 'Escape' && emailPdfModal.classList.contains('visible')) {
+        closeEmailPdfModal();
+      }
+    });
+
+    emailPdfForm?.addEventListener('submit', async (event) => {
+      event.preventDefault();
+      if (isSendingPdf) return;
+
+      if (!lastSimulationResults || !lastSimulationParams) {
+        setPdfFeedback('Please run the simulation before requesting a PDF.', true);
+        return;
+      }
+
+      const formData = new FormData(emailPdfForm);
+      const contact = {
+        email: (formData.get('email') ?? '').toString().trim(),
+        name: (formData.get('name') ?? '').toString().trim(),
+        lastName: (formData.get('last_name') ?? '').toString().trim(),
+        phone: (formData.get('phone') ?? '').toString().trim(),
+      };
+
+      if (!contact.email) {
+        setPdfFeedback('Email is required.', true);
+        emailPdfEmailInput?.focus();
+        return;
+      }
+
+      setPdfFeedback('Preparing your PDF…');
+      setPdfSendingState(true);
+
+      let emailAttempted = false;
+      let emailSuccess = false;
+      let emailErrorMessage = '';
+
+      try {
+        emailAttempted = true;
+        const emailResponse = await fetch('/api/retirement/email-pdf', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            contact,
+            simulation: lastSimulationResults,
+            assumptions: lastSimulationParams,
+            mode: 'email',
+            charts: {
+              portfolio: lastPortfolioChartImage,
+              distribution: lastDistributionChartImage,
+            },
+          }),
+        });
+
+        if (!emailResponse.ok) {
+          let errorMessage = 'Failed to send PDF email.';
+          try {
+            const errorResult = await emailResponse.json();
+            if (errorResult?.error) {
+              errorMessage = errorResult.error;
+            }
+          } catch (_) {
+            // Ignore JSON parse errors
+          }
+          throw new Error(errorMessage);
+        }
+
+        const emailResult = await emailResponse.json().catch(() => null);
+        if (emailResult?.ok) {
+          emailSuccess = true;
+        } else {
+          emailErrorMessage =
+            emailResult?.error ??
+            'Unexpected response received while emailing the PDF.';
+        }
+      } catch (error) {
+        console.error('PDF email error:', error);
+        emailErrorMessage =
+          error instanceof Error ? error.message : 'Unable to send the PDF right now.';
+      }
+
+      try {
+        const downloadResponse = await fetch('/api/retirement/email-pdf', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            contact,
+            simulation: lastSimulationResults,
+            assumptions: lastSimulationParams,
+            mode: 'download',
+            charts: {
+              portfolio: lastPortfolioChartImage,
+              distribution: lastDistributionChartImage,
+            },
+          }),
+        });
+
+        if (!downloadResponse.ok) {
+          let errorMessage = 'Failed to generate PDF.';
+          try {
+            const errorResult = await downloadResponse.json();
+            if (errorResult?.error) {
+              errorMessage = errorResult.error;
+            }
+          } catch (_) {
+            // Ignore JSON parse errors
+          }
+          throw new Error(errorMessage);
+        }
+
+        const contentType = downloadResponse.headers.get('content-type') || '';
+        if (!contentType.includes('application/pdf')) {
+          throw new Error('Unexpected response received while generating the PDF.');
+        }
+
+        const blob = await downloadResponse.blob();
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = 'ArcVest-Retirement-Simulation.pdf';
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        setTimeout(() => URL.revokeObjectURL(url), 0);
+
+        let message = 'PDF downloaded successfully.';
+        let isError = false;
+        if (emailAttempted) {
+          if (emailSuccess) {
+            message += ' A copy has also been emailed to you.';
+          } else {
+            isError = true;
+            message += ` We were unable to email the PDF${
+              emailErrorMessage ? ` (${emailErrorMessage})` : ''
+            }.`;
+          }
+        }
+
+        setPdfFeedback(message, isError);
+
+        if (!isError) {
+          emailPdfForm.reset();
+          setTimeout(() => {
+            closeEmailPdfModal();
+            setPdfFeedback('');
+          }, 2000);
+        }
+      } catch (error) {
+        console.error('PDF download error:', error);
+        let message =
+          error instanceof Error ? error.message : 'Unable to generate the PDF right now.';
+
+        if (emailAttempted) {
+          if (emailSuccess) {
+            message += ' However, the PDF was emailed successfully.';
+          } else if (emailErrorMessage) {
+            message += ` Email attempt also failed (${emailErrorMessage}).`;
+          }
+        }
+
+        setPdfFeedback(message, true);
+      } finally {
+        setPdfSendingState(false);
+      }
+    });
 
     function populateDetailedOutcome(data) {
       const detailedDiv = document.getElementById('detailedOutcome');
@@ -1358,6 +1758,7 @@
           responsive: true,
           maintainAspectRatio: true,
           aspectRatio: 2,
+          devicePixelRatio: 2,
           interaction: {
             mode: 'index',
             intersect: false
@@ -1421,6 +1822,7 @@
           responsive: true,
           maintainAspectRatio: true,
           aspectRatio: 2,
+          devicePixelRatio: 2,
           plugins: {
             legend: {
               display: false
