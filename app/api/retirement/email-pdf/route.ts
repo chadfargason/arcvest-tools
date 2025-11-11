@@ -1085,6 +1085,22 @@ async function buildPdfBuffer({
     drawParagraph('Detailed simulation data was not available for this run.', { size: 11 })
   }
 
+  const footerText =
+    'Disclosure - This is for informational and educational purposes only - not advice.'
+  const footerSize = 9
+  pdfDoc.getPages().forEach((pg) => {
+    const footerWidth = boldFont.widthOfTextAtSize(footerText, footerSize)
+    const footerX = (pg.getWidth() - footerWidth) / 2
+    const footerY = marginDefault / 2
+    pg.drawText(footerText, {
+      x: footerX,
+      y: footerY,
+      size: footerSize,
+      font: boldFont,
+      color: textColor,
+    })
+  })
+
   const pdfBytes = await pdfDoc.save()
   return Buffer.from(pdfBytes)
 }
