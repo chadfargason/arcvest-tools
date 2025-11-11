@@ -1009,6 +1009,31 @@
   </div>
 
   <script>
+    function notifyParentHeight() {
+      try {
+        if (window.parent && window.parent !== window) {
+          const height = document.documentElement.scrollHeight;
+          window.parent.postMessage({ type: 'arcvest-simulator-size', height }, '*');
+        }
+      } catch (error) {
+        console.warn('Unable to notify parent height', error);
+      }
+    }
+
+    window.addEventListener('load', () => {
+      setTimeout(notifyParentHeight, 50);
+    });
+
+    window.addEventListener('resize', () => {
+      setTimeout(notifyParentHeight, 100);
+    });
+
+    window.addEventListener('message', (event) => {
+      if (event?.data?.type === 'arcvest-request-size') {
+        setTimeout(notifyParentHeight, 50);
+      }
+    });
+
     // State management
     let portfolioChart = null;
     let distributionChart = null;
@@ -1278,6 +1303,7 @@
       
       // Populate Detailed Outcome tab
       populateDetailedOutcome(data);
+      notifyParentHeight();
     }
 
     function setupEmailPdfTrigger() {
@@ -1289,6 +1315,7 @@
         event.preventDefault();
         openEmailPdfModal();
       });
+      notifyParentHeight();
     }
 
     function captureChartImagesDelayed() {
@@ -1338,6 +1365,7 @@
       setPdfFeedback('');
       setPdfSendingState(false);
       emailPdfEmailInput?.focus();
+      notifyParentHeight();
     }
 
     function closeEmailPdfModal() {
@@ -1346,6 +1374,7 @@
       emailPdfModal.setAttribute('aria-hidden', 'true');
       document.body.style.overflow = '';
       setPdfSendingState(false);
+      notifyParentHeight();
     }
 
     function setPdfFeedback(message, isError = false) {
@@ -1355,6 +1384,7 @@
       if (message) {
         emailPdfFeedback.classList.add(isError ? 'error' : 'success');
       }
+      notifyParentHeight();
     }
 
     function setPdfSendingState(isSending) {
@@ -1458,6 +1488,7 @@
       } else {
         setPdfFeedback(emailErrorMessage || 'Unable to send the PDF right now.', true);
       }
+      notifyParentHeight();
     });
 
     function populateDetailedOutcome(data) {
@@ -1466,6 +1497,7 @@
       try {
         if (!data.medianSimulationDetails || data.medianSimulationDetails.length === 0) {
           detailedDiv.innerHTML = '<p style="color: var(--muted); text-align: center; padding: 40px;">No detailed data available</p>';
+          notifyParentHeight();
           return;
         }
 
@@ -1604,9 +1636,11 @@
       `;
 
       detailedDiv.innerHTML = html;
+      notifyParentHeight();
       } catch (error) {
         console.error('Error populating detailed outcome:', error);
         detailedDiv.innerHTML = `<div class="alert alert-error">Error displaying detailed results: ${error.message}</div>`;
+        notifyParentHeight();
       }
     }
 
@@ -1816,6 +1850,7 @@
 
     // Initialize
     updateAllocationTotal();
+    notifyParentHeight();
   </script>
 </body>
 </html>
