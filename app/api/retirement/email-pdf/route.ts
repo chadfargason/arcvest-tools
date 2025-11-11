@@ -209,16 +209,10 @@ async function buildPdfBuffer({
   }
 
   const drawSectionHeading = (text: string) => {
-    const headingHeight = 36
+    const headingHeight = 28
     ensureSpace(headingHeight)
-    drawTextLine(text, { font: boldFont, size: 18, color: textColor, lineHeight: 24 })
-    drawTextLine('----------------------------------------', {
-      font: normalFont,
-      size: 12,
-      color: accentColor,
-      lineHeight: 16,
-    })
-    y -= 6
+    drawTextLine(text, { font: boldFont, size: 14, color: textColor, lineHeight: 20 })
+    y -= 4
   }
 
   const drawSubheading = (text: string) => {
