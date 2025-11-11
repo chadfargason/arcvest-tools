@@ -210,17 +210,20 @@ async function buildPdfBuffer({
 
   const drawSectionHeading = (
     text: string,
-    options: { size?: number; spacingAfter?: number } = {}
+    options: { size?: number; spacingAfter?: number; lineHeight?: number } = {}
   ) => {
-    const headingHeight = options.spacingAfter ?? 28
-    ensureSpace(headingHeight)
-    drawTextLine(text, {
+    const size = options.size ?? 14
+    const lineHeight = options.lineHeight ?? size * 1.3
+    const spacingAfter = options.spacingAfter ?? 6
+    ensureSpace(lineHeight + spacingAfter)
+    page.drawText(text, {
+      x: currentMargin,
+      y,
+      size,
       font: boldFont,
-      size: options.size ?? 14,
       color: textColor,
-      lineHeight: (options.size ?? 14) * 1.4,
     })
-    y -= options.spacingAfter ?? 4
+    y -= lineHeight + spacingAfter
   }
 
   const drawSubheading = (
@@ -344,7 +347,7 @@ async function buildPdfBuffer({
         const labelY = cardTop - topPadding
         const valueY = Math.max(
           cardTop - cardHeight + Math.max(8, valueSize + 4),
-          labelY - valueSize - 4
+          labelY - valueSize - 7
         )
 
         page.drawText(card.label.toUpperCase(), {
@@ -925,25 +928,25 @@ async function buildPdfBuffer({
   }
   y -= 12
 
-  drawSectionHeading('Simulation Results', { size: 12, spacingAfter: 6 })
+  drawSectionHeading('Simulation Results', { size: 14, spacingAfter: 4, lineHeight: 18 })
   drawSummaryCards(summaryCardsPrimary, {
     columns: 4,
     cardHeight: 36,
     valueSize: 12,
     labelSize: 7,
     gutter: 12,
-    spacingAfter: 6,
+    spacingAfter: 3,
   })
 
   if (summaryCardsSecondary.some((card) => card.value !== 'N/A')) {
-    drawSubheading('Annualized Return Distributions', { size: 10, spacingAfter: 4 })
+    drawSubheading('Annualized Return Distributions', { size: 11, spacingAfter: 4 })
     drawSummaryCards(summaryCardsSecondary, {
       columns: 4,
       cardHeight: 32,
       valueSize: 10.5,
       labelSize: 7,
       gutter: 12,
-      spacingAfter: 8,
+      spacingAfter: 6,
     })
   }
 
