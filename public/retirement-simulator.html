@@ -1321,8 +1321,10 @@
       const whatThisMeans = document.getElementById('whatThisMeans');
       if (whatThisMeans) {
         const successRate = data.successRate || 0;
-        const successPercent = `${Math.round(successRate * 100)}%`;
-        whatThisMeans.textContent = `Your success rate of ${successPercent} means that you would expect to not run out of money ${successPercent} of the time. If this number is above 90% you are on track. However, if it is lower, you may run out of money in retirement. Contact us for help to lower the risk this happens.`;
+        const rounded = Math.round(successRate * 100);
+        const successPercent = `${rounded}%`;
+        const riskPercent = `${Math.max(0, 100 - rounded)}%`;
+        whatThisMeans.textContent = `Your success rate of ${successPercent} means that you would expect to not run out of money ${successPercent} of the time. Which means you could run out of money in ${riskPercent} of scenarios. If this number is above 10% you are at risk that you could run out of money during retirement. Contact us for help to lower the risk this happens.`;
       }
     }
 

@@ -208,17 +208,34 @@ async function buildPdfBuffer({
     y -= lineHeight
   }
 
-  const drawSectionHeading = (text: string) => {
-    const headingHeight = 28
+  const drawSectionHeading = (
+    text: string,
+    options: { size?: number; spacingAfter?: number } = {}
+  ) => {
+    const headingHeight = options.spacingAfter ?? 28
     ensureSpace(headingHeight)
-    drawTextLine(text, { font: boldFont, size: 14, color: textColor, lineHeight: 20 })
-    y -= 4
+    drawTextLine(text, {
+      font: boldFont,
+      size: options.size ?? 14,
+      color: textColor,
+      lineHeight: (options.size ?? 14) * 1.4,
+    })
+    y -= options.spacingAfter ?? 4
   }
 
-  const drawSubheading = (text: string) => {
-    ensureSpace(20)
-    drawTextLine(text, { font: boldFont, size: 14, color: textColor, lineHeight: 18 })
-    y -= 4
+  const drawSubheading = (
+    text: string,
+    options: { size?: number; spacingAfter?: number } = {}
+  ) => {
+    const size = options.size ?? 14
+    ensureSpace(size * 1.4)
+    drawTextLine(text, {
+      font: boldFont,
+      size,
+      color: textColor,
+      lineHeight: size * 1.4,
+    })
+    y -= options.spacingAfter ?? 4
   }
 
   const drawParagraph = (
@@ -908,25 +925,25 @@ async function buildPdfBuffer({
   }
   y -= 12
 
-  drawSectionHeading('Simulation Results')
+  drawSectionHeading('Simulation Results', { size: 12, spacingAfter: 6 })
   drawSummaryCards(summaryCardsPrimary, {
     columns: 4,
     cardHeight: 36,
     valueSize: 12,
     labelSize: 7,
     gutter: 12,
-    spacingAfter: 12,
+    spacingAfter: 6,
   })
 
   if (summaryCardsSecondary.some((card) => card.value !== 'N/A')) {
-    drawSubheading('Annualized Return Distributions')
+    drawSubheading('Annualized Return Distributions', { size: 10, spacingAfter: 4 })
     drawSummaryCards(summaryCardsSecondary, {
       columns: 4,
       cardHeight: 32,
       valueSize: 10.5,
       labelSize: 7,
       gutter: 12,
-      spacingAfter: 16,
+      spacingAfter: 8,
     })
   }
 
@@ -939,7 +956,7 @@ async function buildPdfBuffer({
     successRate !== null ? `${Math.round(successRate * 100)}%` : '—'
   drawSectionHeading('What This Means For You')
   drawParagraph(
-    `Your success rate of ${successRatePercent} means that you would expect to not run out of money ${successRatePercent} of the time. If this number is above 90% you are on track. However, if it is lower, you may run out of money in retirement. Contact us for help to lower the risk this happens.`,
+    `Your success rate of ${successRatePercent} means that you would expect to not run out of money ${successRatePercent} of the time. That also means you could run out of money in ${successRate !== null ? `${Math.max(0, 100 - Math.round(successRate * 100))}%` : '—'} of scenarios. If this number is above 10% you are at risk that you could run out of money during retirement. Contact us for help to lower the risk this happens.`,
     { size: 11, spacingAfter: 18 }
   )
   drawSectionHeading('Next Steps')
