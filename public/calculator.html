@@ -117,7 +117,7 @@
     .sliders { padding: 6px 18px 18px; display: grid; gap: 10px; }
     .row {
       display: grid;
-      grid-template-columns: 220px 1fr 76px;
+      grid-template-columns: 220px 1fr 120px;
       align-items: center;
       gap: 14px;
       padding: 12px;
@@ -129,7 +129,36 @@
 
     .asset { font-weight: 700; letter-spacing: .01em; }
     .meta { font-size: 12px; color: var(--muted); margin-top: 2px; }
+    .row .value { display: flex; align-items: center; justify-content: flex-end; gap: 10px; }
+    .row .value span { font-weight: 700; }
     .value { text-align: right; font-variant-numeric: tabular-nums; font-weight: 800; }
+
+    .percent-input {
+      width: 70px;
+      height: 36px;
+      border-radius: var(--radius);
+      border: 1px solid var(--ast-border-color);
+      background: #fff;
+      color: var(--text-dark);
+      font: inherit;
+      font-weight: 700;
+      text-align: right;
+      padding: 0 10px;
+      outline: none;
+      appearance: textfield;
+      transition: border-color .2s, box-shadow .2s, background .2s;
+    }
+    .percent-input:focus {
+      border-color: var(--brand);
+      box-shadow: 0 0 0 3px rgba(27, 156, 133, 0.1);
+      background: #f5fffb;
+    }
+    .percent-input::-webkit-outer-spin-button,
+    .percent-input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+    .percent-input[type="number"] {
+      appearance: textfield;
+      -moz-appearance: textfield;
+    }
 
     input[type="range"].slider {
       appearance: none; -webkit-appearance: none; width: 100%; height: 8px; border-radius: 999px; outline: none;
@@ -273,7 +302,19 @@
                   <div class="meta">Only: 2001-07-31 → 2025-10-31</div>
                   </div>
                   <input type="range" min="0" max="100" value="45" class="slider" id="slider-0" data-asset="VTI" />
-                  <div class="value"><span id="value-0">45</span>%</div>
+                  <div class="value">
+                    <input
+                      type="number"
+                      min="0"
+                      max="100"
+                      step="1"
+                      value="45"
+                      class="percent-input"
+                      id="input-0"
+                      aria-label="Total US Equity (VTI) percentage"
+                    />
+                    <span>%</span>
+                  </div>
               </div>
 
               <div class="row">
@@ -282,7 +323,19 @@
                   <div class="meta">Only: 2007-05-31 → 2025-10-31</div>
                   </div>
                   <input type="range" min="0" max="100" value="10" class="slider" id="slider-1" data-asset="SPDW" />
-                  <div class="value"><span id="value-1">10</span>%</div>
+                  <div class="value">
+                    <input
+                      type="number"
+                      min="0"
+                      max="100"
+                      step="1"
+                      value="10"
+                      class="percent-input"
+                      id="input-1"
+                      aria-label="International Developed Equity (SPDW) percentage"
+                    />
+                    <span>%</span>
+                  </div>
               </div>
 
               <div class="row">
@@ -291,7 +344,19 @@
                   <div class="meta">Only: 2003-05-31 → 2025-10-31</div>
                   </div>
                   <input type="range" min="0" max="100" value="5" class="slider" id="slider-2" data-asset="EEM" />
-                  <div class="value"><span id="value-2">5</span>%</div>
+                  <div class="value">
+                    <input
+                      type="number"
+                      min="0"
+                      max="100"
+                      step="1"
+                      value="5"
+                      class="percent-input"
+                      id="input-2"
+                      aria-label="Emerging Markets (EEM) percentage"
+                    />
+                    <span>%</span>
+                  </div>
               </div>
 
               <div class="row">
@@ -300,7 +365,19 @@
                   <div class="meta">Only: 2004-12-31 → 2025-10-31</div>
                   </div>
                   <input type="range" min="0" max="100" value="10" class="slider" id="slider-3" data-asset="GLD" />
-                  <div class="value"><span id="value-3">10</span>%</div>
+                  <div class="value">
+                    <input
+                      type="number"
+                      min="0"
+                      max="100"
+                      step="1"
+                      value="10"
+                      class="percent-input"
+                      id="input-3"
+                      aria-label="Gold (GLD) percentage"
+                    />
+                    <span>%</span>
+                  </div>
               </div>
 
               <div class="row">
@@ -309,7 +386,19 @@
                   <div class="meta">Only: 2024-02-29 → 2025-10-31</div>
                   </div>
                   <input type="range" min="0" max="100" value="0" class="slider" id="slider-4" data-asset="IBIT" />
-                  <div class="value"><span id="value-4">0</span>%</div>
+                  <div class="value">
+                    <input
+                      type="number"
+                      min="0"
+                      max="100"
+                      step="1"
+                      value="0"
+                      class="percent-input"
+                      id="input-4"
+                      aria-label="Bitcoin (IBIT) percentage"
+                    />
+                    <span>%</span>
+                  </div>
               </div>
 
               <div class="row">
@@ -318,7 +407,19 @@
                   <div class="meta">BIL • 2007-06-30 → 2025-10-31</div>
                   </div>
                   <input type="range" min="0" max="100" value="15" class="slider" id="slider-5" data-asset="BIL" />
-                  <div class="value"><span id="value-5">15</span>%</div>
+                  <div class="value">
+                    <input
+                      type="number"
+                      min="0"
+                      max="100"
+                      step="1"
+                      value="15"
+                      class="percent-input"
+                      id="input-5"
+                      aria-label="Short-Term Bonds (BIL) percentage"
+                    />
+                    <span>%</span>
+                  </div>
               </div>
 
               <div class="row">
@@ -327,7 +428,19 @@
                   <div class="meta">Only: 2003-10-31 → 2025-10-31</div>
                   </div>
                   <input type="range" min="0" max="100" value="15" class="slider" id="slider-6" data-asset="AGG" />
-                  <div class="value"><span id="value-6">15</span>%</div>
+                  <div class="value">
+                    <input
+                      type="number"
+                      min="0"
+                      max="100"
+                      step="1"
+                      value="15"
+                      class="percent-input"
+                      id="input-6"
+                      aria-label="Aggregate Bonds (AGG) percentage"
+                    />
+                    <span>%</span>
+                  </div>
               </div>
             </div>
 
@@ -389,6 +502,7 @@
   <script>
     // Keep the user's original logic but with small enhancements for slider fill + focus
     const sliders = document.querySelectorAll('.slider');
+    const percentInputs = document.querySelectorAll('.percent-input');
     const totalChip = document.getElementById('total-chip');
     const totalValue = document.getElementById('total-value');
     const calculateBtn = document.getElementById('calculate-btn');
@@ -399,8 +513,19 @@
       el.style.setProperty('--fill', pct + '%');
     };
 
-    function updateSliderDisplay(sliderId, value) {
-      document.getElementById(`value-${sliderId}`).textContent = value;
+    function setAllocationValue(index, value, source = 'slider') {
+      const slider = sliders[index];
+      const input = percentInputs[index];
+      const clamped = Math.max(0, Math.min(100, Math.round(Number(value) || 0)));
+
+      if (slider.value !== String(clamped)) {
+        slider.value = clamped;
+      }
+      setSliderFill(slider);
+
+      if (input && (source !== 'input' || input.value !== String(clamped))) {
+        input.value = clamped;
+      }
     }
 
     function updateTotal() {
@@ -420,15 +545,55 @@
       return total;
     }
 
+    const highlightRow = (row, show) => {
+      row.style.outline = show ? '2px solid rgba(124,140,255,.35)' : 'none';
+    };
+
     sliders.forEach((slider, index) => {
+      const row = slider.parentElement;
+      const input = percentInputs[index];
+
       setSliderFill(slider);
+      if (input) {
+        input.value = slider.value;
+      }
+
       slider.addEventListener('input', (e) => {
-        setSliderFill(slider);
-        updateSliderDisplay(index, e.target.value);
+        setAllocationValue(index, e.target.value, 'slider');
         updateTotal();
       });
-      slider.addEventListener('focus', () => slider.parentElement.style.outline = '2px solid rgba(124,140,255,.35)');
-      slider.addEventListener('blur', () => slider.parentElement.style.outline = 'none');
+
+      slider.addEventListener('focus', () => highlightRow(row, true));
+      slider.addEventListener('blur', () => {
+        if (!row.contains(document.activeElement)) highlightRow(row, false);
+      });
+
+      if (input) {
+        input.addEventListener('input', (e) => {
+          const raw = e.target.value;
+          if (raw === '') {
+            sliders[index].value = 0;
+            setSliderFill(sliders[index]);
+            updateTotal();
+            return;
+          }
+          const numeric = Math.max(0, Math.min(100, parseInt(raw, 10) || 0));
+          if (numeric !== parseInt(raw, 10)) {
+            e.target.value = numeric;
+          }
+          setAllocationValue(index, numeric, 'input');
+          updateTotal();
+        });
+
+        input.addEventListener('blur', (e) => {
+          if (e.target.value === '') {
+            setAllocationValue(index, sliders[index].value, 'slider');
+          }
+          if (!row.contains(document.activeElement)) highlightRow(row, false);
+        });
+
+        input.addEventListener('focus', () => highlightRow(row, true));
+      }
     });
     updateTotal();
 
@@ -439,7 +604,10 @@
       if (currentTotal === 0) {
         const equal = Math.floor(100 / sliders.length);
         const rem = 100 - (equal * sliders.length);
-        sliders.forEach((s, i) => { const v = i === 0 ? equal + rem : equal; s.value = v; setSliderFill(s); });
+        sliders.forEach((s, i) => {
+          const v = i === 0 ? equal + rem : equal;
+          setAllocationValue(i, v, 'slider');
+        });
       } else {
         const scale = 100 / currentTotal;
         let running = 0;
@@ -447,10 +615,9 @@
           let nv;
           if (i === sliders.length - 1) { nv = 100 - running; }
           else { nv = Math.round(parseInt(s.value, 10) * scale); running += nv; }
-          s.value = nv; setSliderFill(s);
+          setAllocationValue(i, nv, 'slider');
         });
       }
-      sliders.forEach((s, i) => updateSliderDisplay(i, s.value));
       updateTotal();
     }
 
