@@ -31,12 +31,13 @@ export default function Header() {
         }
 
         .ast-above-header-wrap {
-          border-bottom: 1px solid rgb(234, 234, 234);
-          padding: 1em 0;
+          background-color: #06140C;
+          padding: 0.75em 0;
         }
 
         .main-header-bar {
-          padding: 0.5em 0;
+          padding: 0.3em 0;
+          background-color: #06140C;
         }
 
         .disclaimer-bar {
@@ -87,7 +88,7 @@ export default function Header() {
           gap: 0;
           margin: 0;
           padding: 0;
-          background-color: rgb(34, 34, 34);
+          background-color: #06140C;
           height: 32px;
           align-items: center;
         }
@@ -142,7 +143,7 @@ export default function Header() {
 
         .ast-theme-transparent-header .ast-above-header-wrap,
         .ast-theme-transparent-header .main-header-bar {
-          background: rgba(30, 35, 45, 0.55);
+          background: #06140C;
         }
 
         @media (max-width: 768px) {
@@ -161,7 +162,7 @@ export default function Header() {
             left: 0;
             right: 0;
             flex-direction: column;
-            background-color: #FFFFFF;
+            background-color: #06140C;
             box-shadow: 0 4px 10px rgba(0,0,0,0.2);
             width: 100%;
             z-index: 999;
@@ -178,7 +179,7 @@ export default function Header() {
           }
 
           .main-navigation a {
-            color: #454F5E;
+            color: #FFFFFF;
             width: 100%;
             height: auto;
             padding: 15px 20px;
@@ -220,7 +221,8 @@ export default function Header() {
               <li><a href="https://arcvest.com/about/" onClick={closeMenu}>About</a></li>
               <li><a href="https://arcvest.com/faqs/" onClick={closeMenu}>FAQs</a></li>
               <li><a href="https://arcvest.com/contact/" onClick={closeMenu}>Contact</a></li>
-              <li><a href="https://arcvest.com/disclosure-fees/" onClick={closeMenu}>Disclosure & Fees</a></li>
+              <li><a href="https://arcvest.com/blog/" onClick={closeMenu}>Blog</a></li>
+              <li><a href="https://arcvest.com/disclosures/" onClick={closeMenu}>Disclosure & Fees</a></li>
               <li><a href="/" onClick={closeMenu}>Investment Tools</a></li>
             </ul>
           </nav>
