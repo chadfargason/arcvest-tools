@@ -299,7 +299,6 @@
               <div class="row">
                   <div>
                   <div class="asset">Total US Equity</div>
-                  <div class="meta">Only: 2001-07-31 → 2025-10-31</div>
                   </div>
                   <input type="range" min="0" max="100" value="45" class="slider" id="slider-0" data-asset="VTI" />
                   <div class="value">
@@ -319,8 +318,7 @@
 
               <div class="row">
                   <div>
-                  <div class="asset">Int'l Developed Equity (SPDW)</div>
-                  <div class="meta">Only: 2007-05-31 → 2025-10-31</div>
+                  <div class="asset">Int'l Developed Equity</div>
                   </div>
                   <input type="range" min="0" max="100" value="10" class="slider" id="slider-1" data-asset="SPDW" />
                   <div class="value">
@@ -332,7 +330,7 @@
                       value="10"
                       class="percent-input"
                       id="input-1"
-                      aria-label="International Developed Equity (SPDW) percentage"
+                      aria-label="International Developed Equity percentage"
                     />
                     <span>%</span>
                   </div>
@@ -340,8 +338,7 @@
 
               <div class="row">
                   <div>
-                  <div class="asset">Emerging Markets (EEM)</div>
-                  <div class="meta">Only: 2003-05-31 → 2025-10-31</div>
+                  <div class="asset">Emerging Markets</div>
                   </div>
                   <input type="range" min="0" max="100" value="5" class="slider" id="slider-2" data-asset="EEM" />
                   <div class="value">
@@ -353,7 +350,7 @@
                       value="5"
                       class="percent-input"
                       id="input-2"
-                      aria-label="Emerging Markets (EEM) percentage"
+                      aria-label="Emerging Markets percentage"
                     />
                     <span>%</span>
                   </div>
@@ -361,8 +358,7 @@
 
               <div class="row">
                   <div>
-                  <div class="asset">Gold (GLD)</div>
-                  <div class="meta">Only: 2004-12-31 → 2025-10-31</div>
+                  <div class="asset">Gold</div>
                   </div>
                   <input type="range" min="0" max="100" value="10" class="slider" id="slider-3" data-asset="GLD" />
                   <div class="value">
@@ -374,7 +370,7 @@
                       value="10"
                       class="percent-input"
                       id="input-3"
-                      aria-label="Gold (GLD) percentage"
+                      aria-label="Gold percentage"
                     />
                     <span>%</span>
                   </div>
@@ -382,8 +378,7 @@
 
               <div class="row">
                   <div>
-                  <div class="asset">Bitcoin (IBIT)</div>
-                  <div class="meta">Only: 2024-02-29 → 2025-10-31</div>
+                  <div class="asset">Bitcoin</div>
                   </div>
                   <input type="range" min="0" max="100" value="0" class="slider" id="slider-4" data-asset="IBIT" />
                   <div class="value">
@@ -395,7 +390,7 @@
                       value="0"
                       class="percent-input"
                       id="input-4"
-                      aria-label="Bitcoin (IBIT) percentage"
+                      aria-label="Bitcoin percentage"
                     />
                     <span>%</span>
                   </div>
@@ -403,8 +398,7 @@
 
               <div class="row">
                   <div>
-                  <div class="asset">Short-Term Bonds (BIL)</div>
-                  <div class="meta">BIL • 2007-06-30 → 2025-10-31</div>
+                  <div class="asset">Short-Term Bills</div>
                   </div>
                   <input type="range" min="0" max="100" value="15" class="slider" id="slider-5" data-asset="BIL" />
                   <div class="value">
@@ -416,7 +410,7 @@
                       value="15"
                       class="percent-input"
                       id="input-5"
-                      aria-label="Short-Term Bonds (BIL) percentage"
+                      aria-label="Short-Term Bills percentage"
                     />
                     <span>%</span>
                   </div>
@@ -424,8 +418,7 @@
 
               <div class="row">
                   <div>
-                  <div class="asset">Aggregate Bonds (AGG)</div>
-                  <div class="meta">Only: 2003-10-31 → 2025-10-31</div>
+                  <div class="asset">Aggregate Bonds</div>
                   </div>
                   <input type="range" min="0" max="100" value="15" class="slider" id="slider-6" data-asset="AGG" />
                   <div class="value">
@@ -437,7 +430,7 @@
                       value="15"
                       class="percent-input"
                       id="input-6"
-                      aria-label="Aggregate Bonds (AGG) percentage"
+                      aria-label="Aggregate Bonds percentage"
                     />
                     <span>%</span>
                   </div>
@@ -711,17 +704,17 @@
         
         // Map of ticker to friendly names
         const assetNames = {
-          'IBIT': 'Bitcoin (IBIT)',
-          'BITO': 'Bitcoin (BITO)',
-          'GBTC': 'Bitcoin (GBTC)',
+          'IBIT': 'Bitcoin',
+          'BITO': 'Bitcoin',
+          'GBTC': 'Bitcoin',
           'VTI': 'Total US Equity',
-          'SPY': 'S&P 500 (SPY)',
-          'VOO': 'S&P 500 (VOO)',
-          'IVV': 'S&P 500 (IVV)',
-          'VXUS': 'International Equity (VXUS)',
-          'SPDW': 'International Equity (SPDW)',
-          'EEM': 'Emerging Markets (EEM)',
-          'VEA': 'Developed Markets (VEA)'
+          'SPY': 'S&P 500',
+          'VOO': 'S&P 500',
+          'IVV': 'S&P 500',
+          'VXUS': 'International Equity',
+          'SPDW': "Int'l Developed Equity",
+          'EEM': 'Emerging Markets',
+          'VEA': 'Developed Markets'
         };
         
         data.fallbacksUsed.forEach(fb => {

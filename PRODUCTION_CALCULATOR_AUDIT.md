@@ -24,6 +24,12 @@ Determine which `calculator.html` file serves the live ArcVest portfolio calcula
 
 ### Recommendation
 1. Treat `fargason-capital-site/public/calculator.html` as the canonical production file.
+
+## Deployment reminder (Nov 14, 2025)
+
+- Any change to the portfolio calculator must be edited in `fargason-capital-site/public/calculator.html`.
+- Deploy via `vercel deploy --prod` from the `fargason-capital-site` directory (this pushes to the `arcvest-tools` project, which serves `https://tools.arcvest.com/calculator`).
+- After deploy, verify the live file with `curl https://tools.arcvest.com/calculator.html | Select-String 'Total US Equity'` or similar to confirm the production iframe reflects the update.
 2. Remove or clearly deprecate `fargason-capital-platform/apps/website/public/calculator.html` to prevent future confusion.
 3. Update internal documentation and deployment scripts to reference only the `fargason-capital-site` copy before future releases.
 
