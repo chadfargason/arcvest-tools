@@ -115,6 +115,7 @@ function runMonteCarloSimulation(params: SimulationParams): any {
     bondBalances: number[];
     annualizedStockReturn: number;
     annualizedBondReturn: number;
+    cashFlows: number[];
     comparisonBalances?: number[];
     comparisonStockBalances?: number[];
     comparisonBondBalances?: number[];
@@ -155,6 +156,7 @@ function runMonteCarloSimulation(params: SimulationParams): any {
       bondBalances: scenarioData.bondBalances,
       annualizedStockReturn: scenarioData.annualizedStockReturn,
       annualizedBondReturn: scenarioData.annualizedBondReturn,
+      cashFlows: scenarioData.cashFlows,
       comparisonBalances: scenarioData.comparisonBalances,
       comparisonStockBalances: scenarioData.comparisonStockBalances,
       comparisonBondBalances: scenarioData.comparisonBondBalances
