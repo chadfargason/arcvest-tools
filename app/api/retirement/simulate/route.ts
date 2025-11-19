@@ -178,6 +178,44 @@ function runMonteCarloSimulation(params: SimulationParams): any {
   const stockReturnDistribution = scenarios.map(s => s.annualizedStockReturn * 100); // Convert to percentage
   const bondReturnDistribution = scenarios.map(s => s.annualizedBondReturn * 100);
   
+  // Calculate IRR and volatility for each scenario
+  const irrValues: number[] = [];
+  const volatilityValues: number[] = [];
+  
+  for (const scenario of scenarios) {
+    // Calculate IRR for this scenario
+    const irr = calculateIRR(
+      startingBalance,
+      scenario.balances,
+      scenario.cashFlows || [],
+      monthsTotal,
+      yearsToRetirement * 12,
+      annualContribution,
+      contributionGrowth,
+      yearsContributing * 12,
+      annualWithdrawal,
+      withdrawalInflation,
+      taxablePortion,
+      taxRate
+    );
+    if (!isNaN(irr) && isFinite(irr)) {
+      irrValues.push(irr);
+    }
+    
+    // Calculate portfolio volatility (std dev of monthly portfolio returns)
+    const portfolioReturns = calculatePortfolioReturns(scenario.balances, scenario.cashFlows || []);
+    if (portfolioReturns.length > 1) {
+      const volatility = calculateVolatility(portfolioReturns);
+      if (!isNaN(volatility) && isFinite(volatility)) {
+        volatilityValues.push(volatility);
+      }
+    }
+  }
+  
+  // Calculate median IRR and volatility
+  const medianIRR = irrValues.length > 0 ? calculateMedian(irrValues) : 0;
+  const medianVolatility = volatilityValues.length > 0 ? calculateMedian(volatilityValues) : 0;
+  
   // Debug: Log return statistics
   const avgStockReturn = stockReturnDistribution.reduce((sum, r) => sum + r, 0) / stockReturnDistribution.length;
   const avgBondReturn = bondReturnDistribution.reduce((sum, r) => sum + r, 0) / bondReturnDistribution.length;
@@ -187,7 +225,9 @@ function runMonteCarloSimulation(params: SimulationParams): any {
     expectedBondReturn: (bondReturn * 100).toFixed(2) + '%',
     actualAvgBondReturn: avgBondReturn.toFixed(2) + '%',
     stockMin: Math.min(...stockReturnDistribution).toFixed(2) + '%',
-    stockMax: Math.max(...stockReturnDistribution).toFixed(2) + '%'
+    stockMax: Math.max(...stockReturnDistribution).toFixed(2) + '%',
+    medianIRR: (medianIRR * 100).toFixed(2) + '%',
+    medianVolatility: (medianVolatility * 100).toFixed(2) + '%'
   });
 
   // Calculate statistics
@@ -254,7 +294,9 @@ function runMonteCarloSimulation(params: SimulationParams): any {
     medianSimulationIndex: medianIndex,
     medianSimulationDetails,
     stockReturnDistribution,
-    bondReturnDistribution
+    bondReturnDistribution,
+    medianIRR: medianIRR * 100, // Convert to percentage
+    medianVolatility: medianVolatility * 100 // Convert to percentage
   };
 
   // Add comparison data if comparison fee was provided
@@ -483,6 +525,7 @@ function runSingleScenario(
   bondBalances: number[];
   annualizedStockReturn: number;
   annualizedBondReturn: number;
+  cashFlows: number[]; // Track cash flows for IRR calculation
   comparisonBalances?: number[];
   comparisonStockBalances?: number[];
   comparisonBondBalances?: number[];
@@ -490,6 +533,7 @@ function runSingleScenario(
   const balances: number[] = [startingBalance];
   const stockReturns: number[] = [];
   const bondReturns: number[] = [];
+  const cashFlows: number[] = [-startingBalance]; // Initial investment is negative cash flow
   
   let balance = startingBalance;
 
@@ -584,6 +628,7 @@ function runSingleScenario(
       // Accumulation phase
       if (month <= monthsContributing) {
         balance += currentContribution;
+        cashFlows.push(-currentContribution); // Contribution is negative cash flow (money going out)
         
         // Add contribution proportionally to assets
         stockBalance += currentContribution * stockAllocation;
@@ -593,10 +638,13 @@ function runSingleScenario(
         if ((month + 1) % 12 === 0) {
           currentContribution *= (1 + contributionGrowth);
         }
+      } else {
+        cashFlows.push(0); // No cash flow during accumulation after contributions stop
       }
     } else {
       // Withdrawal phase
       balance -= currentWithdrawal;
+      cashFlows.push(currentWithdrawal); // Withdrawal is positive cash flow (money coming in)
 
       // Withdraw proportionally from assets
       stockBalance -= currentWithdrawal * stockAllocation;
@@ -692,6 +740,10 @@ function runSingleScenario(
   const annualizedStockReturn = Math.pow(cumulativeStockReturn, 1 / totalYears) - 1;
   const annualizedBondReturn = Math.pow(cumulativeBondReturn, 1 / totalYears) - 1;
 
+  // Note: Final balance is not a cash flow, it's the terminal value
+  // The cashFlows array now has: [-startingBalance, ...monthly cash flows...]
+  // We'll add the final balance as the terminal value in the IRR calculation
+  
   const result: any = {
     balances,
     returns: {
@@ -701,7 +753,8 @@ function runSingleScenario(
     stockBalances,
     bondBalances,
     annualizedStockReturn,
-    annualizedBondReturn
+    annualizedBondReturn,
+    cashFlows
   };
 
   // Include comparison data if it was calculated
@@ -818,6 +871,195 @@ function randomNormal(): number {
   
   const z = Math.sqrt(-2.0 * Math.log(u1)) * Math.cos(2.0 * Math.PI * u2);
   return z;
+}
+
+// Calculate IRR using Newton-Raphson method
+function calculateIRR(
+  startingBalance: number,
+  balances: number[],
+  cashFlows: number[],
+  monthsTotal: number,
+  monthsToRetirement: number,
+  annualContribution: number,
+  contributionGrowth: number,
+  monthsContributing: number,
+  annualWithdrawal: number,
+  withdrawalInflation: number,
+  taxablePortion: number,
+  taxRate: number
+): number {
+  // Build cash flow array properly
+  // cashFlows already has: [-startingBalance, ...monthly cash flows...]
+  // We need to add the final balance as the terminal value
+  const cf = [...cashFlows]; // Copy the array
+  
+  // Final balance is the terminal value (positive cash flow at the end)
+  const finalBalance = balances[balances.length - 1] || 0;
+  cf.push(finalBalance);
+  
+  // Calculate IRR using Newton-Raphson
+  return calculateIRRFromCashFlows(cf, monthsTotal);
+}
+
+// Calculate IRR from cash flows using Newton-Raphson method
+function calculateIRRFromCashFlows(cashFlows: number[], periods: number): number {
+  if (cashFlows.length === 0 || cashFlows[0] >= 0) {
+    return 0; // Invalid cash flows
+  }
+  
+  // Initial guess: try a few reasonable rates
+  let monthlyRate = 0.05 / 12; // Start with 5% annual, convert to monthly
+  
+  const maxIterations = 100;
+  const tolerance = 1e-6;
+  
+  for (let i = 0; i < maxIterations; i++) {
+    let npv = 0;
+    let npvDerivative = 0;
+    
+    // Cash flows are at times 0, 1, 2, ..., periods (total of periods+1 cash flows)
+    for (let t = 0; t < cashFlows.length; t++) {
+      const cf = cashFlows[t];
+      const discountFactor = Math.pow(1 + monthlyRate, t);
+      npv += cf / discountFactor;
+      if (t > 0) { // Derivative at t=0 is 0
+        npvDerivative -= (t * cf) / (discountFactor * (1 + monthlyRate));
+      }
+    }
+    
+    if (Math.abs(npv) < tolerance) {
+      // Convert monthly rate to annual
+      return Math.pow(1 + monthlyRate, 12) - 1;
+    }
+    
+    if (Math.abs(npvDerivative) < tolerance) {
+      break; // Derivative too small, can't converge
+    }
+    
+    const newMonthlyRate = monthlyRate - npv / npvDerivative;
+    
+    // Bounds checking
+    if (newMonthlyRate <= -0.99 || newMonthlyRate > 0.5 || !isFinite(newMonthlyRate)) {
+      break;
+    }
+    
+    if (Math.abs(monthlyRate - newMonthlyRate) < tolerance / 12) {
+      // Convert monthly rate to annual
+      return Math.pow(1 + newMonthlyRate, 12) - 1;
+    }
+    
+    monthlyRate = newMonthlyRate;
+  }
+  
+  // Fallback: binary search if Newton-Raphson fails
+  return calculateIRRBinarySearch(cashFlows, periods);
+}
+
+// Binary search fallback for IRR calculation
+function calculateIRRBinarySearch(cashFlows: number[], periods: number): number {
+  let low = -0.99; // -99% monthly (very low bound)
+  let high = 0.5; // 50% monthly (very high bound)
+  const tolerance = 1e-6;
+  const maxIterations = 100;
+  
+  for (let i = 0; i < maxIterations; i++) {
+    const mid = (low + high) / 2;
+    const monthlyRate = mid;
+    
+    let npv = 0;
+    for (let t = 0; t < cashFlows.length; t++) {
+      const discountFactor = Math.pow(1 + monthlyRate, t);
+      npv += cashFlows[t] / discountFactor;
+    }
+    
+    if (Math.abs(npv) < tolerance) {
+      // Convert monthly rate to annual
+      return Math.pow(1 + monthlyRate, 12) - 1;
+    }
+    
+    if (npv > 0) {
+      low = mid;
+    } else {
+      high = mid;
+    }
+    
+    if (high - low < tolerance) {
+      break;
+    }
+  }
+  
+  // Convert monthly rate to annual
+  const finalMonthlyRate = (low + high) / 2;
+  return Math.pow(1 + finalMonthlyRate, 12) - 1;
+}
+
+// Calculate portfolio returns from balances and cash flows
+function calculatePortfolioReturns(balances: number[], cashFlows: number[]): number[] {
+  const returns: number[] = [];
+  
+  // cashFlows[0] is -startingBalance, cashFlows[1..monthsTotal] are monthly cash flows
+  // balances[0] is startingBalance, balances[1..monthsTotal] are monthly balances
+  
+  for (let i = 1; i < balances.length; i++) {
+    const prevBalance = balances[i - 1];
+    const currBalance = balances[i];
+    // cashFlows[i] corresponds to the cash flow during month i (which affects balance at i)
+    const cashFlow = (i < cashFlows.length) ? cashFlows[i] : 0;
+    
+    // Portfolio return = (current balance - previous balance - cash flow) / previous balance
+    // Cash flow is negative for contributions, positive for withdrawals
+    // Formula: return = (end_balance - start_balance - cash_flow) / start_balance
+    if (prevBalance > 0) {
+      const returnValue = (currBalance - prevBalance - cashFlow) / prevBalance;
+      if (isFinite(returnValue) && !isNaN(returnValue)) {
+        returns.push(returnValue);
+      } else {
+        returns.push(0);
+      }
+    } else {
+      returns.push(0);
+    }
+  }
+  
+  return returns;
+}
+
+// Calculate volatility (annualized standard deviation) from monthly returns
+function calculateVolatility(monthlyReturns: number[]): number {
+  if (monthlyReturns.length < 2) {
+    return 0;
+  }
+  
+  // Calculate mean
+  const mean = monthlyReturns.reduce((sum, r) => sum + r, 0) / monthlyReturns.length;
+  
+  // Calculate variance
+  const variance = monthlyReturns.reduce((sum, r) => {
+    const diff = r - mean;
+    return sum + diff * diff;
+  }, 0) / (monthlyReturns.length - 1);
+  
+  // Standard deviation (monthly)
+  const stdDevMonthly = Math.sqrt(variance);
+  
+  // Annualize: multiply by sqrt(12)
+  return stdDevMonthly * Math.sqrt(12);
+}
+
+// Calculate median of an array
+function calculateMedian(values: number[]): number {
+  if (values.length === 0) {
+    return 0;
+  }
+  
+  const sorted = [...values].sort((a, b) => a - b);
+  const mid = Math.floor(sorted.length / 2);
+  
+  if (sorted.length % 2 === 0) {
+    return (sorted[mid - 1] + sorted[mid]) / 2;
+  } else {
+    return sorted[mid];
+  }
 }
 
 function createDistribution(sortedBalances: number[]): { labels: string[], percentages: number[] } {

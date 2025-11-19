@@ -1272,6 +1272,21 @@
           </div>
         </div>
 
+        <h3 style="font-size: 18px; font-weight: 600; color: var(--text-dark); margin: 24px 0 16px;">Investment Performance Metrics</h3>
+        <div class="results-grid">
+          <div class="result-card">
+            <div class="result-label">Median IRR</div>
+            <div class="result-value">${(data.medianIRR !== undefined && !isNaN(data.medianIRR)) ? data.medianIRR.toFixed(2) + '%' : 'N/A'}</div>
+            <div style="font-size: 12px; color: var(--muted); margin-top: 4px;">Internal Rate of Return</div>
+          </div>
+
+          <div class="result-card">
+            <div class="result-label">Median Volatility</div>
+            <div class="result-value">${(data.medianVolatility !== undefined && !isNaN(data.medianVolatility)) ? data.medianVolatility.toFixed(2) + '%' : 'N/A'}</div>
+            <div style="font-size: 12px; color: var(--muted); margin-top: 4px;">Annualized Standard Deviation</div>
+          </div>
+        </div>
+
         <h3 style="font-size: 18px; font-weight: 600; color: var(--text-dark); margin: 24px 0 16px;">Annualized Return Distributions</h3>
         <div class="results-grid">
           <div class="result-card">
@@ -1528,6 +1543,8 @@
         const totalContributions = yearData.reduce((sum, y) => sum + (y.contributions || 0), 0);
         const totalWithdrawals = yearData.reduce((sum, y) => sum + (y.withdrawals || 0), 0);
         const totalReturns = yearData.reduce((sum, y) => sum + (y.returns || 0), 0);
+        const medianIRR = (data.medianIRR !== undefined && !isNaN(data.medianIRR)) ? data.medianIRR.toFixed(2) + '%' : 'N/A';
+        const medianVolatility = (data.medianVolatility !== undefined && !isNaN(data.medianVolatility)) ? data.medianVolatility.toFixed(2) + '%' : 'N/A';
 
       let html = `
         <div class="detailed-summary">
@@ -1553,6 +1570,16 @@
             <div class="summary-stat">
               <div class="summary-stat-label">Net Gain</div>
               <div class="summary-stat-value">${formatCurrency(finalBalance - yearData[0].startBalance)}</div>
+            </div>
+            <div class="summary-stat">
+              <div class="summary-stat-label">Median IRR</div>
+              <div class="summary-stat-value">${medianIRR}</div>
+              <div style="font-size: 11px; color: var(--muted); margin-top: 2px;">Internal Rate of Return</div>
+            </div>
+            <div class="summary-stat">
+              <div class="summary-stat-label">Median Volatility</div>
+              <div class="summary-stat-value">${medianVolatility}</div>
+              <div style="font-size: 11px; color: var(--muted); margin-top: 2px;">Annualized Standard Deviation</div>
             </div>
           </div>
         </div>
