@@ -935,13 +935,13 @@
           <td>${dateStr}</td>
           <td>$${beginValue.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
           <td class="${returnClass}">${returnSign}${monthlyReturn.toFixed(2)}%</td>
-          ${formatReturn(assetReturns.VTI)}
-          ${formatReturn(assetReturns.SPDW)}
-          ${formatReturn(assetReturns.EEM)}
-          ${formatReturn(assetReturns.GLD)}
-          ${formatReturn(assetReturns.IBIT)}
-          ${formatReturn(assetReturns.BIL)}
-          ${formatReturn(assetReturns.AGG)}
+          <td>${formatReturn(assetReturns.VTI)}</td>
+          <td>${formatReturn(assetReturns.SPDW)}</td>
+          <td>${formatReturn(assetReturns.EEM)}</td>
+          <td>${formatReturn(assetReturns.GLD)}</td>
+          <td>${formatReturn(assetReturns.IBIT)}</td>
+          <td>${formatReturn(assetReturns.BIL)}</td>
+          <td>${formatReturn(assetReturns.AGG)}</td>
           <td>$${endValue.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
         `;
         
