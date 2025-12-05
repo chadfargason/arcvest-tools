@@ -1037,27 +1037,41 @@
     
     // CSV Download functionality
     const downloadCsvBtn = document.getElementById('download-csv-btn');
-    downloadCsvBtn.addEventListener('click', () => {
-      if (monthlyDetailsData.length === 0) return;
+    if (downloadCsvBtn) {
+      downloadCsvBtn.addEventListener('click', () => {
+        if (monthlyDetailsData.length === 0) {
+          console.error('No monthly details data available for CSV export');
+          alert('No data available to export. Please run a calculation first.');
+          return;
+        }
       
-      // Build CSV content
-      const headers = ['Month', 'Date', 'Beginning Value', 'Portfolio Return %', 'VTI %', 'SPDW %', 'EEM %', 'GLD %', 'IBIT %', 'BIL %', 'AGG %', 'Ending Value'];
-      let csvContent = headers.join(',') + '\n';
+        console.log('Exporting CSV with', monthlyDetailsData.length, 'rows');
+        
+        // Build CSV content
+        const headers = ['Month', 'Date', 'Beginning Value', 'Portfolio Return %', 'VTI %', 'SPDW %', 'EEM %', 'GLD %', 'IBIT %', 'BIL %', 'AGG %', 'Ending Value'];
+        let csvContent = headers.join(',') + '\n';
       
       monthlyDetailsData.forEach(row => {
+        const formatValue = (val) => {
+          if (val === undefined || val === null || isNaN(val)) {
+            return '';
+          }
+          return Number(val).toFixed(2);
+        };
+        
         const values = [
           `"${row.month}"`,
-          row.date,
-          row.beginValue.toFixed(2),
-          row.portfolioReturn.toFixed(2),
-          row.VTI !== undefined ? row.VTI.toFixed(2) : '',
-          row.SPDW !== undefined ? row.SPDW.toFixed(2) : '',
-          row.EEM !== undefined ? row.EEM.toFixed(2) : '',
-          row.GLD !== undefined ? row.GLD.toFixed(2) : '',
-          row.IBIT !== undefined ? row.IBIT.toFixed(2) : '',
-          row.BIL !== undefined ? row.BIL.toFixed(2) : '',
-          row.AGG !== undefined ? row.AGG.toFixed(2) : '',
-          row.endValue.toFixed(2)
+          row.date || '',
+          formatValue(row.beginValue),
+          formatValue(row.portfolioReturn),
+          formatValue(row.VTI),
+          formatValue(row.SPDW),
+          formatValue(row.EEM),
+          formatValue(row.GLD),
+          formatValue(row.IBIT),
+          formatValue(row.BIL),
+          formatValue(row.AGG),
+          formatValue(row.endValue)
         ];
         csvContent += values.join(',') + '\n';
       });
@@ -1079,7 +1093,8 @@
       link.click();
       document.body.removeChild(link);
       URL.revokeObjectURL(url);
-    });
+      });
+    }
 
     function displayFallbackNotice(data) {
       const fallbackNotice = document.getElementById('fallback-notice');
