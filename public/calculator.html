@@ -836,7 +836,8 @@
       
       // Populate monthly details table
       if (series && series.length > 0) {
-        populateMonthlyDetails(series, data.fallbacksUsed);
+        // Use asset returns data from the calculation response
+        populateMonthlyDetails(series, data.fallbacksUsed, data.assetReturns);
         document.getElementById('monthly-details-section').style.display = 'block';
       }
     }
@@ -846,7 +847,7 @@
     let fallbackMap = new Map(); // Map of original asset -> fallback asset
     let fallbackInfo = {}; // Store fallback details for display
     
-    async function populateMonthlyDetails(series, fallbacksUsed) {
+    function populateMonthlyDetails(series, fallbacksUsed, assetReturnsData) {
       const tbody = document.getElementById('monthly-details-body');
       tbody.innerHTML = ''; // Clear existing rows
       
@@ -875,43 +876,20 @@
         document.getElementById('fallback-legend').style.display = 'none';
       }
       
-      // Fetch individual asset returns (including fallbacks)
-      const startDate = document.getElementById('start-date').value + '-01';
-      const [y, m] = document.getElementById('end-date').value.split('-');
-      const lastDay = new Date(y, m, 0).getDate();
-      const endDate = `${y}-${m}-${String(lastDay).padStart(2,'0')}`;
-      
-      // Build list of assets to fetch (original + fallbacks)
-      const assetsToFetch = [...assetTickers];
-      fallbackMap.forEach((fallbackAsset, originalAsset) => {
-        if (!assetsToFetch.includes(fallbackAsset)) {
-          assetsToFetch.push(fallbackAsset);
-        }
-      });
-      
+      // Build asset returns map from the data already fetched during calculation
       let assetReturnsMap = new Map();
-      try {
-        // Fetch raw asset data from Supabase
-        const response = await fetch('https://investment-chatbot-1.vercel.app/api/portfolio/assets', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ assets: assetsToFetch, startDate, endDate })
-        });
-        
-        if (response.ok) {
-          const data = await response.json();
-          // Group by date
-          if (data.success && data.returns) {
-            data.returns.forEach(item => {
-              if (!assetReturnsMap.has(item.return_date)) {
-                assetReturnsMap.set(item.return_date, {});
-              }
-              assetReturnsMap.get(item.return_date)[item.asset_ticker] = parseFloat(item.monthly_return) * 100;
-            });
+      if (assetReturnsData && Array.isArray(assetReturnsData)) {
+        assetReturnsData.forEach(item => {
+          if (!assetReturnsMap.has(item.return_date)) {
+            assetReturnsMap.set(item.return_date, {});
           }
-        }
-      } catch (e) {
-        console.error('Failed to fetch individual asset returns:', e);
+          // Convert to percentage (monthly_return is already a decimal)
+          assetReturnsMap.get(item.return_date)[item.asset_ticker] = parseFloat(item.monthly_return) * 100;
+        });
+        console.log('Using asset returns from calculation response:', assetReturnsMap.size, 'dates');
+        console.log('Sample dates in map:', Array.from(assetReturnsMap.keys()).slice(0, 3));
+      } else {
+        console.warn('No asset returns data in calculation response');
       }
       
       // Build table data
@@ -936,6 +914,9 @@
         
         // Get individual asset returns for this date
         const assetReturns = assetReturnsMap.get(date) || {};
+        if (i < 3) {
+          console.log(`Row ${i}: date=${date}, found returns:`, Object.keys(assetReturns).length > 0 ? Object.keys(assetReturns) : 'none');
+        }
         
         // Helper function to get return value (check fallback if original not available)
         const getAssetReturn = (assetTicker) => {
