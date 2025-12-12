@@ -238,6 +238,51 @@
         <button class="btn" id="request-report-btn">Request Full Report</button>
         <div id="email-status"></div>
       </div>
+
+      <!-- Debug/Validation Section -->
+      <div style="margin-top: 40px; padding-top: 30px; border-top: 2px solid #E2E8F0;">
+        <button 
+          class="btn" 
+          id="toggle-debug-btn" 
+          style="background: #64748B; font-size: 14px; padding: 10px 20px;"
+          onclick="toggleDebugSection()">
+          <span id="debug-toggle-text">Show</span> Raw Data for Validation
+        </button>
+        
+        <div id="debug-section" style="display: none; margin-top: 20px;">
+          <h3 style="margin-bottom: 15px; color: #64748B;">Raw Data (for validation)</h3>
+          
+          <div style="margin-bottom: 20px;">
+            <h4 style="margin-bottom: 10px; font-size: 16px; color: #0F172A;">Analysis Results</h4>
+            <pre id="debug-analysis-results" style="background: #F8FAFC; padding: 15px; border-radius: 4px; border: 1px solid #E2E8F0; overflow-x: auto; font-size: 12px; max-height: 400px; overflow-y: auto;"></pre>
+          </div>
+
+          <div style="margin-bottom: 20px;">
+            <h4 style="margin-bottom: 10px; font-size: 16px; color: #0F172A;">Summary Statistics</h4>
+            <pre id="debug-summary" style="background: #F8FAFC; padding: 15px; border-radius: 4px; border: 1px solid #E2E8F0; overflow-x: auto; font-size: 12px; max-height: 300px; overflow-y: auto;"></pre>
+          </div>
+
+          <div style="margin-bottom: 20px;">
+            <h4 style="margin-bottom: 10px; font-size: 16px; color: #0F172A;">Monthly Analysis</h4>
+            <pre id="debug-monthly" style="background: #F8FAFC; padding: 15px; border-radius: 4px; border: 1px solid #E2E8F0; overflow-x: auto; font-size: 12px; max-height: 400px; overflow-y: auto;"></pre>
+          </div>
+
+          <div style="margin-bottom: 20px;">
+            <h4 style="margin-bottom: 10px; font-size: 16px; color: #0F172A;">Portfolio Allocation</h4>
+            <pre id="debug-allocation" style="background: #F8FAFC; padding: 15px; border-radius: 4px; border: 1px solid #E2E8F0; overflow-x: auto; font-size: 12px; max-height: 300px; overflow-y: auto;"></pre>
+          </div>
+
+          <div style="margin-bottom: 20px;">
+            <h4 style="margin-bottom: 10px; font-size: 16px; color: #0F172A;">Fees Summary</h4>
+            <pre id="debug-fees" style="background: #F8FAFC; padding: 15px; border-radius: 4px; border: 1px solid #E2E8F0; overflow-x: auto; font-size: 12px; max-height: 200px; overflow-y: auto;"></pre>
+          </div>
+
+          <div style="margin-bottom: 20px;">
+            <h4 style="margin-bottom: 10px; font-size: 16px; color: #0F172A;">Raw Fetched Data (Transactions & Holdings)</h4>
+            <pre id="debug-fetched" style="background: #F8FAFC; padding: 15px; border-radius: 4px; border: 1px solid #E2E8F0; overflow-x: auto; font-size: 12px; max-height: 500px; overflow-y: auto;"></pre>
+          </div>
+        </div>
+      </div>
     </div>
   </div>
 
@@ -364,6 +409,9 @@
               }
 
               const data = await fetchResponse.json();
+              // Store raw fetched data for debugging
+              rawFetchedData = data;
+              
               console.log('Fetched data structure:', {
                 hasTransactions: !!data.transactions,
                 hasHoldings: !!data.holdings,
@@ -455,9 +503,98 @@
       }
     });
 
+    // Store raw data for debugging
+    let rawAnalysisData = null;
+    let rawFetchedData = null;
+
+    // Toggle debug section
+    function toggleDebugSection() {
+      const debugSection = document.getElementById('debug-section');
+      const toggleText = document.getElementById('debug-toggle-text');
+      
+      if (debugSection.style.display === 'none') {
+        debugSection.style.display = 'block';
+        toggleText.textContent = 'Hide';
+        populateDebugData();
+      } else {
+        debugSection.style.display = 'none';
+        toggleText.textContent = 'Show';
+      }
+    }
+
+    // Populate debug data
+    function populateDebugData() {
+      if (!rawAnalysisData) return;
+
+      // Analysis Results (full object)
+      const analysisEl = document.getElementById('debug-analysis-results');
+      if (analysisEl) {
+        analysisEl.textContent = JSON.stringify(rawAnalysisData, null, 2);
+      }
+
+      // Summary
+      const summaryEl = document.getElementById('debug-summary');
+      if (summaryEl && rawAnalysisData.summary) {
+        summaryEl.textContent = JSON.stringify(rawAnalysisData.summary, null, 2);
+      }
+
+      // Monthly Analysis
+      const monthlyEl = document.getElementById('debug-monthly');
+      if (monthlyEl && rawAnalysisData.monthlyAnalysis) {
+        // Show first 5 and last 5 months plus summary
+        const monthly = rawAnalysisData.monthlyAnalysis;
+        const preview = {
+          totalMonths: monthly.length,
+          firstFiveMonths: monthly.slice(0, 5),
+          lastFiveMonths: monthly.slice(-5),
+          allMonths: monthly
+        };
+        monthlyEl.textContent = JSON.stringify(preview, null, 2);
+      }
+
+      // Portfolio Allocation
+      const allocationEl = document.getElementById('debug-allocation');
+      if (allocationEl && rawAnalysisData.portfolioAllocation) {
+        allocationEl.textContent = JSON.stringify(rawAnalysisData.portfolioAllocation, null, 2);
+      }
+
+      // Fees
+      const feesEl = document.getElementById('debug-fees');
+      if (feesEl && rawAnalysisData.fees) {
+        feesEl.textContent = JSON.stringify(rawAnalysisData.fees, null, 2);
+      }
+
+      // Raw Fetched Data
+      const fetchedEl = document.getElementById('debug-fetched');
+      if (fetchedEl && rawFetchedData) {
+        // Show a summary with counts, and full data
+        const fetchedSummary = {
+          transactions: {
+            count: rawFetchedData.transactions?.investment_transactions?.length || 0,
+            accounts: rawFetchedData.transactions?.accounts?.length || 0,
+            securities: rawFetchedData.transactions?.securities?.length || 0,
+            sample_transactions: rawFetchedData.transactions?.investment_transactions?.slice(0, 5) || [],
+            all_transactions: rawFetchedData.transactions?.investment_transactions || []
+          },
+          holdings: {
+            count: rawFetchedData.holdings?.holdings?.length || 0,
+            accounts: rawFetchedData.holdings?.accounts?.length || 0,
+            securities: rawFetchedData.holdings?.securities?.length || 0,
+            sample_holdings: rawFetchedData.holdings?.holdings?.slice(0, 5) || [],
+            all_holdings: rawFetchedData.holdings?.holdings || [],
+            all_securities: rawFetchedData.holdings?.securities || []
+          }
+        };
+        fetchedEl.textContent = JSON.stringify(fetchedSummary, null, 2);
+      }
+    }
+
     // Display results
     function displayResults(results) {
       console.log('Displaying results:', results);
+      
+      // Store raw data for debugging
+      rawAnalysisData = results;
       
       const summary = results.summary || {};
       const fees = results.fees || {};
