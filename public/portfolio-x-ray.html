@@ -273,11 +273,16 @@
       // Hide all sections
       document.querySelectorAll('.section').forEach(s => {
         s.classList.add('hidden');
+        s.classList.remove('show');
       });
       // Show the requested section
       const targetSection = document.getElementById(id);
       if (targetSection) {
         targetSection.classList.remove('hidden');
+        // If it has the 'results' class, also add 'show' to override the CSS
+        if (targetSection.classList.contains('results')) {
+          targetSection.classList.add('show');
+        }
       } else {
         console.error('Section not found:', id);
       }
