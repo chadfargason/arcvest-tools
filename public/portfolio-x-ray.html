@@ -245,12 +245,16 @@
   <script src="https://cdn.plaid.com/link/v2/stable/link-initialize.js"></script>
 
   <script>
-    let linkHandler = null;
-    let analysisResults = null;
-    let accessToken = null;
+    // Wait for DOM to be ready
+    document.addEventListener('DOMContentLoaded', function() {
+      console.log('DOM loaded, initializing Portfolio X-Ray...');
+      
+      let linkHandler = null;
+      let analysisResults = null;
+      let accessToken = null;
 
-    // Generate unique user ID
-    function getUserId() {
+      // Generate unique user ID
+      function getUserId() {
       let userId = localStorage.getItem('portfolio_xray_user_id');
       if (!userId) {
         userId = 'user_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
