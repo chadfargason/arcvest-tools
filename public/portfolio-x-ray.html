@@ -244,8 +244,7 @@
         <button 
           class="btn" 
           id="toggle-debug-btn" 
-          style="background: #64748B; font-size: 14px; padding: 10px 20px;"
-          onclick="toggleDebugSection()">
+          style="background: #64748B; font-size: 14px; padding: 10px 20px;">
           <span id="debug-toggle-text">Show</span> Raw Data for Validation
         </button>
         
@@ -587,6 +586,12 @@
         };
         fetchedEl.textContent = JSON.stringify(fetchedSummary, null, 2);
       }
+    }
+
+    // Set up toggle button handler after DOM is ready
+    const toggleBtn = document.getElementById('toggle-debug-btn');
+    if (toggleBtn) {
+      toggleBtn.addEventListener('click', toggleDebugSection);
     }
 
     // Display results
