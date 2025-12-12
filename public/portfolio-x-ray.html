@@ -271,7 +271,20 @@
         if (!linkTokenResponse.ok) {
           const errorData = await linkTokenResponse.json().catch(() => ({}));
           console.error('Link token error response:', errorData);
-          throw new Error(errorData.details || errorData.error || 'Failed to get link token');
+          
+          // Extract error message properly
+          let errorMessage = 'Failed to get link token';
+          if (errorData.details) {
+            errorMessage = typeof errorData.details === 'string' 
+              ? errorData.details 
+              : JSON.stringify(errorData.details);
+          } else if (errorData.error) {
+            errorMessage = typeof errorData.error === 'string'
+              ? errorData.error
+              : JSON.stringify(errorData.error);
+          }
+          
+          throw new Error(errorMessage);
         }
 
         const { link_token } = await linkTokenResponse.json();
@@ -341,7 +354,8 @@
 
             } catch (error) {
               console.error('Error:', error);
-              alert('Error: ' + error.message);
+              const errorMsg = error instanceof Error ? error.message : String(error);
+              alert('Error: ' + errorMsg);
               showSection('connect-section');
             }
           },
@@ -358,7 +372,8 @@
 
       } catch (error) {
         console.error('Error:', error);
-        alert('Error: ' + error.message);
+        const errorMsg = error instanceof Error ? error.message : String(error);
+        alert('Error: ' + errorMsg);
         showSection('connect-section');
       }
     });

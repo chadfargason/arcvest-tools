@@ -52,20 +52,31 @@ export async function POST(request: NextRequest) {
     console.error('Link token creation error:', error);
     
     // Extract detailed error information
-    const errorDetails = {
-      message: error.message,
-      response: error.response?.data || null,
-      status: error.response?.status || null,
-      configCheck: validatePlaidConfig(),
-    };
+    let errorMessage = 'Unknown error';
+    let errorDetails: any = null;
     
-    console.error('Error details:', JSON.stringify(errorDetails, null, 2));
+    if (error.response?.data) {
+      // Plaid API error response
+      errorDetails = error.response.data;
+      errorMessage = errorDetails.error_message || errorDetails.error_code || errorDetails.message || 'Plaid API error';
+    } else if (error.message) {
+      errorMessage = error.message;
+    }
+    
+    const configCheck = validatePlaidConfig();
+    console.error('Error details:', {
+      message: errorMessage,
+      plaidResponse: errorDetails,
+      status: error.response?.status,
+      configValid: configCheck.valid,
+    });
     
     return NextResponse.json(
       { 
         error: 'Failed to create link token',
-        details: errorDetails.response || error.message,
-        configValid: errorDetails.configCheck.valid,
+        details: errorMessage,
+        plaidError: errorDetails,
+        configValid: configCheck.valid,
       },
       { status: 500 }
     );
