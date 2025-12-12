@@ -149,7 +149,7 @@ export async function POST(request: NextRequest) {
 
     console.log('Monthly analysis calculated:', {
       months: monthlyAnalysis.length,
-      hasBenchmarkData: benchmarkReturns?.length > 0,
+      hasBenchmarkData: (benchmarkReturns?.length ?? 0) > 0,
       uniqueBenchmarks: uniqueBenchmarks,
     });
 
