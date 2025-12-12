@@ -72,6 +72,21 @@
       color: #64748B;
     }
 
+    .spinner {
+      border: 4px solid #E2E8F0;
+      border-top: 4px solid #1B9C85;
+      border-radius: 50%;
+      width: 40px;
+      height: 40px;
+      animation: spin 1s linear infinite;
+      margin: 20px auto;
+    }
+
+    @keyframes spin {
+      0% { transform: rotate(0deg); }
+      100% { transform: rotate(360deg); }
+    }
+
     .results {
       display: none;
     }
@@ -177,12 +192,13 @@
     <!-- Loading Section -->
     <div class="section hidden" id="loading-section">
       <div class="loading">
+        <div class="spinner"></div>
         <p id="loading-text">Connecting to your account...</p>
       </div>
     </div>
 
     <!-- Results Section -->
-    <div class="section results" id="results-section">
+    <div class="section results hidden" id="results-section">
       <h2>Portfolio Analysis Results</h2>
       
       <div class="metric-card">
@@ -250,8 +266,17 @@
 
     // Show/hide sections
     function showSection(id) {
-      document.querySelectorAll('.section').forEach(s => s.classList.add('hidden'));
-      document.getElementById(id)?.classList.remove('hidden');
+      // Hide all sections
+      document.querySelectorAll('.section').forEach(s => {
+        s.classList.add('hidden');
+      });
+      // Show the requested section
+      const targetSection = document.getElementById(id);
+      if (targetSection) {
+        targetSection.classList.remove('hidden');
+      } else {
+        console.error('Section not found:', id);
+      }
     }
 
     // Connect button handler
@@ -348,6 +373,8 @@
               }
 
               analysisResults = await analyzeResponse.json();
+              
+              console.log('Analysis results received:', analysisResults);
 
               // Display results
               displayResults(analysisResults);
@@ -380,28 +407,44 @@
 
     // Display results
     function displayResults(results) {
+      console.log('Displaying results:', results);
+      
       const summary = results.summary || {};
       const fees = results.fees || {};
 
       // Format and display metrics
-      document.getElementById('portfolio-return').textContent = 
-        (summary.portfolioAnnualizedReturn || 0).toFixed(2) + '%';
-      document.getElementById('portfolio-return').className = 
-        'metric-value ' + (summary.portfolioAnnualizedReturn >= 0 ? 'positive' : 'negative');
+      const portfolioReturnEl = document.getElementById('portfolio-return');
+      const benchmarkReturnEl = document.getElementById('benchmark-return');
+      const outperfEl = document.getElementById('outperformance');
+      const feesEl = document.getElementById('total-fees');
 
-      document.getElementById('benchmark-return').textContent = 
-        (summary.benchmarkAnnualizedReturn || 0).toFixed(2) + '%';
+      if (portfolioReturnEl) {
+        portfolioReturnEl.textContent = 
+          (summary.portfolioAnnualizedReturn || 0).toFixed(2) + '%';
+        portfolioReturnEl.className = 
+          'metric-value ' + (summary.portfolioAnnualizedReturn >= 0 ? 'positive' : 'negative');
+      }
 
-      const outperf = summary.outperformance || 0;
-      document.getElementById('outperformance').textContent = 
-        (outperf >= 0 ? '+' : '') + outperf.toFixed(2) + '%';
-      document.getElementById('outperformance').className = 
-        'metric-value ' + (outperf >= 0 ? 'positive' : 'negative');
+      if (benchmarkReturnEl) {
+        benchmarkReturnEl.textContent = 
+          (summary.benchmarkAnnualizedReturn || 0).toFixed(2) + '%';
+      }
 
-      document.getElementById('total-fees').textContent = 
-        formatCurrency(fees.totalFees || 0);
+      if (outperfEl) {
+        const outperf = summary.outperformance || 0;
+        outperfEl.textContent = 
+          (outperf >= 0 ? '+' : '') + outperf.toFixed(2) + '%';
+        outperfEl.className = 
+          'metric-value ' + (outperf >= 0 ? 'positive' : 'negative');
+      }
 
+      if (feesEl) {
+        feesEl.textContent = formatCurrency(fees.totalFees || 0);
+      }
+
+      // Show results section
       showSection('results-section');
+      console.log('Results section should now be visible');
     }
 
     // Format currency
