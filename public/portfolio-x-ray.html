@@ -370,7 +370,7 @@
               
               // Create a map to deduplicate securities by security_id
               const securitiesMap = new Map();
-              [...transactionSecurities, ...holdingsSecurities].forEach((sec: any) => {
+              [...transactionSecurities, ...holdingsSecurities].forEach((sec) => {
                 if (sec.security_id && !securitiesMap.has(sec.security_id)) {
                   securitiesMap.set(sec.security_id, sec);
                 }
@@ -546,6 +546,8 @@
         document.getElementById('request-report-btn').disabled = false;
       }
     });
+    
+    }); // End DOMContentLoaded
   </script>
 </body>
 </html>
