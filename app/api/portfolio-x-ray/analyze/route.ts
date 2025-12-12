@@ -17,11 +17,36 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
     const { transactions, holdings, securities } = body;
 
-    if (!transactions || !holdings || !securities) {
+    console.log('Analyze request received:', {
+      hasTransactions: !!transactions,
+      hasHoldings: !!holdings,
+      hasSecurities: !!securities,
+      securitiesType: typeof securities,
+      securitiesIsArray: Array.isArray(securities),
+      securitiesKeys: securities ? Object.keys(securities) : [],
+    });
+
+    if (!transactions || !holdings) {
       return NextResponse.json(
-        { error: 'Missing required data: transactions, holdings, securities' },
+        { error: 'Missing required data: transactions and holdings are required' },
         { status: 400 }
       );
+    }
+
+    // Handle securities in different formats
+    let securitiesList: any[] = [];
+    if (Array.isArray(securities)) {
+      securitiesList = securities;
+    } else if (securities?.securities && Array.isArray(securities.securities)) {
+      securitiesList = securities.securities;
+    } else if (transactions?.securities && Array.isArray(transactions.securities)) {
+      securitiesList = transactions.securities;
+    } else if (holdings?.securities && Array.isArray(holdings.securities)) {
+      securitiesList = holdings.securities;
+    }
+
+    if (securitiesList.length === 0) {
+      console.warn('No securities found in request');
     }
 
     // Validate Supabase config
@@ -67,20 +92,31 @@ export async function POST(request: NextRequest) {
     // Get current portfolio allocation from holdings
     const portfolioAllocation = calculatePortfolioAllocation(
       holdings.holdings || [],
-      securities.securities || []
+      securitiesList
     );
+
+    console.log('Portfolio allocation calculated:', {
+      allocationSize: portfolioAllocation.size,
+      allocations: Array.from(portfolioAllocation.entries()).slice(0, 5),
+    });
 
     // Match holdings to benchmarks
     const benchmarkMap = new Map<string, string>();
     for (const holding of holdings.holdings || []) {
-      const security = (securities.securities || []).find(
+      const security = securitiesList.find(
         (s: any) => s.security_id === holding.security_id
       );
       if (security) {
         const benchmark = getBenchmarkForPlaidSecurity(security);
         benchmarkMap.set(security.security_id, benchmark);
+        console.log(`Matched ${security.ticker_symbol || security.name} to benchmark ${benchmark}`);
       }
     }
+
+    console.log('Benchmark map created:', {
+      benchmarkMapSize: benchmarkMap.size,
+      uniqueBenchmarks: Array.from(new Set(benchmarkMap.values())),
+    });
 
     // Get unique benchmarks needed
     const uniqueBenchmarks = Array.from(new Set(benchmarkMap.values()));
@@ -103,7 +139,7 @@ export async function POST(request: NextRequest) {
     const monthlyAnalysis = calculateMonthlyReturns(
       transactions.investment_transactions || [],
       holdings.holdings || [],
-      securities.securities || [],
+      securitiesList,
       portfolioAllocation,
       benchmarkMap,
       benchmarkReturns || [],

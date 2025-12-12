@@ -355,13 +355,34 @@
               }
 
               const data = await fetchResponse.json();
+              console.log('Fetched data structure:', {
+                hasTransactions: !!data.transactions,
+                hasHoldings: !!data.holdings,
+                transactionSecuritiesCount: data.transactions?.securities?.length || 0,
+                holdingsSecuritiesCount: data.holdings?.securities?.length || 0,
+                holdingsCount: data.holdings?.holdings?.length || 0,
+                transactionsCount: data.transactions?.investment_transactions?.length || 0,
+              });
+
+              // Combine securities from both transactions and holdings
+              const transactionSecurities = data.transactions?.securities || [];
+              const holdingsSecurities = data.holdings?.securities || [];
+              
+              // Create a map to deduplicate securities by security_id
+              const securitiesMap = new Map();
+              [...transactionSecurities, ...holdingsSecurities].forEach((sec: any) => {
+                if (sec.security_id && !securitiesMap.has(sec.security_id)) {
+                  securitiesMap.set(sec.security_id, sec);
+                }
+              });
+              const allSecurities = Array.from(securitiesMap.values());
 
               // Analyze
               updateLoading('Analyzing your portfolio...');
-              console.log('Sending analysis request...', {
-                hasTransactions: !!data.transactions,
-                hasHoldings: !!data.holdings,
-                securitiesCount: data.transactions?.securities?.length || 0,
+              console.log('Sending analysis request with', {
+                securitiesCount: allSecurities.length,
+                holdingsCount: data.holdings?.holdings?.length || 0,
+                transactionsCount: data.transactions?.investment_transactions?.length || 0,
               });
               
               const analyzeResponse = await fetch('/api/portfolio-x-ray/analyze', {
@@ -370,7 +391,7 @@
                 body: JSON.stringify({
                   transactions: data.transactions,
                   holdings: data.holdings,
-                  securities: data.transactions?.securities || data.holdings?.securities || [],
+                  securities: { securities: allSecurities },
                 }),
               });
 
