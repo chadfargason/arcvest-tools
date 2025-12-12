@@ -33,9 +33,12 @@ export async function POST(request: NextRequest) {
       products: ['investments'] as any, // Plaid types may be strict, but API accepts this
       country_codes: ['US'],
       language: 'en',
-      redirect_uri: process.env.PLAID_REDIRECT_URI || 
-        `${process.env.NEXT_PUBLIC_APP_URL || 'https://arcvest-tools.vercel.app'}/portfolio-x-ray/oauth-return`,
     } as LinkTokenCreateRequest;
+
+    // Add redirect_uri only if configured (required for OAuth flow, optional for standard Link)
+    if (process.env.PLAID_REDIRECT_URI) {
+      linkTokenRequest.redirect_uri = process.env.PLAID_REDIRECT_URI;
+    }
 
     // Add webhook if configured
     if (process.env.PLAID_WEBHOOK_URL) {
