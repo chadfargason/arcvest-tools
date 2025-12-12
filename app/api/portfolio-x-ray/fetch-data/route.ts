@@ -46,8 +46,9 @@ export async function POST(request: NextRequest) {
     
     // Handle pagination if needed
     let allTransactions = transactionsResponse.data.investment_transactions || [];
-    let cursor = transactionsResponse.data.total_investment_transactions > allTransactions.length 
-      ? transactionsResponse.data.cursor 
+    let responseData = transactionsResponse.data as any;
+    let cursor = responseData.total_investment_transactions > allTransactions.length 
+      ? (responseData.cursor as string | null | undefined)
       : null;
 
     // Fetch more pages if needed
@@ -60,7 +61,8 @@ export async function POST(request: NextRequest) {
       };
       const paginatedResponse = await client.investmentsTransactionsGet(paginatedRequest);
       allTransactions = allTransactions.concat(paginatedResponse.data.investment_transactions || []);
-      cursor = paginatedResponse.data.cursor || null;
+      const paginatedData = paginatedResponse.data as any;
+      cursor = paginatedData.cursor || null;
     }
 
     // Fetch current holdings
