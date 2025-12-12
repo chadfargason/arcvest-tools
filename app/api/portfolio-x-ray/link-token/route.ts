@@ -25,17 +25,17 @@ export async function POST(request: NextRequest) {
 
     const client = createPlaidClient();
     
-    const linkTokenRequest: LinkTokenCreateRequest = {
+    const linkTokenRequest = {
       user: {
         client_user_id: userId,
       },
       client_name: 'ArcVest Portfolio Tools',
-      products: ['investments'],
+      products: ['investments'] as any, // Plaid types may be strict, but API accepts this
       country_codes: ['US'],
       language: 'en',
       redirect_uri: process.env.PLAID_REDIRECT_URI || 
         `${process.env.NEXT_PUBLIC_APP_URL || 'https://arcvest-tools.vercel.app'}/portfolio-x-ray/oauth-return`,
-    };
+    } as LinkTokenCreateRequest;
 
     // Add webhook if configured
     if (process.env.PLAID_WEBHOOK_URL) {
