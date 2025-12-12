@@ -111,6 +111,35 @@ export async function POST(request: NextRequest) {
       analysisEndDate
     );
 
+    console.log('Monthly analysis calculated:', {
+      months: monthlyAnalysis.length,
+      hasBenchmarkData: benchmarkReturns?.length > 0,
+      uniqueBenchmarks: uniqueBenchmarks,
+    });
+
+    // Handle case where no monthly analysis was generated
+    if (monthlyAnalysis.length === 0) {
+      console.warn('No monthly analysis generated - using default values');
+      return NextResponse.json({
+        monthlyAnalysis: [],
+        summary: {
+          portfolioTotalReturn: 0,
+          portfolioAnnualizedReturn: 0,
+          benchmarkTotalReturn: 0,
+          benchmarkAnnualizedReturn: 0,
+          outperformance: 0,
+          periodMonths: 0,
+          startDate: analysisStartDate,
+          endDate: analysisEndDate,
+          note: 'Insufficient data for performance analysis',
+        },
+        fees: feeSummary,
+        portfolioAllocation: Object.fromEntries(portfolioAllocation),
+        holdings: holdings.holdings?.length || 0,
+        transactions: transactions.investment_transactions?.length || 0,
+      });
+    }
+
     // Calculate summary statistics
     const portfolioMonthlyReturns = monthlyAnalysis.map(m => m.portfolioReturn);
     const benchmarkMonthlyReturns = monthlyAnalysis.map(m => m.benchmarkReturn);

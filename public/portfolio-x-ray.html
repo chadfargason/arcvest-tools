@@ -358,32 +358,52 @@
 
               // Analyze
               updateLoading('Analyzing your portfolio...');
+              console.log('Sending analysis request...', {
+                hasTransactions: !!data.transactions,
+                hasHoldings: !!data.holdings,
+                securitiesCount: data.transactions?.securities?.length || 0,
+              });
+              
               const analyzeResponse = await fetch('/api/portfolio-x-ray/analyze', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                   transactions: data.transactions,
                   holdings: data.holdings,
-                  securities: data.transactions.securities,
+                  securities: data.transactions?.securities || data.holdings?.securities || [],
                 }),
               });
 
+              console.log('Analyze response status:', analyzeResponse.status);
+
               if (!analyzeResponse.ok) {
-                throw new Error('Analysis failed');
+                const errorData = await analyzeResponse.json().catch(() => ({}));
+                console.error('Analysis failed:', errorData);
+                const errorMsg = errorData.details || errorData.error || 'Analysis failed';
+                throw new Error(errorMsg);
               }
 
               analysisResults = await analyzeResponse.json();
-              
               console.log('Analysis results received:', analysisResults);
+              
+              if (!analysisResults) {
+                console.error('No analysis results returned');
+                throw new Error('Analysis returned no data');
+              }
 
-              // Display results
+              // Display results (even if summary is missing, show what we have)
+              console.log('Calling displayResults...');
               displayResults(analysisResults);
 
             } catch (error) {
-              console.error('Error:', error);
+              console.error('Error in analysis flow:', error);
               const errorMsg = error instanceof Error ? error.message : String(error);
-              alert('Error: ' + errorMsg);
-              showSection('connect-section');
+              updateLoading('Error: ' + errorMsg);
+              // Show error for a moment, then go back
+              setTimeout(() => {
+                alert('Error: ' + errorMsg);
+                showSection('connect-section');
+              }, 2000);
             }
           },
           onExit: (err, metadata) => {
@@ -419,15 +439,15 @@
       const feesEl = document.getElementById('total-fees');
 
       if (portfolioReturnEl) {
-        portfolioReturnEl.textContent = 
-          (summary.portfolioAnnualizedReturn || 0).toFixed(2) + '%';
+        const portfolioReturn = summary.portfolioAnnualizedReturn || 0;
+        portfolioReturnEl.textContent = portfolioReturn.toFixed(2) + '%';
         portfolioReturnEl.className = 
-          'metric-value ' + (summary.portfolioAnnualizedReturn >= 0 ? 'positive' : 'negative');
+          'metric-value ' + (portfolioReturn >= 0 ? 'positive' : 'negative');
       }
 
       if (benchmarkReturnEl) {
-        benchmarkReturnEl.textContent = 
-          (summary.benchmarkAnnualizedReturn || 0).toFixed(2) + '%';
+        const benchReturn = summary.benchmarkAnnualizedReturn || 0;
+        benchmarkReturnEl.textContent = benchReturn.toFixed(2) + '%';
       }
 
       if (outperfEl) {
@@ -443,8 +463,18 @@
       }
 
       // Show results section
+      console.log('Showing results section...');
       showSection('results-section');
-      console.log('Results section should now be visible');
+      
+      // Double-check it's visible
+      setTimeout(() => {
+        const resultsSection = document.getElementById('results-section');
+        if (resultsSection && resultsSection.classList.contains('hidden')) {
+          console.error('Results section is still hidden! Forcing show...');
+          resultsSection.classList.remove('hidden');
+        }
+        console.log('Results section visibility:', !resultsSection?.classList.contains('hidden'));
+      }, 100);
     }
 
     // Format currency
