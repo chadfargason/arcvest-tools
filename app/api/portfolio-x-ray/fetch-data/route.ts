@@ -53,12 +53,12 @@ export async function POST(request: NextRequest) {
 
     // Fetch more pages if needed
     while (cursor) {
-      const paginatedRequest: InvestmentsTransactionsGetRequest = {
+      const paginatedRequest = {
         access_token,
         start_date: startDateStr,
         end_date: endDateStr,
         cursor,
-      };
+      } as any; // Plaid types don't include cursor, but API supports it
       const paginatedResponse = await client.investmentsTransactionsGet(paginatedRequest);
       allTransactions = allTransactions.concat(paginatedResponse.data.investment_transactions || []);
       const paginatedData = paginatedResponse.data as any;
