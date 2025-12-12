@@ -269,7 +269,9 @@
         });
 
         if (!linkTokenResponse.ok) {
-          throw new Error('Failed to get link token');
+          const errorData = await linkTokenResponse.json().catch(() => ({}));
+          console.error('Link token error response:', errorData);
+          throw new Error(errorData.details || errorData.error || 'Failed to get link token');
         }
 
         const { link_token } = await linkTokenResponse.json();

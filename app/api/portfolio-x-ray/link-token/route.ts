@@ -50,10 +50,22 @@ export async function POST(request: NextRequest) {
     });
   } catch (error: any) {
     console.error('Link token creation error:', error);
+    
+    // Extract detailed error information
+    const errorDetails = {
+      message: error.message,
+      response: error.response?.data || null,
+      status: error.response?.status || null,
+      configCheck: validatePlaidConfig(),
+    };
+    
+    console.error('Error details:', JSON.stringify(errorDetails, null, 2));
+    
     return NextResponse.json(
       { 
         error: 'Failed to create link token',
-        details: error.response?.data || error.message 
+        details: errorDetails.response || error.message,
+        configValid: errorDetails.configCheck.valid,
       },
       { status: 500 }
     );
