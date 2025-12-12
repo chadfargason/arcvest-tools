@@ -4,15 +4,23 @@ import { Configuration, PlaidApi, PlaidEnvironments } from 'plaid';
  * Create and configure Plaid client
  */
 export function createPlaidClient() {
+  const clientId = process.env.PLAID_CLIENT_ID;
+  const secret = process.env.PLAID_SECRET;
+  const env = process.env.PLAID_ENV || 'sandbox';
+  
+  if (!clientId || !secret) {
+    throw new Error('Plaid credentials not configured: PLAID_CLIENT_ID and PLAID_SECRET required');
+  }
+
   const configuration = new Configuration({
     basePath: 
-      process.env.PLAID_ENV === 'production' 
+      env === 'production' 
         ? PlaidEnvironments.production 
         : PlaidEnvironments.sandbox,
     baseOptions: {
       headers: {
-        'PLAID-CLIENT-ID': process.env.PLAID_CLIENT_ID!,
-        'PLAID-SECRET': process.env.PLAID_SECRET!,
+        'PLAID-CLIENT-ID': clientId,
+        'PLAID-SECRET': secret,
       },
     },
   });
