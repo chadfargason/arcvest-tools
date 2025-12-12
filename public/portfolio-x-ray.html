@@ -1,0 +1,441 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Portfolio X-Ray - ArcVest</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: 'Lora', Georgia, serif;
+      background: #fff;
+      color: #0F172A;
+      line-height: 1.6;
+    }
+
+    .container {
+      max-width: 900px;
+      margin: 0 auto;
+      padding: 40px 20px;
+    }
+
+    h1 {
+      font-size: 32px;
+      font-weight: 700;
+      margin-bottom: 10px;
+      color: #0F172A;
+    }
+
+    .subtitle {
+      font-size: 16px;
+      color: #64748B;
+      margin-bottom: 40px;
+    }
+
+    .section {
+      margin-bottom: 40px;
+      padding: 30px;
+      background: #F8FAFC;
+      border: 1px solid #E2E8F0;
+      border-radius: 8px;
+    }
+
+    .btn {
+      background: #1B9C85;
+      color: white;
+      border: none;
+      padding: 14px 28px;
+      font-size: 16px;
+      font-family: 'Lora', Georgia, serif;
+      cursor: pointer;
+      border-radius: 4px;
+      transition: background 0.2s;
+    }
+
+    .btn:hover {
+      background: #158A72;
+    }
+
+    .btn:disabled {
+      background: #94A3B8;
+      cursor: not-allowed;
+    }
+
+    .loading {
+      text-align: center;
+      padding: 40px;
+      color: #64748B;
+    }
+
+    .results {
+      display: none;
+    }
+
+    .results.show {
+      display: block;
+    }
+
+    .metric-card {
+      background: white;
+      padding: 20px;
+      margin-bottom: 20px;
+      border: 1px solid #E2E8F0;
+      border-radius: 4px;
+    }
+
+    .metric-label {
+      font-size: 12px;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      color: #64748B;
+      margin-bottom: 8px;
+    }
+
+    .metric-value {
+      font-size: 32px;
+      font-weight: 700;
+      color: #0F172A;
+    }
+
+    .metric-value.positive {
+      color: #1B9C85;
+    }
+
+    .metric-value.negative {
+      color: #DC2626;
+    }
+
+    .email-form {
+      margin-top: 30px;
+      padding-top: 30px;
+      border-top: 1px solid #E2E8F0;
+    }
+
+    .form-group {
+      margin-bottom: 20px;
+    }
+
+    label {
+      display: block;
+      margin-bottom: 8px;
+      font-weight: 600;
+      color: #0F172A;
+    }
+
+    input {
+      width: 100%;
+      padding: 12px;
+      font-size: 16px;
+      font-family: 'Lora', Georgia, serif;
+      border: 1px solid #CBD5E1;
+      border-radius: 4px;
+    }
+
+    input:focus {
+      outline: none;
+      border-color: #1B9C85;
+    }
+
+    .error {
+      color: #DC2626;
+      margin-top: 10px;
+      padding: 12px;
+      background: #FEE2E2;
+      border-radius: 4px;
+    }
+
+    .success {
+      color: #1B9C85;
+      margin-top: 10px;
+      padding: 12px;
+      background: #D1FAE5;
+      border-radius: 4px;
+    }
+
+    .hidden {
+      display: none;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>Portfolio X-Ray</h1>
+    <p class="subtitle">Connect your investment account to analyze your portfolio performance, compare to benchmarks, and see fees paid over the past 24 months.</p>
+
+    <!-- Connect Section -->
+    <div class="section" id="connect-section">
+      <h2>Connect Your Account</h2>
+      <p style="margin-bottom: 20px;">Securely connect your investment account using Plaid to get started.</p>
+      <button class="btn" id="connect-btn">Connect Account</button>
+    </div>
+
+    <!-- Loading Section -->
+    <div class="section hidden" id="loading-section">
+      <div class="loading">
+        <p id="loading-text">Connecting to your account...</p>
+      </div>
+    </div>
+
+    <!-- Results Section -->
+    <div class="section results" id="results-section">
+      <h2>Portfolio Analysis Results</h2>
+      
+      <div class="metric-card">
+        <div class="metric-label">24-Month Annualized Return</div>
+        <div class="metric-value" id="portfolio-return">—</div>
+      </div>
+
+      <div class="metric-card">
+        <div class="metric-label">Benchmark Return</div>
+        <div class="metric-value" id="benchmark-return">—</div>
+      </div>
+
+      <div class="metric-card">
+        <div class="metric-label">Outperformance</div>
+        <div class="metric-value" id="outperformance">—</div>
+      </div>
+
+      <div class="metric-card">
+        <div class="metric-label">Total Fees Paid (24 Months)</div>
+        <div class="metric-value" id="total-fees">—</div>
+      </div>
+
+      <div class="email-form">
+        <h3>Request Full Report</h3>
+        <p style="margin-bottom: 20px;">Enter your email to receive a detailed PDF report with complete analysis.</p>
+        
+        <div class="form-group">
+          <label for="email-input">Email Address</label>
+          <input type="email" id="email-input" placeholder="your@email.com" required>
+        </div>
+
+        <div class="form-group">
+          <label for="name-input">Name (Optional)</label>
+          <input type="text" id="name-input" placeholder="Your Name">
+        </div>
+
+        <button class="btn" id="request-report-btn">Request Full Report</button>
+        <div id="email-status"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Plaid Link Script -->
+  <script src="https://cdn.plaid.com/link/v2/stable/link-initialize.js"></script>
+
+  <script>
+    let linkHandler = null;
+    let analysisResults = null;
+    let accessToken = null;
+
+    // Generate unique user ID
+    function getUserId() {
+      let userId = localStorage.getItem('portfolio_xray_user_id');
+      if (!userId) {
+        userId = 'user_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
+        localStorage.setItem('portfolio_xray_user_id', userId);
+      }
+      return userId;
+    }
+
+    // Update loading text
+    function updateLoading(text) {
+      document.getElementById('loading-text').textContent = text;
+    }
+
+    // Show/hide sections
+    function showSection(id) {
+      document.querySelectorAll('.section').forEach(s => s.classList.add('hidden'));
+      document.getElementById(id)?.classList.remove('hidden');
+    }
+
+    // Connect button handler
+    document.getElementById('connect-btn').addEventListener('click', async () => {
+      try {
+        showSection('loading-section');
+        updateLoading('Generating secure connection...');
+
+        // Get link token
+        const userId = getUserId();
+        const linkTokenResponse = await fetch('/api/portfolio-x-ray/link-token', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ userId }),
+        });
+
+        if (!linkTokenResponse.ok) {
+          throw new Error('Failed to get link token');
+        }
+
+        const { link_token } = await linkTokenResponse.json();
+
+        // Initialize Plaid Link
+        if (linkHandler) {
+          linkHandler.destroy();
+        }
+
+        linkHandler = Plaid.create({
+          token: link_token,
+          onSuccess: async (publicToken, metadata) => {
+            updateLoading('Exchanging tokens...');
+            
+            try {
+              // Exchange public token for access token
+              const exchangeResponse = await fetch('/api/portfolio-x-ray/exchange-token', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ public_token: publicToken }),
+              });
+
+              if (!exchangeResponse.ok) {
+                throw new Error('Failed to exchange token');
+              }
+
+              const { access_token } = await exchangeResponse.json();
+              accessToken = access_token;
+
+              // Fetch data
+              updateLoading('Fetching your investment data...');
+              const fetchResponse = await fetch('/api/portfolio-x-ray/fetch-data', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ access_token: accessToken }),
+              });
+
+              if (!fetchResponse.ok) {
+                if (fetchResponse.status === 401) {
+                  throw new Error('Please reconnect your account');
+                }
+                throw new Error('Failed to fetch data');
+              }
+
+              const data = await fetchResponse.json();
+
+              // Analyze
+              updateLoading('Analyzing your portfolio...');
+              const analyzeResponse = await fetch('/api/portfolio-x-ray/analyze', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  transactions: data.transactions,
+                  holdings: data.holdings,
+                  securities: data.transactions.securities,
+                }),
+              });
+
+              if (!analyzeResponse.ok) {
+                throw new Error('Analysis failed');
+              }
+
+              analysisResults = await analyzeResponse.json();
+
+              // Display results
+              displayResults(analysisResults);
+
+            } catch (error) {
+              console.error('Error:', error);
+              alert('Error: ' + error.message);
+              showSection('connect-section');
+            }
+          },
+          onExit: (err, metadata) => {
+            if (err) {
+              console.error('Plaid Link error:', err);
+              alert('Connection cancelled or error occurred');
+            }
+            showSection('connect-section');
+          },
+        });
+
+        linkHandler.open();
+
+      } catch (error) {
+        console.error('Error:', error);
+        alert('Error: ' + error.message);
+        showSection('connect-section');
+      }
+    });
+
+    // Display results
+    function displayResults(results) {
+      const summary = results.summary || {};
+      const fees = results.fees || {};
+
+      // Format and display metrics
+      document.getElementById('portfolio-return').textContent = 
+        (summary.portfolioAnnualizedReturn || 0).toFixed(2) + '%';
+      document.getElementById('portfolio-return').className = 
+        'metric-value ' + (summary.portfolioAnnualizedReturn >= 0 ? 'positive' : 'negative');
+
+      document.getElementById('benchmark-return').textContent = 
+        (summary.benchmarkAnnualizedReturn || 0).toFixed(2) + '%';
+
+      const outperf = summary.outperformance || 0;
+      document.getElementById('outperformance').textContent = 
+        (outperf >= 0 ? '+' : '') + outperf.toFixed(2) + '%';
+      document.getElementById('outperformance').className = 
+        'metric-value ' + (outperf >= 0 ? 'positive' : 'negative');
+
+      document.getElementById('total-fees').textContent = 
+        formatCurrency(fees.totalFees || 0);
+
+      showSection('results-section');
+    }
+
+    // Format currency
+    function formatCurrency(value) {
+      return new Intl.NumberFormat('en-US', {
+        style: 'currency',
+        currency: 'USD',
+        maximumFractionDigits: 0,
+      }).format(value);
+    }
+
+    // Request report button
+    document.getElementById('request-report-btn').addEventListener('click', async () => {
+      const email = document.getElementById('email-input').value;
+      const name = document.getElementById('name-input').value;
+
+      if (!email) {
+        document.getElementById('email-status').innerHTML = 
+          '<div class="error">Please enter your email address</div>';
+        return;
+      }
+
+      try {
+        document.getElementById('request-report-btn').disabled = true;
+        document.getElementById('email-status').innerHTML = 
+          '<div class="loading">Sending report...</div>';
+
+        const response = await fetch('/api/portfolio-x-ray/request-report', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            email,
+            name,
+            analysis: analysisResults,
+          }),
+        });
+
+        if (!response.ok) {
+          throw new Error('Failed to send report');
+        }
+
+        document.getElementById('email-status').innerHTML = 
+          '<div class="success">Report sent! Check your email.</div>';
+
+      } catch (error) {
+        document.getElementById('email-status').innerHTML = 
+          '<div class="error">Error: ' + error.message + '</div>';
+        document.getElementById('request-report-btn').disabled = false;
+      }
+    });
+  </script>
+</body>
+</html>
+
