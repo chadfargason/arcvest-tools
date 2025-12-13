@@ -22,11 +22,38 @@ export async function POST(request: NextRequest) {
   try {
     // TEMPORARY: Load data from Raw Data.txt file instead of Plaid
     // TODO: Re-enable Plaid integration after testing
-    const rawDataPath = path.join(process.cwd(), '..', 'Portfolio_x_ray', 'Raw Data.txt');
-    const rawDataContent = fs.readFileSync(rawDataPath, 'utf-8');
-    const jsonStart = rawDataContent.indexOf('{');
-    const jsonContent = rawDataContent.substring(jsonStart);
-    const fileData = JSON.parse(jsonContent);
+    // Try multiple possible paths
+    const possiblePaths = [
+      path.join(process.cwd(), '..', 'Portfolio_x_ray', 'Raw Data.txt'),
+      path.join(process.cwd(), 'Portfolio_x_ray', 'Raw Data.txt'),
+      path.join(process.cwd(), '..', '..', 'Portfolio_x_ray', 'Raw Data.txt'),
+    ];
+    
+    let rawDataContent = '';
+    let fileData = null;
+    
+    for (const rawDataPath of possiblePaths) {
+      try {
+        if (fs.existsSync(rawDataPath)) {
+          rawDataContent = fs.readFileSync(rawDataPath, 'utf-8');
+          const jsonStart = rawDataContent.indexOf('{');
+          const jsonContent = rawDataContent.substring(jsonStart);
+          fileData = JSON.parse(jsonContent);
+          console.log(`Successfully loaded Raw Data.txt from: ${rawDataPath}`);
+          break;
+        }
+      } catch (error) {
+        console.log(`Failed to load from ${rawDataPath}:`, error);
+        continue;
+      }
+    }
+    
+    if (!fileData) {
+      return NextResponse.json(
+        { error: 'Could not load Raw Data.txt file. Checked paths: ' + possiblePaths.join(', ') },
+        { status: 500 }
+      );
+    }
 
     // Extract data from file in same format as Plaid API
     const transactions = {
