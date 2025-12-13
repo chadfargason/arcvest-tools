@@ -37,11 +37,15 @@ export interface MonthlyReturn {
 /**
  * Calculate monthly portfolio returns from transactions and holdings
  * 
- * Approach:
- * 1. Start with current holdings (end state)
- * 2. Work backwards through transactions to reconstruct positions
- * 3. Calculate portfolio value at end of each month
- * 4. Calculate returns accounting for cash flows
+ * Simplified approach:
+ * 1. Group transactions by month
+ * 2. Calculate cash flows (contributions, withdrawals, dividends, fees) per month
+ * 3. Estimate portfolio value at end of each month using current holdings
+ *    proportionally scaled by estimated returns
+ * 4. Calculate returns using Modified Dietz method
+ * 
+ * Note: This is a simplified approach. For full accuracy, we'd need historical
+ * security prices for each month, which we approximate using current holdings.
  */
 export function calculatePortfolioReturns(
   transactions: any[],
@@ -51,21 +55,9 @@ export function calculatePortfolioReturns(
   endDate: string
 ): MonthlyReturn[] {
   // Sort transactions by date (oldest first)
-  const sortedTxns = [...transactions].sort((a, b) => 
+  const sortedTxns = [...transactions].filter(tx => tx.date).sort((a, b) => 
     (a.date || '').localeCompare(b.date || '')
   );
-
-  // Build current positions from holdings
-  const currentPositions = new Map<string, PortfolioPosition>();
-  for (const holding of holdings) {
-    if (holding.security_id && holding.quantity !== undefined) {
-      currentPositions.set(holding.security_id, {
-        security_id: holding.security_id,
-        quantity: holding.quantity || 0,
-        costBasis: holding.cost_basis || 0,
-      });
-    }
-  }
 
   // Generate list of months in range
   const months: string[] = [];
@@ -78,10 +70,9 @@ export function calculatePortfolioReturns(
     current.setMonth(current.getMonth() + 1);
   }
 
-  // Group transactions by month
+  // Group transactions by month and calculate cash flows
   const transactionsByMonth = new Map<string, any[]>();
   for (const tx of sortedTxns) {
-    if (!tx.date) continue;
     const month = tx.date.substring(0, 7);
     if (!transactionsByMonth.has(month)) {
       transactionsByMonth.set(month, []);
@@ -89,21 +80,22 @@ export function calculatePortfolioReturns(
     transactionsByMonth.get(month)!.push(tx);
   }
 
-  // Work backwards from current holdings to reconstruct positions
-  // For each month, apply transactions in reverse order
-  const monthlySnapshots: MonthlyPortfolioSnapshot[] = [];
-  let positions = new Map<string, PortfolioPosition>(currentPositions);
-  let cash = 0;
+  // Calculate current total portfolio value from holdings
+  const currentPortfolioValue = holdings.reduce((sum, h) => 
+    sum + (h.institution_value || 0), 0
+  );
 
-  // Process months in reverse (from end to start)
-  for (let i = months.length - 1; i >= 0; i--) {
+  // Calculate cash flows and estimated portfolio values month by month
+  const returns: MonthlyReturn[] = [];
+  let cumulativeCostBasis = 0;
+  let cumulativeCashFlows = 0;
+
+  for (let i = 0; i < months.length; i++) {
     const month = months[i];
     const monthTxns = transactionsByMonth.get(month) || [];
-    
-    // Reverse transactions within the month (newest first when going backwards)
-    const reversedTxns = [...monthTxns].reverse();
 
-    let monthlyCashFlows = {
+    // Calculate cash flows for this month
+    const cashFlows = {
       contributions: 0,
       withdrawals: 0,
       dividends: 0,
@@ -111,180 +103,90 @@ export function calculatePortfolioReturns(
       fees: 0,
     };
 
-    // Apply transactions in reverse (going backwards in time)
-    for (const tx of reversedTxns) {
-      positions = applyTransactionInReverse(positions, tx, monthlyCashFlows);
+    // Process transactions for cash flows
+    for (const tx of monthTxns) {
+      const txType = tx.type || '';
+      const txSubtype = tx.subtype || '';
+      const amount = tx.amount || 0;
+      const fees = tx.fees || 0;
+
+      switch (txType) {
+        case 'cash':
+          switch (txSubtype) {
+            case 'contribution':
+              cashFlows.contributions += Math.abs(amount); // amount is negative
+              cumulativeCashFlows += Math.abs(amount);
+              break;
+            case 'dividend':
+              cashFlows.dividends += Math.abs(amount); // amount is negative
+              cumulativeCashFlows += Math.abs(amount);
+              break;
+            case 'interest':
+              cashFlows.interest += Math.abs(amount); // amount is negative
+              cumulativeCashFlows += Math.abs(amount);
+              break;
+          }
+          break;
+
+        case 'fee':
+          cashFlows.fees += Math.abs(amount) + fees;
+          cumulativeCashFlows -= (Math.abs(amount) + fees);
+          break;
+
+        case 'buy':
+          cumulativeCostBasis += Math.abs(amount) + fees;
+          cashFlows.fees += fees; // Track fees separately
+          cumulativeCashFlows -= (Math.abs(amount) + fees);
+          break;
+
+        case 'sell':
+          cumulativeCostBasis -= Math.abs(amount); // amount is negative
+          cashFlows.withdrawals += Math.abs(amount); // Track as withdrawal
+          cashFlows.fees += fees;
+          cumulativeCashFlows += (Math.abs(amount) - fees);
+          break;
+      }
+
+      // Also track fees field separately
+      if (fees > 0 && txType !== 'fee') {
+        cashFlows.fees += fees;
+      }
     }
 
-    // Calculate portfolio value at end of month
-    const totalValue = calculatePortfolioValue(positions, securities, holdings);
+    // Estimate portfolio value at end of month
+    // Simplified: use current value proportionally based on cost basis growth
+    // This is an approximation - ideally we'd use historical security prices
+    let estimatedValue = currentPortfolioValue;
+    if (i < months.length - 1 && cumulativeCostBasis > 0) {
+      // Estimate value based on cost basis (very rough approximation)
+      const costBasisRatio = cumulativeCostBasis / (currentPortfolioValue + cumulativeCashFlows);
+      estimatedValue = cumulativeCostBasis / Math.max(costBasisRatio, 0.5); // Cap ratio
+    }
 
-    monthlySnapshots.unshift({
-      month,
-      positions: new Map(positions),
-      cash,
-      totalValue,
-      ...monthlyCashFlows,
-    });
-  }
-
-  // Now calculate returns month-by-month (forward)
-  const returns: MonthlyReturn[] = [];
-  for (let i = 0; i < monthlySnapshots.length; i++) {
-    const current = monthlySnapshots[i];
-    const previous = i > 0 ? monthlySnapshots[i - 1] : null;
-
+    // Calculate return for this month (Modified Dietz approximation)
+    const previousValue = i > 0 ? returns[i - 1].portfolioValue : cumulativeCostBasis;
+    const netCashFlow = cashFlows.contributions - cashFlows.withdrawals + 
+                       cashFlows.dividends + cashFlows.interest - cashFlows.fees;
+    
     let returnValue = 0;
-    if (previous && previous.totalValue > 0) {
-      // Calculate return accounting for cash flows
-      // Modified Dietz method approximation for monthly returns
-      const netCashFlow = current.contributions - current.withdrawals + 
-                         current.dividends + current.interest - current.fees;
-      const adjustedStartValue = previous.totalValue + (netCashFlow / 2);
-      returnValue = (current.totalValue - previous.totalValue - netCashFlow) / adjustedStartValue;
+    if (previousValue > 0) {
+      const adjustedStartValue = previousValue + (netCashFlow / 2);
+      if (adjustedStartValue > 0) {
+        returnValue = (estimatedValue - previousValue - netCashFlow) / adjustedStartValue;
+      }
     }
 
     returns.push({
-      month: current.month,
+      month,
       portfolioReturn: returnValue,
-      portfolioValue: current.totalValue,
-      cashFlows: {
-        contributions: current.contributions,
-        withdrawals: current.withdrawals,
-        dividends: current.dividends,
-        interest: current.interest,
-        fees: current.fees,
-      },
+      portfolioValue: estimatedValue,
+      cashFlows,
     });
   }
 
   return returns;
 }
 
-/**
- * Apply a transaction in reverse (to reconstruct positions going backwards)
- */
-function applyTransactionInReverse(
-  positions: Map<string, PortfolioPosition>,
-  tx: any,
-  cashFlows: any
-): Map<string, PortfolioPosition> {
-  const newPositions = new Map(positions);
-  const txType = tx.type || '';
-  const txSubtype = tx.subtype || '';
-  const amount = tx.amount || 0;
-  const quantity = tx.quantity || 0;
-  const security_id = tx.security_id;
-  const fees = tx.fees || 0;
-
-  // Handle different transaction types
-  switch (txType) {
-    case 'buy':
-      // Reverse buy = sell (remove position, add cash)
-      if (security_id && newPositions.has(security_id)) {
-        const pos = newPositions.get(security_id)!;
-        const newQuantity = pos.quantity - quantity;
-        if (newQuantity <= 0) {
-          newPositions.delete(security_id);
-        } else {
-          newPositions.set(security_id, {
-            ...pos,
-            quantity: newQuantity,
-          });
-        }
-      }
-      // Cash increases when reversing a buy
-      // (amount is positive for buy, so reversing subtracts it)
-      break;
-
-    case 'sell':
-      // Reverse sell = buy (add position, remove cash)
-      if (security_id) {
-        const existing = newPositions.get(security_id);
-        if (existing) {
-          newPositions.set(security_id, {
-            ...existing,
-            quantity: existing.quantity - quantity, // quantity is negative for sells
-          });
-        } else {
-          newPositions.set(security_id, {
-            security_id,
-            quantity: -quantity, // quantity is negative, so -quantity is positive
-            costBasis: Math.abs(amount),
-          });
-        }
-      }
-      // Cash decreases when reversing a sell (amount is negative, so we add it back)
-      break;
-
-    case 'cash':
-      switch (txSubtype) {
-        case 'dividend':
-          cashFlows.dividends -= amount; // Reverse: subtract dividend (amount is negative)
-          break;
-        case 'interest':
-          cashFlows.interest -= amount; // Reverse: subtract interest (amount is negative)
-          break;
-        case 'contribution':
-          cashFlows.contributions -= amount; // Reverse: subtract contribution (amount is negative)
-          break;
-      }
-      break;
-
-    case 'fee':
-      // Reverse fee: add back the fee (fees reduce value)
-      cashFlows.fees -= (Math.abs(amount) + fees);
-      break;
-  }
-
-  // Also handle fees field separately
-  if (fees > 0) {
-    cashFlows.fees -= fees;
-  }
-
-  return newPositions;
-}
-
-/**
- * Calculate portfolio value from positions using holdings data for current prices
- */
-function calculatePortfolioValue(
-  positions: Map<string, PortfolioPosition>,
-  securities: any[],
-  holdings: any[]
-): number {
-  let totalValue = 0;
-
-  // Build a map of security_id -> current value from holdings
-  const holdingsBySecurity = new Map<string, any>();
-  for (const holding of holdings) {
-    if (holding.security_id) {
-      holdingsBySecurity.set(holding.security_id, holding);
-    }
-  }
-
-  // Calculate value for each position
-  for (const [security_id, position] of positions) {
-    const holding = holdingsBySecurity.get(security_id);
-    if (holding && holding.institution_value !== undefined) {
-      // Use current value proportionally based on quantity
-      const currentQuantity = holding.quantity || 0;
-      const currentValue = holding.institution_value || 0;
-      if (currentQuantity > 0) {
-        const valuePerUnit = currentValue / currentQuantity;
-        totalValue += position.quantity * valuePerUnit;
-      } else {
-        // Fallback to cost basis if no current quantity
-        totalValue += position.costBasis;
-      }
-    } else {
-      // Fallback to cost basis if no holding data
-      totalValue += position.costBasis;
-    }
-  }
-
-  return totalValue;
-}
 
 /**
  * Calculate geometric return from monthly returns
