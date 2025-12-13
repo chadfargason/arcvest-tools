@@ -2,7 +2,11 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { getBenchmarkForPlaidSecurity } from '@/lib/portfolio-x-ray/benchmark-matcher';
 import { calculateFees } from '@/lib/portfolio-x-ray/fee-calculator';
-import { calculateGeometricReturn, annualizeReturn } from '@/lib/portfolio-x-ray/returns-calculator';
+import { 
+  calculatePortfolioReturns, 
+  calculateGeometricReturn, 
+  annualizeReturn 
+} from '@/lib/portfolio-x-ray/portfolio-returns';
 
 interface MonthlyAnalysis {
   month: string; // YYYY-MM
@@ -135,13 +139,21 @@ export async function POST(request: NextRequest) {
       // Continue with analysis even if some benchmarks missing
     }
 
-    // Calculate monthly returns
-    const monthlyAnalysis = calculateMonthlyReturns(
+    // Calculate monthly portfolio returns from transactions
+    const monthlyReturns = calculatePortfolioReturns(
       transactions.investment_transactions || [],
       holdings.holdings || [],
       securitiesList,
+      analysisStartDate,
+      analysisEndDate
+    );
+
+    // Calculate weighted benchmark returns for comparison
+    const monthlyAnalysis = calculateMonthlyBenchmarkComparison(
+      monthlyReturns,
       portfolioAllocation,
       benchmarkMap,
+      securitiesList,
       benchmarkReturns || [],
       analysisStartDate,
       analysisEndDate
@@ -250,15 +262,13 @@ function calculatePortfolioAllocation(
 }
 
 /**
- * Calculate monthly portfolio and benchmark returns
- * This is a simplified version - in production, you'd reconstruct position history
+ * Calculate weighted benchmark returns to compare against portfolio returns
  */
-function calculateMonthlyReturns(
-  transactions: any[],
-  holdings: any[],
-  securities: any[],
+function calculateMonthlyBenchmarkComparison(
+  monthlyReturns: any[],
   portfolioAllocation: Map<string, number>,
   benchmarkMap: Map<string, string>,
+  securities: any[],
   benchmarkReturns: any[],
   startDate: string,
   endDate: string
@@ -274,68 +284,45 @@ function calculateMonthlyReturns(
     benchmarkReturnsByMonth.get(month)!.set(ret.asset_ticker, parseFloat(ret.monthly_return));
   }
 
-  // Generate list of months in range
-  const months: string[] = [];
-  const start = new Date(startDate + '-01');
-  const end = new Date(endDate + '-01');
-  const current = new Date(start);
-  
-  while (current <= end) {
-    months.push(current.toISOString().substring(0, 7));
-    current.setMonth(current.getMonth() + 1);
-  }
-
-  // Simplified approach: Use current allocation to weight benchmarks
-  // In production, you'd reconstruct actual portfolio composition each month
-  // For now, we'll use a simplified approach that approximates returns
-  
+  // Combine portfolio returns with benchmark returns
   const analysis: MonthlyAnalysis[] = [];
-  let portfolioValue = 1000; // Start with normalized value
   let benchmarkValue = 1000;
 
-  for (const month of months) {
+  for (const portfolioReturn of monthlyReturns) {
+    const month = portfolioReturn.month;
     const monthBenchmarks = benchmarkReturnsByMonth.get(month);
     
-    if (!monthBenchmarks) {
-      // Skip months with no benchmark data
-      continue;
-    }
-
     // Calculate weighted benchmark return for this month
     let weightedBenchmarkReturn = 0;
     let totalWeight = 0;
 
-    for (const [ticker, weight] of portfolioAllocation) {
-      // Find the security and its benchmark
-      const security = securities.find((s: any) => s.ticker_symbol === ticker);
-      if (security) {
-        const benchmark = benchmarkMap.get(security.security_id);
-        if (benchmark && monthBenchmarks.has(benchmark)) {
-          const benchmarkReturn = monthBenchmarks.get(benchmark)!;
-          weightedBenchmarkReturn += (weight / 100) * benchmarkReturn;
-          totalWeight += weight;
+    if (monthBenchmarks) {
+      for (const [ticker, weight] of portfolioAllocation) {
+        // Find the security and its benchmark
+        const security = securities.find((s: any) => s.ticker_symbol === ticker);
+        if (security) {
+          const benchmark = benchmarkMap.get(security.security_id);
+          if (benchmark && monthBenchmarks.has(benchmark)) {
+            const benchmarkReturn = monthBenchmarks.get(benchmark)!;
+            weightedBenchmarkReturn += (weight / 100) * benchmarkReturn;
+            totalWeight += weight;
+          }
         }
+      }
+
+      // Normalize if weights don't sum to 100
+      if (totalWeight > 0) {
+        weightedBenchmarkReturn = (weightedBenchmarkReturn / totalWeight) * 100;
       }
     }
 
-    // Normalize if weights don't sum to 100
-    if (totalWeight > 0) {
-      weightedBenchmarkReturn = (weightedBenchmarkReturn / totalWeight) * 100;
-    }
-
-    // For portfolio return, use a simplified approximation
-    // In production, you'd calculate actual portfolio returns from transactions
-    // For now, use benchmark return as approximation (will be improved)
-    const portfolioReturn = weightedBenchmarkReturn / 100; // Simplified
-
-    // Update values
-    portfolioValue *= (1 + portfolioReturn);
+    // Update benchmark value
     benchmarkValue *= (1 + weightedBenchmarkReturn / 100);
 
     analysis.push({
       month,
-      portfolioReturn,
-      portfolioValue,
+      portfolioReturn: portfolioReturn.portfolioReturn,
+      portfolioValue: portfolioReturn.portfolioValue,
       benchmarkReturn: weightedBenchmarkReturn / 100,
       benchmarkValue,
     });

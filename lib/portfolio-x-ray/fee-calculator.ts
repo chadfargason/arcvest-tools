@@ -19,6 +19,11 @@ export interface FeeSummary {
 
 /**
  * Calculate total fees from investment transactions
+ * 
+ * Plaid fee structure:
+ * - Transactions with type='fee' are explicit fee charges
+ * - The 'fees' field on buy/sell transactions contains transaction fees
+ * - Account fees appear as type='fee', subtype='account fee'
  */
 export function calculateFees(transactions: any[]): FeeSummary {
   const feeTransactions: FeeTransaction[] = [];
@@ -26,33 +31,38 @@ export function calculateFees(transactions: any[]): FeeSummary {
   const feesByAccount: { [accountId: string]: number } = {};
   let totalFees = 0;
 
-  // Filter fee transactions
-  const feeTxns = transactions.filter(tx => 
-    tx.type === 'fee' || 
-    (tx.amount && tx.amount < 0 && tx.name && tx.name.toLowerCase().includes('fee'))
-  );
+  // Process all transactions to extract fees
+  for (const tx of transactions) {
+    const accountId = tx.account_id || 'unknown';
+    let feeAmount = 0;
 
-  for (const tx of feeTxns) {
-    // Fees are typically negative in Plaid
-    const feeAmount = Math.abs(tx.amount || 0);
+    // Explicit fee transactions
+    if (tx.type === 'fee') {
+      // Fee transactions: amount is positive (expense)
+      feeAmount = Math.abs(tx.amount || 0);
+    }
     
+    // Transaction fees (fees field on buy/sell transactions)
+    if (tx.fees && tx.fees > 0) {
+      feeAmount += tx.fees;
+    }
+
     if (feeAmount > 0) {
       totalFees += feeAmount;
 
-      // Track by type
-      const txType = tx.type || 'unknown';
-      feesByType[txType] = (feesByType[txType] || 0) + feeAmount;
+      // Track by type/subtype
+      const feeType = tx.subtype || tx.type || 'fee';
+      feesByType[feeType] = (feesByType[feeType] || 0) + feeAmount;
 
       // Track by account
-      const accountId = tx.account_id || 'unknown';
       feesByAccount[accountId] = (feesByAccount[accountId] || 0) + feeAmount;
 
       feeTransactions.push({
         date: tx.date || '',
         amount: feeAmount,
         account_id: accountId,
-        name: tx.name || 'Unknown Fee',
-        type: txType,
+        name: tx.name || 'Fee',
+        type: feeType,
       });
     }
   }
