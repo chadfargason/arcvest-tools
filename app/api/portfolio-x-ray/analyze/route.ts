@@ -7,6 +7,8 @@ import {
   calculateGeometricReturn, 
   annualizeReturn 
 } from '@/lib/portfolio-x-ray/portfolio-returns';
+import * as fs from 'fs';
+import * as path from 'path';
 
 interface MonthlyAnalysis {
   month: string; // YYYY-MM
@@ -18,6 +20,32 @@ interface MonthlyAnalysis {
 
 export async function POST(request: NextRequest) {
   try {
+    // TEMPORARY: Load data from Raw Data.txt file instead of Plaid
+    // TODO: Re-enable Plaid integration after testing
+    const rawDataPath = path.join(process.cwd(), '..', 'Portfolio_x_ray', 'Raw Data.txt');
+    const rawDataContent = fs.readFileSync(rawDataPath, 'utf-8');
+    const jsonStart = rawDataContent.indexOf('{');
+    const jsonContent = rawDataContent.substring(jsonStart);
+    const fileData = JSON.parse(jsonContent);
+
+    // Extract data from file in same format as Plaid API
+    const transactions = {
+      investment_transactions: fileData.transactions.all_transactions || [],
+      securities: fileData.holdings.all_securities || [],
+    };
+    const holdings = {
+      holdings: fileData.holdings.all_holdings || [],
+      securities: fileData.holdings.all_securities || [],
+    };
+    const securitiesList = fileData.holdings.all_securities || [];
+
+    console.log('Loaded data from Raw Data.txt:', {
+      transactionsCount: transactions.investment_transactions.length,
+      holdingsCount: holdings.holdings.length,
+      securitiesCount: securitiesList.length,
+    });
+
+    /* ORIGINAL PLAID CODE - COMMENTED OUT FOR TESTING
     const body = await request.json();
     const { transactions, holdings, securities } = body;
 
@@ -52,6 +80,7 @@ export async function POST(request: NextRequest) {
     if (securitiesList.length === 0) {
       console.warn('No securities found in request');
     }
+    END OF ORIGINAL PLAID CODE */
 
     // Validate Supabase config
     if (!process.env.SUPABASE_URL || !process.env.SUPABASE_KEY) {

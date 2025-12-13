@@ -392,6 +392,17 @@
               const { access_token } = await exchangeResponse.json();
               accessToken = access_token;
 
+              // TEMPORARY: Skip Plaid fetch, use Raw Data.txt instead
+              // TODO: Re-enable Plaid integration after testing
+              updateLoading('Using test data from Raw Data.txt...');
+              
+              // Skip the fetch and use dummy data - the analyze endpoint will use Raw Data.txt
+              const data = {
+                transactions: { investment_transactions: [], securities: [] },
+                holdings: { holdings: [], securities: [] }
+              };
+              
+              /* ORIGINAL PLAID CODE - COMMENTED OUT FOR TESTING
               // Fetch data
               updateLoading('Fetching your investment data...');
               const fetchResponse = await fetch('/api/portfolio-x-ray/fetch-data', {
@@ -408,6 +419,7 @@
               }
 
               const data = await fetchResponse.json();
+              END OF ORIGINAL PLAID CODE */
               // Store raw fetched data for debugging
               rawFetchedData = data;
               
