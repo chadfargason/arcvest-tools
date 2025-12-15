@@ -268,7 +268,15 @@ async function buildPdfBuffer({
     drawText('Transaction History', 18, { bold: true });
     y -= 10;
 
-    drawText('Detailed transaction log showing all portfolio activity:', 9, { color: subtleColor });
+    const totalTransactionCount = allTransactions.length;
+    const maxTransactions = 300;
+    const showingAllTransactions = totalTransactionCount <= maxTransactions;
+
+    if (showingAllTransactions) {
+      drawText(`Showing all ${totalTransactionCount} transactions:`, 9, { color: subtleColor });
+    } else {
+      drawText(`Showing first ${maxTransactions} of ${totalTransactionCount} transactions:`, 9, { color: subtleColor });
+    }
     y -= 10;
 
     // Group transactions by account
@@ -282,12 +290,11 @@ async function buildPdfBuffer({
     }
 
     let txCount = 0;
-    const maxTransactions = 100; // Limit to ~30 pages worth
 
     for (const [accountId, txs] of txsByAccount) {
       if (txCount >= maxTransactions) {
         drawNewPageIfNeeded(40);
-        drawText(`[Transaction history truncated - showing first ${maxTransactions} transactions]`, 9, { color: subtleColor });
+        drawText(`[Remaining ${totalTransactionCount - maxTransactions} transactions not shown]`, 9, { color: subtleColor });
         break;
       }
 
