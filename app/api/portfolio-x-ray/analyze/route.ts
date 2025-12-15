@@ -49,6 +49,7 @@ interface AnalysisResponse {
   portfolioAllocation: { [ticker: string]: number };
   holdings: number;
   transactions: number;
+  allTransactions?: any[];
   debug?: any;
 }
 
