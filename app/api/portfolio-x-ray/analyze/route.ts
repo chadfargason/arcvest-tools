@@ -242,21 +242,38 @@ export async function POST(request: NextRequest) {
     const years = months / 12;
     const annualizedReturn = (Math.pow(1 + totalReturn / 100, 1 / years) - 1) * 100;
 
-    // Build monthly analysis from snapshots
+    // Build monthly analysis from snapshots (aggregate across all accounts)
     const monthlyAnalysis: MonthlyAnalysis[] = [];
-    if (results.length === 1) {
-      const snapshots = results[0].monthlySnapshots;
-      for (let i = 0; i < snapshots.length; i++) {
-        const snapshot = snapshots[i];
-        const prevSnapshot = i > 0 ? snapshots[i - 1] : null;
-        const monthReturn = prevSnapshot
-          ? ((snapshot.totalValue - prevSnapshot.totalValue) / prevSnapshot.totalValue) * 100
-          : 0;
+
+    if (results.length > 0) {
+      // Get the number of snapshots (should be same for all accounts)
+      const numMonths = results[0].monthlySnapshots.length;
+
+      for (let i = 0; i < numMonths; i++) {
+        // Sum up values across all accounts for this month
+        let totalPortfolioValue = 0;
+        let totalBenchmarkValue = 0;
+        let monthDate = results[0].monthlySnapshots[i].date;
+
+        for (const result of results) {
+          if (i < result.monthlySnapshots.length) {
+            totalPortfolioValue += result.monthlySnapshots[i].totalValue;
+            // TODO: Add benchmark value when available
+          }
+        }
+
+        // Calculate return from previous month
+        const prevMonthValue = i > 0 ? monthlyAnalysis[i - 1].portfolioValue : totalStartValue;
+        const monthReturn = ((totalPortfolioValue - prevMonthValue) / prevMonthValue) * 100;
+
+        // Format date as MM-DD-YYYY (convert from YYYY-MM-DD)
+        const dateParts = monthDate.split('-');
+        const formattedDate = `${dateParts[1]}-${dateParts[2]}-${dateParts[0]}`;
 
         monthlyAnalysis.push({
-          month: snapshot.date.substring(0, 7), // YYYY-MM
+          month: formattedDate,
           portfolioReturn: monthReturn,
-          portfolioValue: snapshot.totalValue,
+          portfolioValue: totalPortfolioValue,
           benchmarkReturn: 0, // TODO: calculate from benchmark snapshots
           benchmarkValue: 0,
         });
@@ -331,6 +348,12 @@ export async function POST(request: NextRequest) {
     feeTransactions.sort((a, b) => b.date.localeCompare(a.date));
     allTransactions.sort((a, b) => b.date.localeCompare(a.date));
 
+    // Format dates as MM-DD-YYYY
+    const formatDateToMMDDYYYY = (dateStr: string) => {
+      const parts = dateStr.split('-');
+      return `${parts[1]}-${parts[2]}-${parts[0]}`;
+    };
+
     const response: AnalysisResponse = {
       monthlyAnalysis,
       summary: {
@@ -342,8 +365,8 @@ export async function POST(request: NextRequest) {
         irr: aggregateIrr !== null ? aggregateIrr : undefined,
         benchmarkIrr: aggregateBenchmarkIrr !== null ? aggregateBenchmarkIrr : undefined,
         periodMonths: Math.round(months),
-        startDate: firstResult.startDate,
-        endDate: firstResult.endDate,
+        startDate: formatDateToMMDDYYYY(firstResult.startDate),
+        endDate: formatDateToMMDDYYYY(firstResult.endDate),
         startValue: totalStartValue,
         endValue: totalEndValue,
       },
