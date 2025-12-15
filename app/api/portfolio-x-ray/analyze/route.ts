@@ -55,39 +55,14 @@ interface AnalysisResponse {
 
 export async function POST(request: NextRequest) {
   try {
-    // TEMPORARY: Load data from Raw Data.txt file instead of Plaid
-    const possiblePaths = [
-      'C:\\code\\portfolio_x_ray\\Raw Data.txt', // Direct absolute path
-      path.join(process.cwd(), '..', 'portfolio_x_ray', 'Raw Data.txt'),
-      path.join(process.cwd(), 'data', 'Raw Data.txt'),
-      path.join(process.cwd(), '..', 'Portfolio_x_ray', 'Raw Data.txt'),
-      path.join(process.cwd(), 'Portfolio_x_ray', 'Raw Data.txt'),
-    ];
+    // Get data from request body (sent from frontend after Plaid fetch)
+    const body = await request.json();
+    const { transactions: transactionsData, holdings: holdingsData, securities: securitiesData } = body;
 
-    let fileData = null;
-
-    for (const rawDataPath of possiblePaths) {
-      try {
-        if (fs.existsSync(rawDataPath)) {
-          const rawDataContent = fs.readFileSync(rawDataPath, 'utf-8');
-          const jsonStart = rawDataContent.indexOf('{');
-          const jsonContent = rawDataContent.substring(jsonStart);
-          fileData = JSON.parse(jsonContent);
-          console.log(`Successfully loaded Raw Data.txt from: ${rawDataPath}`);
-          break;
-        }
-      } catch (error) {
-        console.log(`Failed to load from ${rawDataPath}:`, error);
-        continue;
-      }
-    }
-
-    if (!fileData) {
+    if (!transactionsData || !holdingsData) {
       return NextResponse.json(
-        {
-          error: 'Could not load Raw Data.txt file. Checked paths: ' + possiblePaths.join(', '),
-        },
-        { status: 500 }
+        { error: 'Missing required data: transactions and holdings are required' },
+        { status: 400 }
       );
     }
 
@@ -99,11 +74,28 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Parse data
-    const rawTransactions = fileData.transactions.all_transactions || [];
-    const rawHoldings = fileData.holdings.all_holdings || [];
-    const rawSecurities = fileData.holdings.all_securities || [];
-    const rawAccounts = fileData.holdings.all_accounts || [];
+    // Parse data from Plaid response
+    const rawTransactions = transactionsData.investment_transactions || [];
+    const rawHoldings = holdingsData.holdings || [];
+
+    // Combine securities from both sources (Plaid sends them separately)
+    const transactionSecurities = transactionsData.securities || [];
+    const holdingsSecurities = holdingsData.securities || [];
+    const allSecuritiesFromPlaid = securitiesData?.securities || [];
+
+    // Deduplicate securities by security_id
+    const securitiesMap = new Map();
+    [...transactionSecurities, ...holdingsSecurities, ...allSecuritiesFromPlaid].forEach((sec: any) => {
+      if (sec.security_id && !securitiesMap.has(sec.security_id)) {
+        securitiesMap.set(sec.security_id, sec);
+      }
+    });
+    const rawSecurities = Array.from(securitiesMap.values());
+
+    const rawAccounts = [
+      ...(transactionsData.accounts || []),
+      ...(holdingsData.accounts || [])
+    ];
 
     console.log('Loaded data:', {
       transactions: rawTransactions.length,
@@ -169,7 +161,6 @@ export async function POST(request: NextRequest) {
 
     // Calculate for each account
     const results = [];
-    const debugOutputBaseDir = 'C:\\code\\portfolio_x_ray\\debug_output';
 
     for (const accountId of accountIds) {
       try {
@@ -190,10 +181,10 @@ export async function POST(request: NextRequest) {
           snapshots: result.monthlySnapshots.length,
         });
 
-        // Export debug files if not on Vercel
-        const isVercel = process.env.VERCEL === '1' || process.env.VERCEL_ENV;
-        if (!isVercel) {
+        // Debug output only in local development
+        if (process.env.NODE_ENV === 'development') {
           try {
+            const debugOutputBaseDir = 'C:\\code\\portfolio_x_ray\\debug_output';
             const accountDebugDir = path.join(debugOutputBaseDir, accountId);
             exportSnapshotsToCSV(accountId, result.monthlySnapshots, securities, accountDebugDir);
             exportTransactionsToCSV(accountId, transactions, securities, accountDebugDir);
