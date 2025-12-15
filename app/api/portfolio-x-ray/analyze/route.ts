@@ -292,12 +292,31 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // Build fee summary
+    // Build fee summary and all transactions list
     const feeTransactions: any[] = [];
     const feesByType: { [type: string]: number } = {};
     const feesByAccount: { [accountId: string]: number } = {};
+    const allTransactions: any[] = [];
 
     for (const tx of transactions) {
+      const security = tx.security_id ? securities.get(tx.security_id) : null;
+      const ticker = security?.ticker_symbol || security?.name || 'Cash/Other';
+
+      // Add to all transactions list
+      allTransactions.push({
+        date: tx.date,
+        type: tx.type,
+        subtype: tx.subtype || '',
+        account_id: tx.account_id,
+        name: tx.name,
+        security: ticker,
+        quantity: tx.quantity,
+        price: tx.price,
+        amount: tx.amount,
+        fees: tx.fees,
+      });
+
+      // Track fees separately
       if (tx.type === 'fee' || tx.fees > 0) {
         const feeAmount = (tx.type === 'fee' ? Math.abs(tx.amount) : 0) + tx.fees;
         if (feeAmount > 0) {
@@ -318,6 +337,7 @@ export async function POST(request: NextRequest) {
     }
 
     feeTransactions.sort((a, b) => b.date.localeCompare(a.date));
+    allTransactions.sort((a, b) => b.date.localeCompare(a.date));
 
     const response: AnalysisResponse = {
       monthlyAnalysis,
@@ -346,6 +366,7 @@ export async function POST(request: NextRequest) {
       portfolioAllocation,
       holdings: holdings.length,
       transactions: transactions.length,
+      allTransactions, // Include full transaction list for PDF
       debug: {
         accountResults: results.map(r => ({
           accountId: r.accountId,

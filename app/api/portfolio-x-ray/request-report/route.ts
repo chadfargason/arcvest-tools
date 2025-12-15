@@ -234,6 +234,86 @@ async function buildPdfBuffer({
 
   y -= 20;
 
+  // Transaction History Section
+  const allTransactions = analysis.allTransactions || [];
+
+  if (allTransactions.length > 0) {
+    drawNewPageIfNeeded(300);
+    drawText('Transaction History', 18, { bold: true });
+    y -= 10;
+
+    drawText('Detailed transaction log showing all portfolio activity:', 9, { color: subtleColor });
+    y -= 10;
+
+    // Group transactions by account
+    const txsByAccount = new Map<string, any[]>();
+    for (const tx of allTransactions) {
+      const accountId = tx.account_id || 'Unknown Account';
+      if (!txsByAccount.has(accountId)) {
+        txsByAccount.set(accountId, []);
+      }
+      txsByAccount.get(accountId)!.push(tx);
+    }
+
+    let txCount = 0;
+    const maxTransactions = 100; // Limit to ~30 pages worth
+
+    for (const [accountId, txs] of txsByAccount) {
+      if (txCount >= maxTransactions) {
+        drawNewPageIfNeeded(40);
+        drawText(`[Transaction history truncated - showing first ${maxTransactions} transactions]`, 9, { color: subtleColor });
+        break;
+      }
+
+      drawNewPageIfNeeded(100);
+      y -= 5;
+      drawText(`Account: ${accountId.substring(0, 20)}...`, 12, { bold: true });
+      y -= 5;
+
+      // Sort by date descending
+      const sortedTxs = txs.sort((a, b) => b.date.localeCompare(a.date));
+
+      for (const tx of sortedTxs) {
+        if (txCount >= maxTransactions) break;
+
+        drawNewPageIfNeeded(60);
+
+        // Transaction details
+        const date = tx.date || 'N/A';
+        const type = tx.type || 'transaction';
+        const subtype = tx.subtype ? ` (${tx.subtype})` : '';
+        const security = tx.security || 'Cash/Other';
+        const amount = tx.amount || 0;
+
+        // Color code by transaction type
+        let typeColor = textColor;
+        if (type === 'buy') typeColor = accentColor;
+        if (type === 'sell') typeColor = rgb(0.82, 0.16, 0.16);
+
+        drawText(`${date} - ${type.toUpperCase()}${subtype}`, 9, { bold: true, color: typeColor });
+        drawText(`  Security: ${security.substring(0, 45)}`, 8);
+
+        if (tx.quantity != null && tx.quantity !== 0) {
+          const qtyText = tx.quantity > 0 ? `+${tx.quantity.toFixed(4)}` : tx.quantity.toFixed(4);
+          drawText(`  Quantity: ${qtyText} @ ${formatCurrency(tx.price || 0)}`, 8);
+        }
+
+        drawText(`  Amount: ${formatCurrency(Math.abs(amount))}`, 8);
+
+        if (tx.fees && tx.fees > 0) {
+          drawText(`  Fees: ${formatCurrency(tx.fees)}`, 8, { color: rgb(0.82, 0.16, 0.16) });
+        }
+
+        y -= 3;
+        txCount++;
+      }
+
+      y -= 10;
+    }
+  }
+
+  y -= 20;
+
   // Footer
   const footerText = 'Disclosure - This is for informational and educational purposes only - not advice.';
   pdfDoc.getPages().forEach((pg) => {
