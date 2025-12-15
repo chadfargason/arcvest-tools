@@ -709,7 +709,8 @@ export class PortfolioCalculator {
         for (const [ticker, weight] of benchmarkWeights) {
           const tickerReturns = returns.get(ticker);
           const monthReturn = tickerReturns?.get(monthEndStr) || 0;
-          portfolioReturn += weight * monthReturn;
+          // Convert weight from percentage (0-100) to decimal (0-1)
+          portfolioReturn += (weight / 100) * monthReturn;
         }
 
         benchmarkValue *= (1 + portfolioReturn);
