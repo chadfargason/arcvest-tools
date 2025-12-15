@@ -47,6 +47,7 @@ interface AnalysisResponse {
     feeTransactions: any[];
   };
   portfolioAllocation: { [ticker: string]: number };
+  benchmarkWeights: { [ticker: string]: number };
   holdings: number;
   transactions: number;
   allTransactions?: any[];
@@ -301,6 +302,27 @@ export async function POST(request: NextRequest) {
       }
     }
 
+    // Aggregate benchmark weights from all accounts (weighted by account start value)
+    const benchmarkWeights: { [ticker: string]: number } = {};
+    let totalBenchmarkWeight = 0;
+
+    for (const result of results) {
+      const weight = result.startValue;
+      totalBenchmarkWeight += weight;
+
+      // Convert Map to object and accumulate
+      for (const [ticker, percentage] of result.benchmarkWeights) {
+        benchmarkWeights[ticker] = (benchmarkWeights[ticker] || 0) + (percentage * weight);
+      }
+    }
+
+    // Normalize to percentages
+    if (totalBenchmarkWeight > 0) {
+      for (const ticker in benchmarkWeights) {
+        benchmarkWeights[ticker] = benchmarkWeights[ticker] / totalBenchmarkWeight;
+      }
+    }
+
     // Build fee summary and all transactions list
     const feeTransactions: any[] = [];
     const feesByType: { [type: string]: number } = {};
@@ -379,6 +401,7 @@ export async function POST(request: NextRequest) {
         feeTransactions,
       },
       portfolioAllocation,
+      benchmarkWeights,
       holdings: holdings.length,
       transactions: transactions.length,
       allTransactions, // Include full transaction list for PDF

@@ -70,6 +70,7 @@ export interface CalculationResult {
   irr: number | null; // %
   benchmarkReturn: number; // %
   benchmarkIrr: number | null; // %
+  benchmarkWeights: Map<string, number>; // Benchmark allocation (ticker -> weight %)
   outperformance: number; // %
   explicitFees: number; // $
   implicitFees: number; // $
@@ -224,9 +225,10 @@ export class PortfolioCalculator {
       throw new Error(`No transactions found for account ${accountId}`);
     }
 
-    // Determine date range
-    const lastTxDate = parseDate(accountTxs[accountTxs.length - 1].date);
-    const endDate = lastTxDate;
+    // Determine date range - use last complete month-end
+    const today = new Date();
+    const lastCompleteMonthEnd = getMonthEnd(new Date(Date.UTC(today.getUTCFullYear(), today.getUTCMonth() - 1, 1)));
+    const endDate = lastCompleteMonthEnd;
     const startDate = new Date(endDate);
     startDate.setMonth(startDate.getMonth() - lookbackMonths);
 
@@ -237,9 +239,8 @@ export class PortfolioCalculator {
 
     console.log(`[Calculator] Account ${accountId}: ${txsInRange.length} transactions from ${startDateStr} to ${endDateStr}`);
 
-    // Step 1: Build ending positions from holdings
+    // Step 1: Build ending positions from holdings (for reconstructing start)
     const endPositions = this.buildEndPositions(accountHoldings, securities);
-    const endValue = this.calculateTotalValue(endPositions, 0);
 
     // Step 2: Reconstruct starting positions
     const { startPositions, startCash } = this.reconstructStartPositions(
@@ -248,8 +249,6 @@ export class PortfolioCalculator {
       securities
     );
     const startValue = this.calculateTotalValue(startPositions, startCash);
-
-    console.log(`[Calculator] Start value: $${startValue.toFixed(2)}, End value: $${endValue.toFixed(2)}`);
 
     // Step 3: Build monthly snapshots
     const monthEnds = getMonthEnds(startDate, endDate);
@@ -261,6 +260,11 @@ export class PortfolioCalculator {
       monthEnds
     );
 
+    // Use the last snapshot's value as the ending value (last complete month-end)
+    const endValue = snapshots.length > 0 ? snapshots[snapshots.length - 1].totalValue : startValue;
+
+    console.log(`[Calculator] Start value: $${startValue.toFixed(2)}, End value: $${endValue.toFixed(2)}`);
+
     // Step 4: Calculate returns
     const totalReturn = ((endValue - startValue) / startValue) * 100;
     const years = lookbackMonths / 12;
@@ -271,7 +275,7 @@ export class PortfolioCalculator {
     const irr = this.calculateIRR(startValue, endValue, externalCashflows, startDateStr, endDateStr);
 
     // Step 6: Calculate benchmark
-    const { benchmarkReturn, benchmarkIrr } = await this.calculateBenchmark(
+    const { benchmarkReturn, benchmarkIrr, benchmarkWeights } = await this.calculateBenchmark(
       startValue,
       endValue,
       startPositions,
@@ -297,6 +301,7 @@ export class PortfolioCalculator {
       irr,
       benchmarkReturn,
       benchmarkIrr,
+      benchmarkWeights,
       outperformance: annualizedReturn - benchmarkReturn,
       explicitFees,
       implicitFees,
@@ -649,7 +654,7 @@ export class PortfolioCalculator {
     monthEnds: Date[],
     startDate: string,
     endDate: string
-  ): Promise<{ benchmarkReturn: number; benchmarkIrr: number | null }> {
+  ): Promise<{ benchmarkReturn: number; benchmarkIrr: number | null; benchmarkWeights: Map<string, number> }> {
     try {
       // Map positions to benchmarks
       const benchmarkWeights = new Map<string, number>();
@@ -672,10 +677,10 @@ export class PortfolioCalculator {
         totalValue += Math.abs(pos.value);
       }
 
-      // Normalize weights
+      // Normalize weights to percentages
       if (totalValue > 0) {
         for (const [benchmark, weight] of benchmarkWeights) {
-          benchmarkWeights.set(benchmark, weight / totalValue);
+          benchmarkWeights.set(benchmark, (weight / totalValue) * 100);
         }
       }
 
@@ -721,10 +726,10 @@ export class PortfolioCalculator {
       // Calculate benchmark IRR
       const benchmarkIrr = this.calculateIRR(startValue, benchmarkValue, cashflows, startDate, endDate);
 
-      return { benchmarkReturn, benchmarkIrr };
+      return { benchmarkReturn, benchmarkIrr, benchmarkWeights };
     } catch (error) {
       console.error('Benchmark calculation failed:', error);
-      return { benchmarkReturn: 0, benchmarkIrr: null };
+      return { benchmarkReturn: 0, benchmarkIrr: null, benchmarkWeights: new Map() };
     }
   }
 

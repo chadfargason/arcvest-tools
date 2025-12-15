@@ -164,17 +164,23 @@ async function buildPdfBuffer({
   drawText(`Ending Value: ${formatCurrency(summary.endValue || 0)}`, 11);
   y -= 5;
 
-  drawText(`Portfolio Annualized Return: ${formatPercent(summary.portfolioAnnualizedReturn || 0)}`, 11, { bold: true });
+  // Show only IRR (not annualized return)
   if (summary.irr != null) {
-    drawText(`Portfolio IRR: ${formatPercent(summary.irr)}`, 11);
+    drawText(`Portfolio IRR: ${formatPercent(summary.irr)}`, 11, { bold: true });
+  } else {
+    drawText(`Portfolio IRR: N/A`, 11, { bold: true });
   }
-  drawText(`Benchmark Annualized Return: ${formatPercent(summary.benchmarkAnnualizedReturn || 0)}`, 11);
+
   if (summary.benchmarkIrr != null) {
     drawText(`Benchmark IRR: ${formatPercent(summary.benchmarkIrr)}`, 11);
+  } else {
+    drawText(`Benchmark IRR: N/A`, 11);
   }
-  drawText(`Outperformance: ${formatPercent(summary.outperformance || 0)}`, 11, {
+
+  const outperformance = (summary.irr || 0) - (summary.benchmarkIrr || 0);
+  drawText(`Outperformance: ${formatPercent(outperformance)}`, 11, {
     bold: true,
-    color: (summary.outperformance || 0) >= 0 ? accentColor : rgb(0.82, 0.16, 0.16)
+    color: outperformance >= 0 ? accentColor : rgb(0.82, 0.16, 0.16)
   });
 
   y -= 10;
@@ -198,6 +204,26 @@ async function buildPdfBuffer({
   for (const [ticker, weight] of holdings) {
     drawNewPageIfNeeded(20);
     drawText(`${ticker}: ${Number(weight).toFixed(2)}%`, 10);
+  }
+
+  y -= 20;
+
+  // Benchmark Composition Section
+  drawNewPageIfNeeded(200);
+  drawText('Benchmark Composition', 18, { bold: true });
+  y -= 10;
+
+  const benchmarkWeights = analysis.benchmarkWeights || {};
+  const benchmarks = Object.entries(benchmarkWeights)
+    .sort((a, b) => Number(b[1]) - Number(a[1]));
+
+  if (benchmarks.length > 0) {
+    for (const [ticker, weight] of benchmarks) {
+      drawNewPageIfNeeded(20);
+      drawText(`${ticker}: ${Number(weight).toFixed(2)}%`, 10);
+    }
+  } else {
+    drawText('No benchmark data available', 10);
   }
 
   y -= 20;
