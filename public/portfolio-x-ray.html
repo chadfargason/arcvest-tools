@@ -676,15 +676,15 @@
       const name = document.getElementById('name-input').value;
 
       if (!email) {
-        document.getElementById('email-status').innerHTML = 
+        document.getElementById('email-status').innerHTML =
           '<div class="error">Please enter your email address</div>';
         return;
       }
 
       try {
         document.getElementById('request-report-btn').disabled = true;
-        document.getElementById('email-status').innerHTML = 
-          '<div class="loading">Sending report...</div>';
+        document.getElementById('email-status').innerHTML =
+          '<div class="loading">Generating report...</div>';
 
         const response = await fetch('/api/portfolio-x-ray/request-report', {
           method: 'POST',
@@ -696,15 +696,35 @@
           }),
         });
 
-        if (!response.ok) {
-          throw new Error('Failed to send report');
+        // Check if response is JSON (success message) or PDF (download)
+        const contentType = response.headers.get('content-type');
+
+        if (contentType && contentType.includes('application/pdf')) {
+          // Email failed, download PDF instead
+          const blob = await response.blob();
+          const url = window.URL.createObjectURL(blob);
+          const a = document.createElement('a');
+          a.href = url;
+          a.download = 'ArcVest-Portfolio-X-Ray.pdf';
+          document.body.appendChild(a);
+          a.click();
+          window.URL.revokeObjectURL(url);
+          document.body.removeChild(a);
+
+          document.getElementById('email-status').innerHTML =
+            '<div class="success">Email delivery unavailable. Report downloaded to your device.</div>';
+        } else if (response.ok) {
+          // Email sent successfully
+          document.getElementById('email-status').innerHTML =
+            '<div class="success">Report sent! Check your email.</div>';
+        } else {
+          throw new Error('Failed to generate report');
         }
 
-        document.getElementById('email-status').innerHTML = 
-          '<div class="success">Report sent! Check your email.</div>';
+        document.getElementById('request-report-btn').disabled = false;
 
       } catch (error) {
-        document.getElementById('email-status').innerHTML = 
+        document.getElementById('email-status').innerHTML =
           '<div class="error">Error: ' + error.message + '</div>';
         document.getElementById('request-report-btn').disabled = false;
       }

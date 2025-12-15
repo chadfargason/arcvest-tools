@@ -63,18 +63,23 @@ export async function POST(request: NextRequest) {
     });
 
     if (shouldSendEmail) {
-      await sendEmailWithMailerSend(
-        { email: body.email, name: body.name },
-        pdfBuffer
-      );
+      try {
+        await sendEmailWithMailerSend(
+          { email: body.email, name: body.name },
+          pdfBuffer
+        );
 
-      return NextResponse.json({
-        ok: true,
-        message: 'Report sent successfully',
-      });
+        return NextResponse.json({
+          ok: true,
+          message: 'Report sent successfully',
+        });
+      } catch (emailError) {
+        console.error('Email failed, falling back to PDF download:', emailError);
+        // Fall through to PDF download if email fails
+      }
     }
 
-    // If email not configured, return PDF for download
+    // If email not configured or failed, return PDF for download
     return new NextResponse(pdfBuffer as unknown as BodyInit, {
       headers: {
         'Content-Type': 'application/pdf',
@@ -131,6 +136,13 @@ async function buildPdfBuffer({
     }).format(value);
   };
 
+  const drawNewPageIfNeeded = (spaceNeeded: number) => {
+    if (y < margin + spaceNeeded) {
+      page = pdfDoc.addPage(pageSize);
+      y = page.getHeight() - margin;
+    }
+  };
+
   // Title
   drawText('Portfolio X-Ray Report', 24, { bold: true });
   if (contact.name) {
@@ -143,29 +155,88 @@ async function buildPdfBuffer({
   y -= 10;
 
   const summary = analysis.summary || {};
-  
+
   drawText(`Analysis Period: ${summary.startDate || 'N/A'} to ${summary.endDate || 'N/A'}`, 11);
+  drawText(`Period: ${summary.periodMonths || 'N/A'} months`, 11);
+  y -= 5;
+
+  drawText(`Starting Value: ${formatCurrency(summary.startValue || 0)}`, 11);
+  drawText(`Ending Value: ${formatCurrency(summary.endValue || 0)}`, 11);
+  y -= 5;
+
   drawText(`Portfolio Annualized Return: ${formatPercent(summary.portfolioAnnualizedReturn || 0)}`, 11, { bold: true });
+  if (summary.irr != null) {
+    drawText(`Portfolio IRR: ${formatPercent(summary.irr)}`, 11);
+  }
   drawText(`Benchmark Annualized Return: ${formatPercent(summary.benchmarkAnnualizedReturn || 0)}`, 11);
-  drawText(`Outperformance: ${formatPercent(summary.outperformance || 0)}`, 11, { 
+  if (summary.benchmarkIrr != null) {
+    drawText(`Benchmark IRR: ${formatPercent(summary.benchmarkIrr)}`, 11);
+  }
+  drawText(`Outperformance: ${formatPercent(summary.outperformance || 0)}`, 11, {
     bold: true,
     color: (summary.outperformance || 0) >= 0 ? accentColor : rgb(0.82, 0.16, 0.16)
   });
 
+  y -= 10;
   const fees = analysis.fees || {};
-  drawText(`Total Fees Paid: ${formatCurrency(fees.totalFees || 0)}`, 11);
-  
+  drawText(`Explicit Fees: ${formatCurrency(fees.explicitFees || 0)}`, 10);
+  drawText(`Implicit Fees (est): ${formatCurrency(fees.implicitFees || 0)}`, 10);
+  drawText(`Total Fees Paid: ${formatCurrency(fees.totalFees || 0)}`, 11, { bold: true });
+
   y -= 20;
 
-  // Holdings Section
+  // Current Holdings Section
+  drawNewPageIfNeeded(200);
   drawText('Current Holdings', 18, { bold: true });
   y -= 10;
 
   const allocation = analysis.portfolioAllocation || {};
-  const holdings = Object.entries(allocation).slice(0, 10); // Top 10 holdings
-  
+  const holdings = Object.entries(allocation)
+    .sort((a, b) => Number(b[1]) - Number(a[1]))
+    .slice(0, 15); // Top 15 holdings
+
   for (const [ticker, weight] of holdings) {
+    drawNewPageIfNeeded(20);
     drawText(`${ticker}: ${Number(weight).toFixed(2)}%`, 10);
+  }
+
+  y -= 20;
+
+  // Monthly Performance Section
+  if (analysis.debug?.accountResults?.[0]?.snapshotCount > 0) {
+    drawNewPageIfNeeded(300);
+    drawText('Monthly Portfolio Values', 18, { bold: true });
+    y -= 10;
+
+    drawText('Showing calculation methodology - portfolio values at end of each month:', 9, { color: subtleColor });
+    y -= 10;
+
+    // Get monthly data from debug info
+    const monthlyAnalysis = analysis.monthlyAnalysis || [];
+
+    if (monthlyAnalysis.length > 0) {
+      // Show selected months (first, every 3rd month, and last)
+      const monthsToShow = [];
+      for (let i = 0; i < monthlyAnalysis.length; i++) {
+        if (i === 0 || i === monthlyAnalysis.length - 1 || i % 3 === 0) {
+          monthsToShow.push(monthlyAnalysis[i]);
+        }
+      }
+
+      for (const month of monthsToShow) {
+        drawNewPageIfNeeded(30);
+        const monthStr = month.month || 'N/A';
+        const value = formatCurrency(month.portfolioValue || 0);
+        drawText(`${monthStr}: ${value}`, 10);
+      }
+    } else {
+      // Fallback: show start and end values
+      drawText(`Start (${summary.startDate}): ${formatCurrency(summary.startValue || 0)}`, 10);
+      drawText(`End (${summary.endDate}): ${formatCurrency(summary.endValue || 0)}`, 10);
+    }
+
+    y -= 10;
+    drawText(`Note: Monthly values calculated from transactions + market returns`, 8, { color: subtleColor });
   }
 
   y -= 20;
