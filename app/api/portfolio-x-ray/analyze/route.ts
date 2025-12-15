@@ -22,8 +22,9 @@ export async function POST(request: NextRequest) {
   try {
     // TEMPORARY: Load data from Raw Data.txt file instead of Plaid
     // TODO: Re-enable Plaid integration after testing
-    // Try multiple possible paths
+    // Try multiple possible paths (including data folder in project)
     const possiblePaths = [
+      path.join(process.cwd(), 'data', 'Raw Data.txt'),
       path.join(process.cwd(), '..', 'Portfolio_x_ray', 'Raw Data.txt'),
       path.join(process.cwd(), 'Portfolio_x_ray', 'Raw Data.txt'),
       path.join(process.cwd(), '..', '..', 'Portfolio_x_ray', 'Raw Data.txt'),
