@@ -1,12 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@supabase/supabase-js';
-import { getBenchmarkForPlaidSecurity } from '@/lib/portfolio-x-ray/benchmark-matcher';
-import { calculateFees } from '@/lib/portfolio-x-ray/fee-calculator';
-import { 
-  calculatePortfolioReturns, 
-  calculateGeometricReturn, 
-  annualizeReturn 
-} from '@/lib/portfolio-x-ray/portfolio-returns';
+import {
+  PlaidPerformanceEngine,
+  SupabaseMarketDataProvider,
+  DefaultFundDataProvider,
+  EngineResult,
+  iterMonthEnds,
+  parseDate,
+} from '@/lib/portfolio-x-ray/performance-engine';
+import { exportPortfolioDebugData } from '@/lib/portfolio-x-ray/portfolio-debug';
 import * as fs from 'fs';
 import * as path from 'path';
 
@@ -16,6 +17,35 @@ interface MonthlyAnalysis {
   portfolioValue: number;
   benchmarkReturn: number;
   benchmarkValue: number;
+}
+
+interface AnalysisResponse {
+  monthlyAnalysis: MonthlyAnalysis[];
+  summary: {
+    portfolioTotalReturn: number;
+    portfolioAnnualizedReturn: number;
+    benchmarkTotalReturn: number;
+    benchmarkAnnualizedReturn: number;
+    outperformance: number;
+    irr?: number;
+    benchmarkIrr?: number;
+    periodMonths: number;
+    startDate: string;
+    endDate: string;
+    note?: string;
+  };
+  fees: {
+    totalFees: number;
+    explicitFees: number;
+    implicitFees: number;
+    feeDrag?: number;
+    feesByType: { [type: string]: number };
+    feesByAccount: { [accountId: string]: number };
+    feeTransactions: any[];
+  };
+  portfolioAllocation: { [ticker: string]: number };
+  holdings: number;
+  transactions: number;
 }
 
 export async function POST(request: NextRequest) {
@@ -29,10 +59,10 @@ export async function POST(request: NextRequest) {
       path.join(process.cwd(), 'Portfolio_x_ray', 'Raw Data.txt'),
       path.join(process.cwd(), '..', '..', 'Portfolio_x_ray', 'Raw Data.txt'),
     ];
-    
+
     let rawDataContent = '';
     let fileData = null;
-    
+
     for (const rawDataPath of possiblePaths) {
       try {
         if (fs.existsSync(rawDataPath)) {
@@ -48,65 +78,45 @@ export async function POST(request: NextRequest) {
         continue;
       }
     }
-    
+
     if (!fileData) {
       return NextResponse.json(
-        { error: 'Could not load Raw Data.txt file. Checked paths: ' + possiblePaths.join(', ') },
+        {
+          error:
+            'Could not load Raw Data.txt file. Checked paths: ' +
+            possiblePaths.join(', '),
+        },
         { status: 500 }
       );
     }
 
     // Extract data from file in same format as Plaid API
-    const transactions = {
+    const transactionsResp = {
       investment_transactions: fileData.transactions.all_transactions || [],
       securities: fileData.holdings.all_securities || [],
     };
-    const holdings = {
+    const holdingsResp = {
       holdings: fileData.holdings.all_holdings || [],
       securities: fileData.holdings.all_securities || [],
+      accounts: fileData.holdings.all_accounts || [],
     };
-    const securitiesList = fileData.holdings.all_securities || [];
 
     console.log('Loaded data from Raw Data.txt:', {
-      transactionsCount: transactions.investment_transactions.length,
-      holdingsCount: holdings.holdings.length,
-      securitiesCount: securitiesList.length,
+      transactionsCount: transactionsResp.investment_transactions.length,
+      holdingsCount: holdingsResp.holdings.length,
+      securitiesCount: holdingsResp.securities.length,
+      accountsCount: holdingsResp.accounts.length,
     });
 
     /* ORIGINAL PLAID CODE - COMMENTED OUT FOR TESTING
     const body = await request.json();
-    const { transactions, holdings, securities } = body;
+    const { transactions: transactionsResp, holdings: holdingsResp } = body;
 
-    console.log('Analyze request received:', {
-      hasTransactions: !!transactions,
-      hasHoldings: !!holdings,
-      hasSecurities: !!securities,
-      securitiesType: typeof securities,
-      securitiesIsArray: Array.isArray(securities),
-      securitiesKeys: securities ? Object.keys(securities) : [],
-    });
-
-    if (!transactions || !holdings) {
+    if (!transactionsResp || !holdingsResp) {
       return NextResponse.json(
         { error: 'Missing required data: transactions and holdings are required' },
         { status: 400 }
       );
-    }
-
-    // Handle securities in different formats
-    let securitiesList: any[] = [];
-    if (Array.isArray(securities)) {
-      securitiesList = securities;
-    } else if (securities?.securities && Array.isArray(securities.securities)) {
-      securitiesList = securities.securities;
-    } else if (transactions?.securities && Array.isArray(transactions.securities)) {
-      securitiesList = transactions.securities;
-    } else if (holdings?.securities && Array.isArray(holdings.securities)) {
-      securitiesList = holdings.securities;
-    }
-
-    if (securitiesList.length === 0) {
-      console.warn('No securities found in request');
     }
     END OF ORIGINAL PLAID CODE */
 
@@ -118,273 +128,394 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const supabase = createClient(
+    // Initialize the performance engine with data providers
+    const marketProvider = new SupabaseMarketDataProvider(
       process.env.SUPABASE_URL,
       process.env.SUPABASE_KEY
     );
+    const fundProvider = new DefaultFundDataProvider();
+    const engine = new PlaidPerformanceEngine(marketProvider, fundProvider);
 
-    // Calculate fees
-    const feeSummary = calculateFees(transactions.investment_transactions || []);
+    // Get all unique account IDs
+    const accountIds = new Set<string>();
+    for (const holding of holdingsResp.holdings || []) {
+      if (holding.account_id) {
+        accountIds.add(holding.account_id);
+      }
+    }
+    for (const tx of transactionsResp.investment_transactions || []) {
+      if (tx.account_id) {
+        accountIds.add(tx.account_id);
+      }
+    }
 
-    // Extract date range from transactions
-    const transactionDates = (transactions.investment_transactions || [])
-      .map((tx: any) => tx.date)
-      .filter(Boolean);
-    
-    if (transactionDates.length === 0) {
+    if (accountIds.size === 0) {
       return NextResponse.json(
-        { error: 'No transaction dates found' },
+        { error: 'No accounts found in data' },
         { status: 400 }
       );
     }
 
-    const sortedDates = transactionDates.sort();
-    const startDate = sortedDates[0];
-    const endDate = sortedDates[sortedDates.length - 1];
+    // Calculate results for each account and aggregate
+    const accountResults: EngineResult[] = [];
+    const accountIdsArray = Array.from(accountIds);
+
+    // Export debug data - try to save locally, but also include in response for Vercel
+    // Note: Vercel has read-only filesystem, so file writes only work locally
+    let debugDataSaved = false;
+    const debugCSVs: { [accountId: string]: { transactions: string; positions: string; monthly: string } } = {};
+
+    // Only try to write files if we're in a local environment (not Vercel)
+    const isVercel = process.env.VERCEL === '1' || process.env.VERCEL_ENV;
     
-    // Calculate date range for 24 months
-    const endDateObj = new Date(endDate);
-    const startDateObj = new Date(endDateObj);
-    startDateObj.setMonth(startDateObj.getMonth() - 24);
-    
-    const analysisStartDate = startDateObj.toISOString().split('T')[0];
-    const analysisEndDate = endDateObj.toISOString().split('T')[0];
+    if (!isVercel) {
+      // Try to save files locally
+      const possiblePortfolioPaths = [
+        'C:\\code\\Portfolio_x_ray', // Direct absolute path
+        path.join(process.cwd(), '..', 'Portfolio_x_ray'),
+        path.join(process.cwd(), 'Portfolio_x_ray'),
+        path.join(process.cwd(), '..', '..', 'Portfolio_x_ray'),
+      ];
+      
+      let portfolioXRayPath = null;
+      for (const p of possiblePortfolioPaths) {
+        try {
+          if (fs.existsSync(p)) {
+            portfolioXRayPath = p;
+            console.log(`[DEBUG] Found Portfolio_x_ray at: ${p}`);
+            break;
+          }
+        } catch (e) {
+          // Path might be invalid, continue
+        }
+      }
+      
+      if (!portfolioXRayPath) {
+        // Fallback: try to create it at the expected location
+        const fallbackPath = 'C:\\code\\Portfolio_x_ray';
+        try {
+          if (!fs.existsSync(fallbackPath)) {
+            fs.mkdirSync(fallbackPath, { recursive: true });
+          }
+          portfolioXRayPath = fallbackPath;
+          console.log(`[DEBUG] Using fallback path: ${fallbackPath}`);
+        } catch (e) {
+          console.error(`[DEBUG] Could not create fallback path: ${fallbackPath}`);
+        }
+      }
+      
+      const debugOutputDir = portfolioXRayPath 
+        ? path.join(portfolioXRayPath, 'debug_output')
+        : path.join(process.cwd(), 'debug_output');
+      
+      console.log(`[DEBUG] Using debug output directory: ${debugOutputDir}`);
+      
+      // Ensure debug output directory exists
+      try {
+        if (!fs.existsSync(debugOutputDir)) {
+          fs.mkdirSync(debugOutputDir, { recursive: true });
+          console.log(`[DEBUG] Created debug output directory: ${debugOutputDir}`);
+        }
+      } catch (e: any) {
+        console.error(`[DEBUG] Error creating debug output directory: ${e.message}`);
+      }
 
-    // Get current portfolio allocation from holdings
-    const portfolioAllocation = calculatePortfolioAllocation(
-      holdings.holdings || [],
-      securitiesList
-    );
+      for (const accountId of accountIdsArray) {
+        try {
+          // Determine date range
+          const txsForAccount = (transactionsResp.investment_transactions || []).filter(
+            (tx: any) => tx.account_id === accountId
+          );
+          
+          let endDate: Date;
+          if (txsForAccount.length > 0) {
+            const maxDate = Math.max(...txsForAccount.map((tx: any) => parseDate(tx.date).getTime()));
+            endDate = new Date(maxDate);
+          } else {
+            endDate = new Date();
+          }
+          
+          const startDate = new Date(endDate);
+          startDate.setDate(startDate.getDate() - 730); // 24 months
+          
+          const monthEnds = iterMonthEnds(startDate, endDate);
 
-    console.log('Portfolio allocation calculated:', {
-      allocationSize: portfolioAllocation.size,
-      allocations: Array.from(portfolioAllocation.entries()).slice(0, 5),
-    });
+          // Export debug data to files (local only)
+          try {
+            const accountDebugDir = path.join(debugOutputDir, accountId);
+            console.log(`Attempting to export debug data to: ${accountDebugDir}`);
+            
+            await exportPortfolioDebugData(
+              accountId,
+              holdingsResp,
+              transactionsResp,
+              startDate,
+              endDate,
+              monthEnds,
+              accountDebugDir
+            );
+            debugDataSaved = true;
+            console.log(`Successfully exported debug data for account ${accountId} to ${accountDebugDir}`);
+          } catch (debugError: any) {
+            console.error(`Error exporting debug data for account ${accountId}:`, debugError);
+            // Continue even if debug export fails
+          }
+        } catch (e) {
+          console.error(`Error processing account ${accountId} for debug export:`, e);
+        }
+      }
+    } else {
+      console.log('[DEBUG] Running on Vercel - skipping file writes (read-only filesystem)');
+    }
 
-    // Match holdings to benchmarks
-    const benchmarkMap = new Map<string, string>();
-    for (const holding of holdings.holdings || []) {
-      const security = securitiesList.find(
-        (s: any) => s.security_id === holding.security_id
-      );
-      if (security) {
-        const benchmark = getBenchmarkForPlaidSecurity(security);
-        benchmarkMap.set(security.security_id, benchmark);
-        console.log(`Matched ${security.ticker_symbol || security.name} to benchmark ${benchmark}`);
+    // Generate debug CSV data for API response (works on both local and Vercel)
+    for (const accountId of accountIdsArray) {
+      try {
+        // Determine date range
+        const txsForAccount = (transactionsResp.investment_transactions || []).filter(
+          (tx: any) => tx.account_id === accountId
+        );
+        
+        let endDate: Date;
+        if (txsForAccount.length > 0) {
+          const maxDate = Math.max(...txsForAccount.map((tx: any) => parseDate(tx.date).getTime()));
+          endDate = new Date(maxDate);
+        } else {
+          endDate = new Date();
+        }
+        
+        const startDate = new Date(endDate);
+        startDate.setDate(startDate.getDate() - 730); // 24 months
+        
+        const monthEnds = iterMonthEnds(startDate, endDate);
+
+        // Generate CSV data in memory
+        const { generateDebugCSVs } = await import('@/lib/portfolio-x-ray/portfolio-debug');
+        const csvData = await generateDebugCSVs(
+          accountId,
+          holdingsResp,
+          transactionsResp,
+          startDate,
+          endDate,
+          monthEnds
+        );
+        debugCSVs[accountId] = csvData;
+      } catch (e) {
+        console.error(`Error generating CSV data for account ${accountId}:`, e);
       }
     }
 
-    console.log('Benchmark map created:', {
-      benchmarkMapSize: benchmarkMap.size,
-      uniqueBenchmarks: Array.from(new Set(benchmarkMap.values())),
-    });
+    for (const accountId of accountIdsArray) {
+      try {
 
-    // Get unique benchmarks needed
-    const uniqueBenchmarks = Array.from(new Set(benchmarkMap.values()));
-
-    // Fetch benchmark returns from Supabase
-    const { data: benchmarkReturns, error: benchmarkError } = await supabase
-      .from('asset_returns')
-      .select('asset_ticker, return_date, monthly_return')
-      .in('asset_ticker', uniqueBenchmarks)
-      .gte('return_date', analysisStartDate)
-      .lte('return_date', analysisEndDate)
-      .order('return_date');
-
-    if (benchmarkError) {
-      console.error('Supabase benchmark fetch error:', benchmarkError);
-      // Continue with analysis even if some benchmarks missing
+        const result = await engine.computeForAccount(
+          accountId,
+          holdingsResp,
+          transactionsResp,
+          null, // endOverride
+          730 // 24 months lookback
+        );
+        accountResults.push(result);
+        console.log(`Computed result for account ${accountId}:`, {
+          irr: result.irr_net,
+          benchmarkIrr: result.benchmark_irr,
+          explicitFees: result.explicit_fees,
+          implicitFees: result.implicit_fees_est,
+        });
+      } catch (error: any) {
+        console.error(`Error computing result for account ${accountId}:`, error);
+        // Continue with other accounts
+      }
     }
 
-    // Calculate monthly portfolio returns from transactions
-    const monthlyReturns = calculatePortfolioReturns(
-      transactions.investment_transactions || [],
-      holdings.holdings || [],
-      securitiesList,
-      analysisStartDate,
-      analysisEndDate
-    );
-
-    // Calculate weighted benchmark returns for comparison
-    const monthlyAnalysis = calculateMonthlyBenchmarkComparison(
-      monthlyReturns,
-      portfolioAllocation,
-      benchmarkMap,
-      securitiesList,
-      benchmarkReturns || [],
-      analysisStartDate,
-      analysisEndDate
-    );
-
-    console.log('Monthly analysis calculated:', {
-      months: monthlyAnalysis.length,
-      hasBenchmarkData: (benchmarkReturns?.length ?? 0) > 0,
-      uniqueBenchmarks: uniqueBenchmarks,
-    });
-
-    // Handle case where no monthly analysis was generated
-    if (monthlyAnalysis.length === 0) {
-      console.warn('No monthly analysis generated - using default values');
-      return NextResponse.json({
-        monthlyAnalysis: [],
-        summary: {
-          portfolioTotalReturn: 0,
-          portfolioAnnualizedReturn: 0,
-          benchmarkTotalReturn: 0,
-          benchmarkAnnualizedReturn: 0,
-          outperformance: 0,
-          periodMonths: 0,
-          startDate: analysisStartDate,
-          endDate: analysisEndDate,
-          note: 'Insufficient data for performance analysis',
-        },
-        fees: feeSummary,
-        portfolioAllocation: Object.fromEntries(portfolioAllocation),
-        holdings: holdings.holdings?.length || 0,
-        transactions: transactions.investment_transactions?.length || 0,
-      });
+    if (accountResults.length === 0) {
+      return NextResponse.json(
+        { error: 'No valid results computed for any account' },
+        { status: 500 }
+      );
     }
 
-    // Calculate summary statistics
-    const portfolioMonthlyReturns = monthlyAnalysis.map(m => m.portfolioReturn);
-    const benchmarkMonthlyReturns = monthlyAnalysis.map(m => m.benchmarkReturn);
+    // Aggregate results across accounts (weighted by start_value)
+    const totalStartValue = accountResults.reduce(
+      (sum, r) => sum + r.start_value,
+      0
+    );
+    const totalEndValue = accountResults.reduce(
+      (sum, r) => sum + r.end_value,
+      0
+    );
+    const totalBenchmarkEndValue = accountResults.reduce(
+      (sum, r) => sum + (r.benchmark_end_value || 0),
+      0
+    );
+    const totalExplicitFees = accountResults.reduce(
+      (sum, r) => sum + r.explicit_fees,
+      0
+    );
+    const totalImplicitFees = accountResults.reduce(
+      (sum, r) => sum + r.implicit_fees_est,
+      0
+    );
 
-    const portfolioTotalReturn = calculateGeometricReturn(portfolioMonthlyReturns);
-    const benchmarkTotalReturn = calculateGeometricReturn(benchmarkMonthlyReturns);
+    // Use the first account's dates (they should all be similar for 24-month lookback)
+    const firstResult = accountResults[0];
+    const startDate = firstResult.start_date;
+    const endDate = firstResult.end_date;
 
-    const portfolioAnnualized = annualizeReturn(portfolioTotalReturn, monthlyAnalysis.length);
-    const benchmarkAnnualized = annualizeReturn(benchmarkTotalReturn, monthlyAnalysis.length);
+    // Calculate aggregate IRR (approximate: use weighted average)
+    // For exact aggregate IRR, we'd need to combine all cashflows
+    let aggregateIrr: number | null = null;
+    let aggregateBenchmarkIrr: number | null = null;
 
-    const outperformance = portfolioAnnualized - benchmarkAnnualized;
+    if (accountResults.length === 1) {
+      aggregateIrr = accountResults[0].irr_net;
+      aggregateBenchmarkIrr = accountResults[0].benchmark_irr;
+    } else {
+      // Weighted average IRR (approximate)
+      let weightedIrr = 0;
+      let weightedBenchmarkIrr = 0;
+      let totalWeight = 0;
 
-    return NextResponse.json({
-      monthlyAnalysis,
+      for (const result of accountResults) {
+        const weight = result.start_value;
+        if (result.irr_net != null) {
+          weightedIrr += result.irr_net * weight;
+        }
+        if (result.benchmark_irr != null) {
+          weightedBenchmarkIrr += result.benchmark_irr * weight;
+        }
+        totalWeight += weight;
+      }
+
+      if (totalWeight > 0) {
+        aggregateIrr = weightedIrr / totalWeight;
+        aggregateBenchmarkIrr = weightedBenchmarkIrr / totalWeight;
+      }
+    }
+
+    // Calculate total return and annualized return from aggregate values
+    const totalReturn =
+      totalStartValue > 0
+        ? (totalEndValue - totalStartValue) / totalStartValue
+        : 0;
+    const benchmarkTotalReturn =
+      totalStartValue > 0
+        ? (totalBenchmarkEndValue - totalStartValue) / totalStartValue
+        : 0;
+
+    const monthsDiff =
+      (endDate.getTime() - startDate.getTime()) /
+      (1000 * 60 * 60 * 24 * 30.44); // Average days per month
+    const years = monthsDiff / 12;
+
+    const annualizedReturn =
+      years > 0 ? Math.pow(1 + totalReturn, 1 / years) - 1 : 0;
+    const benchmarkAnnualizedReturn =
+      years > 0 ? Math.pow(1 + benchmarkTotalReturn, 1 / years) - 1 : 0;
+
+    // Build monthly analysis (simplified - for full monthly detail, would need to aggregate month-by-month)
+    const monthlyAnalysis: MonthlyAnalysis[] = [];
+
+    // Calculate portfolio allocation from current holdings
+    const portfolioAllocation: { [ticker: string]: number } = {};
+    let totalHoldingsValue = 0;
+
+    for (const holding of holdingsResp.holdings || []) {
+      const security = (holdingsResp.securities || []).find(
+        (s: any) => s.security_id === holding.security_id
+      );
+      if (security) {
+        const ticker = security.ticker_symbol || security.security_id;
+        const value = holding.institution_value || 0;
+        totalHoldingsValue += value;
+        portfolioAllocation[ticker] = (portfolioAllocation[ticker] || 0) + value;
+      }
+    }
+
+    // Convert to percentages
+    if (totalHoldingsValue > 0) {
+      for (const ticker in portfolioAllocation) {
+        portfolioAllocation[ticker] =
+          (portfolioAllocation[ticker] / totalHoldingsValue) * 100;
+      }
+    }
+
+    // Build fee summary
+    const feeTransactions: any[] = [];
+    const feesByType: { [type: string]: number } = {};
+    const feesByAccount: { [accountId: string]: number } = {};
+
+    for (const tx of transactionsResp.investment_transactions || []) {
+      if (tx.type === 'fee' || (tx.fees && tx.fees > 0)) {
+        const feeAmount =
+          (tx.type === 'fee' ? Math.abs(tx.amount || 0) : 0) +
+          (tx.fees || 0);
+        if (feeAmount > 0) {
+          const accountId = tx.account_id || 'unknown';
+          const feeType = tx.subtype || tx.type || 'fee';
+
+          feesByType[feeType] = (feesByType[feeType] || 0) + feeAmount;
+          feesByAccount[accountId] =
+            (feesByAccount[accountId] || 0) + feeAmount;
+
+          feeTransactions.push({
+            date: tx.date,
+            amount: feeAmount,
+            account_id: accountId,
+            name: tx.name || 'Fee',
+            type: feeType,
+          });
+        }
+      }
+    }
+
+    feeTransactions.sort((a, b) => b.date.localeCompare(a.date));
+
+    const response: AnalysisResponse = {
+      monthlyAnalysis, // Empty for now - could be populated with detailed monthly breakdown
       summary: {
-        portfolioTotalReturn: portfolioTotalReturn * 100, // Convert to percentage
-        portfolioAnnualizedReturn: portfolioAnnualized * 100,
+        portfolioTotalReturn: totalReturn * 100,
+        portfolioAnnualizedReturn: annualizedReturn * 100,
         benchmarkTotalReturn: benchmarkTotalReturn * 100,
-        benchmarkAnnualizedReturn: benchmarkAnnualized * 100,
-        outperformance: outperformance * 100,
-        periodMonths: monthlyAnalysis.length,
-        startDate: analysisStartDate,
-        endDate: analysisEndDate,
+        benchmarkAnnualizedReturn: benchmarkAnnualizedReturn * 100,
+        outperformance: (annualizedReturn - benchmarkAnnualizedReturn) * 100,
+        irr: aggregateIrr != null ? aggregateIrr * 100 : undefined,
+        benchmarkIrr:
+          aggregateBenchmarkIrr != null
+            ? aggregateBenchmarkIrr * 100
+            : undefined,
+        periodMonths: Math.round(monthsDiff),
+        startDate: startDate.toISOString().split('T')[0],
+        endDate: endDate.toISOString().split('T')[0],
       },
-      fees: feeSummary,
-      portfolioAllocation: Object.fromEntries(portfolioAllocation),
-      holdings: holdings.holdings?.length || 0,
-      transactions: transactions.investment_transactions?.length || 0,
-    });
+      fees: {
+        totalFees: totalExplicitFees + totalImplicitFees,
+        explicitFees: totalExplicitFees,
+        implicitFees: totalImplicitFees,
+        feeDrag:
+          accountResults[0]?.fee_drag_approx != null
+            ? accountResults[0].fee_drag_approx * 100
+            : undefined,
+        feesByType,
+        feesByAccount,
+        feeTransactions,
+      },
+      portfolioAllocation,
+      holdings: holdingsResp.holdings?.length || 0,
+      transactions: transactionsResp.investment_transactions?.length || 0,
+      debugCSVs: Object.keys(debugCSVs).length > 0 ? debugCSVs : undefined,
+      debugDataSavedLocally: debugDataSaved,
+    };
+
+    return NextResponse.json(response);
   } catch (error: any) {
     console.error('Analysis error:', error);
     return NextResponse.json(
-      { 
+      {
         error: 'Analysis failed',
-        details: error.message 
+        details: error.message,
       },
       { status: 500 }
     );
   }
 }
-
-/**
- * Calculate current portfolio allocation by security
- */
-function calculatePortfolioAllocation(
-  holdings: any[],
-  securities: any[]
-): Map<string, number> {
-  const allocation = new Map<string, number>();
-  let totalValue = 0;
-
-  // Calculate total portfolio value
-  for (const holding of holdings) {
-    const value = holding.institution_value || 0;
-    totalValue += value;
-  }
-
-  if (totalValue === 0) return allocation;
-
-  // Calculate percentage allocation for each holding
-  for (const holding of holdings) {
-    const security = securities.find((s: any) => s.security_id === holding.security_id);
-    if (security) {
-      const ticker = security.ticker_symbol || security.security_id;
-      const value = holding.institution_value || 0;
-      const percentage = (value / totalValue) * 100;
-      allocation.set(ticker, percentage);
-    }
-  }
-
-  return allocation;
-}
-
-/**
- * Calculate weighted benchmark returns to compare against portfolio returns
- */
-function calculateMonthlyBenchmarkComparison(
-  monthlyReturns: any[],
-  portfolioAllocation: Map<string, number>,
-  benchmarkMap: Map<string, string>,
-  securities: any[],
-  benchmarkReturns: any[],
-  startDate: string,
-  endDate: string
-): MonthlyAnalysis[] {
-  // Group benchmark returns by month and ticker
-  const benchmarkReturnsByMonth = new Map<string, Map<string, number>>();
-  
-  for (const ret of benchmarkReturns) {
-    const month = ret.return_date.substring(0, 7); // YYYY-MM
-    if (!benchmarkReturnsByMonth.has(month)) {
-      benchmarkReturnsByMonth.set(month, new Map());
-    }
-    benchmarkReturnsByMonth.get(month)!.set(ret.asset_ticker, parseFloat(ret.monthly_return));
-  }
-
-  // Combine portfolio returns with benchmark returns
-  const analysis: MonthlyAnalysis[] = [];
-  let benchmarkValue = 1000;
-
-  for (const portfolioReturn of monthlyReturns) {
-    const month = portfolioReturn.month;
-    const monthBenchmarks = benchmarkReturnsByMonth.get(month);
-    
-    // Calculate weighted benchmark return for this month
-    let weightedBenchmarkReturn = 0;
-    let totalWeight = 0;
-
-    if (monthBenchmarks) {
-      for (const [ticker, weight] of portfolioAllocation) {
-        // Find the security and its benchmark
-        const security = securities.find((s: any) => s.ticker_symbol === ticker);
-        if (security) {
-          const benchmark = benchmarkMap.get(security.security_id);
-          if (benchmark && monthBenchmarks.has(benchmark)) {
-            const benchmarkReturn = monthBenchmarks.get(benchmark)!;
-            weightedBenchmarkReturn += (weight / 100) * benchmarkReturn;
-            totalWeight += weight;
-          }
-        }
-      }
-
-      // Normalize if weights don't sum to 100
-      if (totalWeight > 0) {
-        weightedBenchmarkReturn = (weightedBenchmarkReturn / totalWeight) * 100;
-      }
-    }
-
-    // Update benchmark value
-    benchmarkValue *= (1 + weightedBenchmarkReturn / 100);
-
-    analysis.push({
-      month,
-      portfolioReturn: portfolioReturn.portfolioReturn,
-      portfolioValue: portfolioReturn.portfolioValue,
-      benchmarkReturn: weightedBenchmarkReturn / 100,
-      benchmarkValue,
-    });
-  }
-
-  return analysis;
-}
-
