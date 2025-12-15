@@ -215,15 +215,8 @@ async function buildPdfBuffer({
     const monthlyAnalysis = analysis.monthlyAnalysis || [];
 
     if (monthlyAnalysis.length > 0) {
-      // Show selected months (first, every 3rd month, and last)
-      const monthsToShow = [];
-      for (let i = 0; i < monthlyAnalysis.length; i++) {
-        if (i === 0 || i === monthlyAnalysis.length - 1 || i % 3 === 0) {
-          monthsToShow.push(monthlyAnalysis[i]);
-        }
-      }
-
-      for (const month of monthsToShow) {
+      // Show all months
+      for (const month of monthlyAnalysis) {
         drawNewPageIfNeeded(30);
         const monthStr = month.month || 'N/A';
         const value = formatCurrency(month.portfolioValue || 0);
