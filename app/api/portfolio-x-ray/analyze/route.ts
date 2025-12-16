@@ -10,6 +10,7 @@ import {
   exportSnapshotsToCSV,
   exportTransactionsToCSV,
   exportSummaryToText,
+  exportTransactionLedger,
 } from '@/lib/portfolio-x-ray/portfolio-debug-v2';
 import * as fs from 'fs';
 import * as path from 'path';
@@ -190,6 +191,7 @@ export async function POST(request: NextRequest) {
             exportSnapshotsToCSV(accountId, result.monthlySnapshots, securities, accountDebugDir);
             exportTransactionsToCSV(accountId, transactions, securities, accountDebugDir);
             exportSummaryToText(accountId, result, accountDebugDir);
+            exportTransactionLedger(accountId, result.monthlySnapshots, transactions, securities, accountDebugDir);
           } catch (debugError) {
             console.error(`Error exporting debug files for ${accountId}:`, debugError);
           }
