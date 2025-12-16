@@ -757,8 +757,10 @@ export class PortfolioCalculator {
         benchmarkValue *= (1 + portfolioReturn);
 
         // Apply cashflows
+        // Cashflows are negative for contributions, positive for withdrawals
+        // Negate to apply correctly: contributions ADD to value, withdrawals SUBTRACT
         const cashflow = cashflowsByMonth.get(monthEndStr) || 0;
-        benchmarkValue += cashflow;
+        benchmarkValue -= cashflow;
 
         // Record evolution
         benchmarkEvolution.push({
