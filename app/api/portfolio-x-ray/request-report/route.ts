@@ -312,14 +312,22 @@ async function buildPdfBuffer({
     }
 
     drawText('Monthly Returns & Values:', 11, { bold: true });
-    // Show all months
+    y -= 5;
+
+    // Draw column headers
+    drawText('Date            Return      Value           Cash Flow', 9, { bold: true });
+    y -= 5;
+
+    // Show all months with proper column alignment
     for (const month of benchmarkMonthlyDetails) {
       drawNewPageIfNeeded(20);
-      const returnStr = `${month.return >= 0 ? '+' : ''}${month.return.toFixed(1)}%`;
+      const dateStr = formatDateToMMDDYYYY(month.month).padEnd(15);
+      const returnStr = `${month.return >= 0 ? '+' : ''}${month.return.toFixed(1)}%`.padEnd(11);
+      const valueStr = formatCurrency(month.value).padEnd(15);
       const cashflowStr = month.cashflow !== 0
-        ? (month.cashflow < 0 ? ` -${formatCurrency(Math.abs(month.cashflow))}` : ` +${formatCurrency(month.cashflow)}`)
+        ? (month.cashflow < 0 ? `-${formatCurrency(Math.abs(month.cashflow))}` : `+${formatCurrency(month.cashflow)}`)
         : '';
-      drawText(`${formatDateToMMDDYYYY(month.month)}: ${returnStr.padEnd(8)} ${formatCurrency(month.value)}${cashflowStr}`, 9);
+      drawText(`${dateStr} ${returnStr} ${valueStr} ${cashflowStr}`, 8);
     }
 
     y -= 10;

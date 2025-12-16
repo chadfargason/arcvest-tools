@@ -741,10 +741,22 @@ export class PortfolioCalculator {
       // Track benchmark value evolution
       const benchmarkEvolution: BenchmarkMonthlyData[] = [];
 
-      for (const monthEnd of monthEnds) {
+      for (let i = 0; i < monthEnds.length; i++) {
+        const monthEnd = monthEnds[i];
         const monthEndStr = formatDate(monthEnd);
 
-        // Apply return
+        // For the first month, just record the starting value without applying returns
+        if (i === 0) {
+          benchmarkEvolution.push({
+            month: monthEndStr,
+            return: 0, // No return applied in starting month
+            value: benchmarkValue,
+            cashflow: 0
+          });
+          continue;
+        }
+
+        // Apply return for all months after the first
         let portfolioReturn = 0;
         for (const [ticker, weight] of benchmarkWeights) {
           const tickerReturns = returns.get(ticker);
