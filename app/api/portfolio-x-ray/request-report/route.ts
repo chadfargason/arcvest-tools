@@ -127,7 +127,7 @@ async function buildPdfBuffer({
     y -= size * 1.4;
   };
 
-  const formatPercent = (value: number) => `${value >= 0 ? '+' : ''}${value.toFixed(2)}%`;
+  const formatPercent = (value: number) => `${value >= 0 ? '+' : ''}${value.toFixed(1)}%`;
   const formatCurrency = (value: number) => {
     return new Intl.NumberFormat('en-US', {
       style: 'currency',
@@ -207,7 +207,7 @@ async function buildPdfBuffer({
 
   for (const [ticker, weight] of holdings) {
     drawNewPageIfNeeded(20);
-    drawText(`${ticker}: ${Number(weight).toFixed(2)}%`, 10);
+    drawText(`${ticker}: ${Number(weight).toFixed(1)}%`, 10);
   }
 
   y -= 20;
@@ -224,7 +224,7 @@ async function buildPdfBuffer({
   if (benchmarks.length > 0) {
     for (const [ticker, weight] of benchmarks) {
       drawNewPageIfNeeded(20);
-      drawText(`${ticker}: ${Number(weight).toFixed(2)}%`, 10);
+      drawText(`${ticker}: ${Number(weight).toFixed(1)}%`, 10);
     }
   } else {
     drawText('No benchmark data available', 10);
@@ -306,7 +306,7 @@ async function buildPdfBuffer({
       drawText('Benchmark Composition:', 11, { bold: true });
       for (const [ticker, weight] of benchmarks) {
         drawNewPageIfNeeded(20);
-        drawText(`  ${ticker}: ${Number(weight).toFixed(2)}%`, 10);
+        drawText(`  ${ticker}: ${Number(weight).toFixed(1)}%`, 10);
       }
       y -= 10;
     }
@@ -318,7 +318,7 @@ async function buildPdfBuffer({
 
     for (const month of shownMonths) {
       drawNewPageIfNeeded(20);
-      const returnStr = `${month.return >= 0 ? '+' : ''}${month.return.toFixed(2)}%`;
+      const returnStr = `${month.return >= 0 ? '+' : ''}${month.return.toFixed(1)}%`;
       const cashflowStr = month.cashflow !== 0
         ? (month.cashflow < 0 ? ` -${formatCurrency(Math.abs(month.cashflow))}` : ` +${formatCurrency(month.cashflow)}`)
         : '';

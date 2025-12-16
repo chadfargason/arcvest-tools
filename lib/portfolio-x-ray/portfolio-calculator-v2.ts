@@ -303,7 +303,7 @@ export class PortfolioCalculator {
 
     // Step 7: Calculate fees
     const explicitFees = this.calculateExplicitFees(txsInRange);
-    const implicitFees = this.estimateImplicitFees(accountHoldings, securities, startValue, endValue);
+    const implicitFees = this.estimateImplicitFees(accountHoldings, securities, startValue, endValue, years);
 
     return {
       accountId,
@@ -840,12 +840,13 @@ export class PortfolioCalculator {
     holdings: Holding[],
     securities: Map<string, Security>,
     startValue: number,
-    endValue: number
+    endValue: number,
+    years: number
   ): number {
-    // Default expense ratios for common fund types
+    // Default expense ratios for common fund types (annual rates)
     const defaultERs = new Map([
-      ['mutual fund', 0.005], // 50 bps
-      ['etf', 0.001], // 10 bps
+      ['mutual fund', 0.005], // 50 bps annual
+      ['etf', 0.001], // 10 bps annual
     ]);
 
     let totalFundValue = 0;
@@ -867,6 +868,7 @@ export class PortfolioCalculator {
 
     const avgER = weightedER / totalFundValue;
     const avgValue = (startValue + endValue) / 2;
-    return avgValue * avgER;
+    // Multiply by years to get total fees for the period
+    return avgValue * avgER * years;
   }
 }

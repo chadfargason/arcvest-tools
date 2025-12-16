@@ -202,17 +202,17 @@
       <h2>Portfolio Analysis Results</h2>
       
       <div class="metric-card">
-        <div class="metric-label">24-Month Annualized Return</div>
+        <div class="metric-label">Portfolio IRR</div>
         <div class="metric-value" id="portfolio-return">—</div>
       </div>
 
       <div class="metric-card">
-        <div class="metric-label">Benchmark Return</div>
+        <div class="metric-label">Benchmark IRR</div>
         <div class="metric-value" id="benchmark-return">—</div>
       </div>
 
       <div class="metric-card">
-        <div class="metric-label">Outperformance</div>
+        <div class="metric-label" id="performance-label">Performance</div>
         <div class="metric-value" id="outperformance">—</div>
       </div>
 
@@ -608,26 +608,35 @@
       const portfolioReturnEl = document.getElementById('portfolio-return');
       const benchmarkReturnEl = document.getElementById('benchmark-return');
       const outperfEl = document.getElementById('outperformance');
+      const performanceLabelEl = document.getElementById('performance-label');
       const feesEl = document.getElementById('total-fees');
 
       if (portfolioReturnEl) {
-        const portfolioReturn = summary.portfolioAnnualizedReturn || 0;
-        portfolioReturnEl.textContent = portfolioReturn.toFixed(2) + '%';
-        portfolioReturnEl.className = 
-          'metric-value ' + (portfolioReturn >= 0 ? 'positive' : 'negative');
+        const portfolioIrr = summary.irr || 0;
+        portfolioReturnEl.textContent = portfolioIrr.toFixed(1) + '%';
+        portfolioReturnEl.className =
+          'metric-value ' + (portfolioIrr >= 0 ? 'positive' : 'negative');
       }
 
       if (benchmarkReturnEl) {
-        const benchReturn = summary.benchmarkAnnualizedReturn || 0;
-        benchmarkReturnEl.textContent = benchReturn.toFixed(2) + '%';
+        const benchmarkIrr = summary.benchmarkIrr || 0;
+        benchmarkReturnEl.textContent = benchmarkIrr.toFixed(1) + '%';
       }
 
       if (outperfEl) {
-        const outperf = summary.outperformance || 0;
-        outperfEl.textContent = 
-          (outperf >= 0 ? '+' : '') + outperf.toFixed(2) + '%';
-        outperfEl.className = 
-          'metric-value ' + (outperf >= 0 ? 'positive' : 'negative');
+        const portfolioIrr = summary.irr || 0;
+        const benchmarkIrr = summary.benchmarkIrr || 0;
+        const difference = portfolioIrr - benchmarkIrr;
+
+        // Update label based on performance
+        if (performanceLabelEl) {
+          performanceLabelEl.textContent = difference >= 0 ? 'Outperformance' : 'Underperformance';
+        }
+
+        outperfEl.textContent =
+          (difference >= 0 ? '+' : '') + difference.toFixed(1) + '%';
+        outperfEl.className =
+          'metric-value ' + (difference >= 0 ? 'positive' : 'negative');
       }
 
       if (feesEl) {
