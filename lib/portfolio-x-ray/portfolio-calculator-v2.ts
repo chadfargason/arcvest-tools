@@ -59,6 +59,13 @@ export interface PortfolioSnapshot {
   totalValue: number;
 }
 
+export interface BenchmarkMonthlyData {
+  month: string; // YYYY-MM-DD
+  return: number; // % monthly return
+  cashflow: number; // $ cashflow applied this month
+  value: number; // $ ending value for this month
+}
+
 export interface CalculationResult {
   accountId: string;
   startDate: string;
@@ -71,6 +78,8 @@ export interface CalculationResult {
   benchmarkReturn: number; // %
   benchmarkIrr: number | null; // %
   benchmarkWeights: Map<string, number>; // Benchmark allocation (ticker -> weight %)
+  benchmarkMonthlyData: BenchmarkMonthlyData[]; // Monthly benchmark evolution
+  benchmarkEndValue: number; // $ final benchmark value
   outperformance: number; // %
   explicitFees: number; // $
   implicitFees: number; // $
@@ -275,7 +284,13 @@ export class PortfolioCalculator {
     const irr = this.calculateIRR(startValue, endValue, externalCashflows, startDateStr, endDateStr);
 
     // Step 6: Calculate benchmark
-    const { benchmarkReturn, benchmarkIrr, benchmarkWeights } = await this.calculateBenchmark(
+    const {
+      benchmarkReturn,
+      benchmarkIrr,
+      benchmarkWeights,
+      benchmarkMonthlyData,
+      benchmarkEndValue
+    } = await this.calculateBenchmark(
       startValue,
       endValue,
       startPositions,
@@ -302,6 +317,8 @@ export class PortfolioCalculator {
       benchmarkReturn,
       benchmarkIrr,
       benchmarkWeights,
+      benchmarkMonthlyData,
+      benchmarkEndValue,
       outperformance: annualizedReturn - benchmarkReturn,
       explicitFees,
       implicitFees,
@@ -564,8 +581,10 @@ export class PortfolioCalculator {
 
     for (const tx of transactions) {
       if (isExternalCashflow(tx)) {
-        // Investor perspective: deposits are negative, withdrawals are positive
-        const amount = -tx.amount;
+        // XIRR convention: Plaid already provides correct signs
+        // Contributions come as negative (money out), withdrawals as positive (money in)
+        // Don't negate - use as-is for XIRR calculation
+        const amount = tx.amount;
         cashflows.push({ date: tx.date, amount });
       }
     }
@@ -593,6 +612,19 @@ export class PortfolioCalculator {
       }
 
       cfs.push([parseDate(endDate), endValue]);
+
+      // DEBUG: Log cashflows being passed to XIRR
+      if (process.env.NODE_ENV === 'development') {
+        console.log('\n=== IRR CALCULATION DEBUG ===');
+        console.log('Start Value:', startValue);
+        console.log('End Value:', endValue);
+        console.log('External Cashflows:', cashflows);
+        console.log('\nCashflows passed to XIRR:');
+        for (const [date, amount] of cfs) {
+          console.log(`  ${date.toISOString().split('T')[0]}: ${amount < 0 ? '-' : '+'}$${Math.abs(amount).toFixed(2)}`);
+        }
+        console.log('=============================\n');
+      }
 
       // Calculate XIRR
       const irr = this.xirr(cfs);
@@ -654,7 +686,13 @@ export class PortfolioCalculator {
     monthEnds: Date[],
     startDate: string,
     endDate: string
-  ): Promise<{ benchmarkReturn: number; benchmarkIrr: number | null; benchmarkWeights: Map<string, number> }> {
+  ): Promise<{
+    benchmarkReturn: number;
+    benchmarkIrr: number | null;
+    benchmarkWeights: Map<string, number>;
+    benchmarkMonthlyData: BenchmarkMonthlyData[];
+    benchmarkEndValue: number;
+  }> {
     try {
       // Map positions to benchmarks
       const benchmarkWeights = new Map<string, number>();
@@ -701,6 +739,9 @@ export class PortfolioCalculator {
         cashflowsByMonth.set(monthEnd, (cashflowsByMonth.get(monthEnd) || 0) + cf.amount);
       }
 
+      // Track benchmark value evolution
+      const benchmarkEvolution: BenchmarkMonthlyData[] = [];
+
       for (const monthEnd of monthEnds) {
         const monthEndStr = formatDate(monthEnd);
 
@@ -718,6 +759,14 @@ export class PortfolioCalculator {
         // Apply cashflows
         const cashflow = cashflowsByMonth.get(monthEndStr) || 0;
         benchmarkValue += cashflow;
+
+        // Record evolution
+        benchmarkEvolution.push({
+          month: monthEndStr,
+          return: portfolioReturn * 100, // Convert to percentage
+          value: benchmarkValue,
+          cashflow: cashflow
+        });
       }
 
       const benchmarkTotalReturn = ((benchmarkValue - startValue) / startValue) * 100;
@@ -727,10 +776,39 @@ export class PortfolioCalculator {
       // Calculate benchmark IRR
       const benchmarkIrr = this.calculateIRR(startValue, benchmarkValue, cashflows, startDate, endDate);
 
-      return { benchmarkReturn, benchmarkIrr, benchmarkWeights };
+      // DEBUG: Log benchmark details
+      if (process.env.NODE_ENV === 'development') {
+        console.log('\n=== BENCHMARK IRR CALCULATION DEBUG ===');
+        console.log('Benchmark Weights:');
+        for (const [ticker, weight] of benchmarkWeights) {
+          console.log(`  ${ticker}: ${weight.toFixed(2)}%`);
+        }
+        console.log(`\nStart Value: $${startValue.toFixed(2)}`);
+        console.log(`End Value: $${benchmarkValue.toFixed(2)}`);
+        console.log('\nMonthly Evolution:');
+        for (const month of benchmarkEvolution) {
+          console.log(`  ${month.month}: Return=${(month.return * 100).toFixed(2)}%, Cashflow=${month.cashflow < 0 ? '-' : '+'}$${Math.abs(month.cashflow).toFixed(2)}, Value=$${month.value.toFixed(2)}`);
+        }
+        console.log(`\nBenchmark IRR: ${benchmarkIrr ? benchmarkIrr.toFixed(2) + '%' : 'N/A'}`);
+        console.log('========================================\n');
+      }
+
+      return {
+        benchmarkReturn,
+        benchmarkIrr,
+        benchmarkWeights,
+        benchmarkMonthlyData: benchmarkEvolution,
+        benchmarkEndValue: benchmarkValue
+      };
     } catch (error) {
       console.error('Benchmark calculation failed:', error);
-      return { benchmarkReturn: 0, benchmarkIrr: null, benchmarkWeights: new Map() };
+      return {
+        benchmarkReturn: 0,
+        benchmarkIrr: null,
+        benchmarkWeights: new Map(),
+        benchmarkMonthlyData: [],
+        benchmarkEndValue: 0
+      };
     }
   }
 

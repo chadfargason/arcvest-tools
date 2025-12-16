@@ -135,6 +135,10 @@ async function buildPdfBuffer({
       maximumFractionDigits: 0,
     }).format(value);
   };
+  const formatDateToMMDDYYYY = (dateStr: string) => {
+    const parts = dateStr.split('-');
+    return `${parts[1]}-${parts[2]}-${parts[0]}`;
+  };
 
   const drawNewPageIfNeeded = (spaceNeeded: number) => {
     if (y < margin + spaceNeeded) {
@@ -256,6 +260,80 @@ async function buildPdfBuffer({
 
     y -= 10;
     drawText(`Note: Monthly values calculated from transactions + market returns`, 8, { color: subtleColor });
+  }
+
+  y -= 20;
+
+  // IRR Cashflow Analysis Section
+  const cashflowDetails = analysis.cashflowDetails || [];
+  if (cashflowDetails.length > 0) {
+    drawNewPageIfNeeded(300);
+    drawText('IRR Calculation Cashflows', 18, { bold: true });
+    y -= 10;
+
+    drawText('These are the exact cashflows used in the IRR calculation:', 9, { color: subtleColor });
+    y -= 10;
+
+    for (const cf of cashflowDetails) {
+      drawNewPageIfNeeded(20);
+      const amountStr = cf.amount < 0
+        ? `-${formatCurrency(Math.abs(cf.amount))}`
+        : `+${formatCurrency(cf.amount)}`;
+      const typeStr = cf.type.padEnd(14);
+      drawText(`${formatDateToMMDDYYYY(cf.date)}  ${typeStr}  ${amountStr}`, 10);
+    }
+
+    y -= 10;
+    drawText(`Portfolio IRR: ${formatPercent(summary.irr || 0)}`, 11, { bold: true });
+  }
+
+  y -= 20;
+
+  // Benchmark IRR Analysis Section
+  const benchmarkMonthlyDetails = analysis.benchmarkMonthlyDetails || [];
+  if (benchmarkMonthlyDetails.length > 0 && summary.benchmarkEndValue) {
+    drawNewPageIfNeeded(400);
+    drawText('Benchmark Performance Detail', 18, { bold: true });
+    y -= 10;
+
+    drawText('Monthly benchmark evolution:', 9, { color: subtleColor });
+    y -= 10;
+
+    // Show benchmark weights
+    const benchmarkWeights = analysis.benchmarkWeights || {};
+    const benchmarks = Object.entries(benchmarkWeights).sort((a, b) => Number(b[1]) - Number(a[1]));
+    if (benchmarks.length > 0) {
+      drawText('Benchmark Composition:', 11, { bold: true });
+      for (const [ticker, weight] of benchmarks) {
+        drawNewPageIfNeeded(20);
+        drawText(`  ${ticker}: ${Number(weight).toFixed(2)}%`, 10);
+      }
+      y -= 10;
+    }
+
+    drawText('Monthly Returns & Values:', 11, { bold: true });
+    // Show first few and last few months to avoid overwhelming the PDF
+    const monthsToShow = Math.min(12, benchmarkMonthlyDetails.length);
+    const shownMonths = benchmarkMonthlyDetails.slice(0, monthsToShow);
+
+    for (const month of shownMonths) {
+      drawNewPageIfNeeded(20);
+      const returnStr = `${month.return >= 0 ? '+' : ''}${month.return.toFixed(2)}%`;
+      const cashflowStr = month.cashflow !== 0
+        ? (month.cashflow < 0 ? ` -${formatCurrency(Math.abs(month.cashflow))}` : ` +${formatCurrency(month.cashflow)}`)
+        : '';
+      drawText(`${formatDateToMMDDYYYY(month.month)}: ${returnStr.padEnd(8)} ${formatCurrency(month.value)}${cashflowStr}`, 9);
+    }
+
+    if (benchmarkMonthlyDetails.length > monthsToShow) {
+      y -= 5;
+      drawText(`[${benchmarkMonthlyDetails.length - monthsToShow} more months not shown]`, 8, { color: subtleColor });
+    }
+
+    y -= 10;
+    drawText(`Benchmark Start: ${formatCurrency(summary.startValue)}`, 10);
+    drawText(`Benchmark End: ${formatCurrency(summary.benchmarkEndValue)}`, 10);
+    drawText(`Benchmark IRR: ${formatPercent(summary.benchmarkIrr || 0)}`, 11, { bold: true });
   }
 
   y -= 20;

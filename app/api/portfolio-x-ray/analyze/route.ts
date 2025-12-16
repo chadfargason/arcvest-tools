@@ -23,6 +23,19 @@ interface MonthlyAnalysis {
   benchmarkValue: number;
 }
 
+interface CashflowDetail {
+  date: string;
+  amount: number;
+  type: 'START' | 'CONTRIBUTION' | 'WITHDRAWAL' | 'END';
+}
+
+interface BenchmarkMonthlyDetail {
+  month: string;
+  return: number;
+  cashflow: number;
+  value: number;
+}
+
 interface AnalysisResponse {
   monthlyAnalysis: MonthlyAnalysis[];
   summary: {
@@ -33,6 +46,7 @@ interface AnalysisResponse {
     outperformance: number;
     irr?: number;
     benchmarkIrr?: number;
+    benchmarkEndValue?: number;
     periodMonths: number;
     startDate: string;
     endDate: string;
@@ -49,6 +63,8 @@ interface AnalysisResponse {
   };
   portfolioAllocation: { [ticker: string]: number };
   benchmarkWeights: { [ticker: string]: number };
+  cashflowDetails?: CashflowDetail[];
+  benchmarkMonthlyDetails?: BenchmarkMonthlyDetail[];
   holdings: number;
   transactions: number;
   allTransactions?: any[];
@@ -372,6 +388,48 @@ export async function POST(request: NextRequest) {
     feeTransactions.sort((a, b) => b.date.localeCompare(a.date));
     allTransactions.sort((a, b) => b.date.localeCompare(a.date));
 
+    // Aggregate cashflows from first account (for detailed analysis)
+    const cashflowDetails: CashflowDetail[] = [];
+    if (results.length > 0) {
+      const firstAccountResult = results[0];
+
+      // Add start as first cashflow
+      cashflowDetails.push({
+        date: firstAccountResult.startDate,
+        amount: -firstAccountResult.startValue,
+        type: 'START'
+      });
+
+      // Add external cashflows
+      for (const cf of firstAccountResult.externalCashflows) {
+        cashflowDetails.push({
+          date: cf.date,
+          amount: cf.amount,
+          type: cf.amount < 0 ? 'CONTRIBUTION' : 'WITHDRAWAL'
+        });
+      }
+
+      // Add end as last cashflow
+      cashflowDetails.push({
+        date: firstAccountResult.endDate,
+        amount: firstAccountResult.endValue,
+        type: 'END'
+      });
+    }
+
+    // Aggregate benchmark monthly data from first account
+    const benchmarkMonthlyDetails: BenchmarkMonthlyDetail[] = results.length > 0
+      ? results[0].benchmarkMonthlyData.map(d => ({
+          month: d.month,
+          return: d.return,
+          cashflow: d.cashflow,
+          value: d.value
+        }))
+      : [];
+
+    // Calculate total benchmark end value
+    const totalBenchmarkEndValue = results.reduce((sum, r) => sum + r.benchmarkEndValue, 0);
+
     // Format dates as MM-DD-YYYY
     const formatDateToMMDDYYYY = (dateStr: string) => {
       const parts = dateStr.split('-');
@@ -388,6 +446,7 @@ export async function POST(request: NextRequest) {
         outperformance: annualizedReturn - aggregateBenchmarkReturn,
         irr: aggregateIrr !== null ? aggregateIrr : undefined,
         benchmarkIrr: aggregateBenchmarkIrr !== null ? aggregateBenchmarkIrr : undefined,
+        benchmarkEndValue: totalBenchmarkEndValue,
         periodMonths: Math.round(months),
         startDate: formatDateToMMDDYYYY(firstResult.startDate),
         endDate: formatDateToMMDDYYYY(firstResult.endDate),
@@ -404,6 +463,8 @@ export async function POST(request: NextRequest) {
       },
       portfolioAllocation,
       benchmarkWeights,
+      cashflowDetails,
+      benchmarkMonthlyDetails,
       holdings: holdings.length,
       transactions: transactions.length,
       allTransactions, // Include full transaction list for PDF
