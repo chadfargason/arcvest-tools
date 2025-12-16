@@ -141,7 +141,6 @@ function isExternalCashflow(tx: Transaction): boolean {
 
 function isFeeTransaction(tx: Transaction): boolean {
   if (tx.type === 'fee') return true;
-  if (tx.fees && tx.fees > 0) return true;
 
   const feeSubtypes = ['account fee', 'management fee', 'legal fee', 'margin expense', 'transfer fee', 'trust fee'];
   if (tx.type === 'cash' && tx.subtype && feeSubtypes.includes(tx.subtype)) {
