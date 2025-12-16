@@ -312,22 +312,14 @@ async function buildPdfBuffer({
     }
 
     drawText('Monthly Returns & Values:', 11, { bold: true });
-    // Show first few and last few months to avoid overwhelming the PDF
-    const monthsToShow = Math.min(12, benchmarkMonthlyDetails.length);
-    const shownMonths = benchmarkMonthlyDetails.slice(0, monthsToShow);
-
-    for (const month of shownMonths) {
+    // Show all months
+    for (const month of benchmarkMonthlyDetails) {
       drawNewPageIfNeeded(20);
       const returnStr = `${month.return >= 0 ? '+' : ''}${month.return.toFixed(1)}%`;
       const cashflowStr = month.cashflow !== 0
         ? (month.cashflow < 0 ? ` -${formatCurrency(Math.abs(month.cashflow))}` : ` +${formatCurrency(month.cashflow)}`)
         : '';
       drawText(`${formatDateToMMDDYYYY(month.month)}: ${returnStr.padEnd(8)} ${formatCurrency(month.value)}${cashflowStr}`, 9);
-    }
-
-    if (benchmarkMonthlyDetails.length > monthsToShow) {
-      y -= 5;
-      drawText(`[${benchmarkMonthlyDetails.length - monthsToShow} more months not shown]`, 8, { color: subtleColor });
     }
 
     y -= 10;

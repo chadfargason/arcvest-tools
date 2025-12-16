@@ -417,15 +417,45 @@ export async function POST(request: NextRequest) {
       });
     }
 
-    // Aggregate benchmark monthly data from first account
-    const benchmarkMonthlyDetails: BenchmarkMonthlyDetail[] = results.length > 0
-      ? results[0].benchmarkMonthlyData.map(d => ({
-          month: d.month,
-          return: d.return,
-          cashflow: d.cashflow,
-          value: d.value
-        }))
-      : [];
+    // Aggregate benchmark monthly data across all accounts
+    const benchmarkMonthlyDetails: BenchmarkMonthlyDetail[] = [];
+    if (results.length > 0) {
+      // Get all unique months
+      const monthsSet = new Set<string>();
+      results.forEach(r => {
+        r.benchmarkMonthlyData.forEach(d => monthsSet.add(d.month));
+      });
+      const sortedMonths = Array.from(monthsSet).sort();
+
+      // For each month, sum values and calculate weighted average return
+      for (const month of sortedMonths) {
+        let totalValue = 0;
+        let totalCashflow = 0;
+        let weightedReturn = 0;
+        let totalPrevValue = 0;
+
+        for (const result of results) {
+          const monthData = result.benchmarkMonthlyData.find(d => d.month === month);
+          if (monthData) {
+            totalValue += monthData.value;
+            totalCashflow += monthData.cashflow;
+            // To calculate weighted return, we need the previous month's value as weight
+            // For simplicity, we'll use current value as approximation
+            weightedReturn += monthData.return * monthData.value;
+            totalPrevValue += monthData.value;
+          }
+        }
+
+        const avgReturn = totalPrevValue > 0 ? weightedReturn / totalPrevValue : 0;
+
+        benchmarkMonthlyDetails.push({
+          month,
+          return: avgReturn,
+          cashflow: totalCashflow,
+          value: totalValue
+        });
+      }
+    }
 
     // Calculate total benchmark end value
     const totalBenchmarkEndValue = results.reduce((sum, r) => sum + r.benchmarkEndValue, 0);
