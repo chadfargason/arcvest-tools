@@ -193,6 +193,13 @@ async function buildPdfBuffer({
   drawText(`Implicit Fees (est): ${formatCurrency(fees.implicitFees || 0)}`, 10);
   drawText(`Total Fees Paid: ${formatCurrency(fees.totalFees || 0)}`, 11, { bold: true });
 
+  y -= 10;
+  drawText('Implicit Fee Assumptions:', 9, { bold: true, color: subtleColor });
+  drawText('  • Uses default expense ratios (0.5% for mutual funds, 0.1% for ETFs)', 8, { color: subtleColor });
+  drawText('  • Actual expense ratios vary widely (index funds: 0.03%, active funds: 1.5%+)', 8, { color: subtleColor });
+  drawText('  • Based on current holdings (may not reflect historical positions)', 8, { color: subtleColor });
+  drawText('  • Simple average of start/end value (doesn\'t account for cashflow timing)', 8, { color: subtleColor });
+
   y -= 20;
 
   // Current Holdings Section
@@ -314,20 +321,20 @@ async function buildPdfBuffer({
     drawText('Monthly Returns & Values:', 11, { bold: true });
     y -= 5;
 
-    // Draw column headers
-    drawText('Date            Return      Value           Cash Flow', 9, { bold: true });
+    // Draw column headers with pipe separators
+    drawText('Date         | Return    | Value         | Cash Flow', 9, { bold: true });
     y -= 5;
 
-    // Show all months with proper column alignment
+    // Show all months with proper column alignment and pipe separators
     for (const month of benchmarkMonthlyDetails) {
       drawNewPageIfNeeded(20);
-      const dateStr = formatDateToMMDDYYYY(month.month).padEnd(15);
-      const returnStr = `${month.return >= 0 ? '+' : ''}${month.return.toFixed(1)}%`.padEnd(11);
-      const valueStr = formatCurrency(month.value).padEnd(15);
+      const dateStr = formatDateToMMDDYYYY(month.month).padEnd(12);
+      const returnStr = `${month.return >= 0 ? '+' : ''}${month.return.toFixed(1)}%`.padEnd(9);
+      const valueStr = formatCurrency(month.value).padEnd(13);
       const cashflowStr = month.cashflow !== 0
         ? (month.cashflow < 0 ? `-${formatCurrency(Math.abs(month.cashflow))}` : `+${formatCurrency(month.cashflow)}`)
         : '';
-      drawText(`${dateStr} ${returnStr} ${valueStr} ${cashflowStr}`, 8);
+      drawText(`${dateStr} | ${returnStr} | ${valueStr} | ${cashflowStr}`, 8);
     }
 
     y -= 10;
@@ -420,6 +427,75 @@ async function buildPdfBuffer({
       }
 
       y -= 10;
+    }
+  }
+
+  y -= 20;
+
+  // Transaction Ledger Section
+  if (analysis.allTransactions && analysis.allTransactions.length > 0) {
+    drawNewPageIfNeeded(200);
+    drawText('Transaction Ledger', 18, { bold: true });
+    y -= 10;
+
+    // Group transactions by security
+    const txBySecurity = new Map<string, any[]>();
+    for (const tx of analysis.allTransactions) {
+      const security = tx.security || 'Cash';
+      if (!txBySecurity.has(security)) {
+        txBySecurity.set(security, []);
+      }
+      txBySecurity.get(security)!.push(tx);
+    }
+
+    // Sort transactions within each security by date
+    for (const [security, txs] of txBySecurity) {
+      txs.sort((a, b) => a.date.localeCompare(b.date));
+    }
+
+    // Display each security's transactions
+    for (const [security, txs] of Array.from(txBySecurity.entries()).sort((a, b) => a[0].localeCompare(b[0]))) {
+      drawNewPageIfNeeded(120);
+
+      // Security header
+      const securityName = security.length > 50 ? security.substring(0, 47) + '...' : security;
+      drawText(`${securityName}`, 11, { bold: true });
+      y -= 5;
+
+      // Column headers (compact format for PDF)
+      drawText('Date       | Type    | Qty          | Price     | Amount     | Fees    | Running Qty', 7, { bold: true });
+      y -= 3;
+
+      // Track running quantity
+      let runningQty = 0;
+
+      for (const tx of txs) {
+        drawNewPageIfNeeded(15);
+
+        // Update running quantity
+        const txQty = parseFloat(tx.quantity || 0);
+        if (tx.type === 'buy' || tx.type === 'transfer') {
+          runningQty += txQty;
+        } else if (tx.type === 'sell') {
+          runningQty -= txQty;
+        }
+
+        // Format fields
+        const date = tx.date.substring(0, 10); // YYYY-MM-DD format
+        const type = (tx.type || '').padEnd(7).substring(0, 7);
+        const qty = txQty !== 0
+          ? (tx.type === 'sell' ? '-' : '+') + Math.abs(txQty).toFixed(6).padStart(11)
+          : '            ';
+        const price = tx.price ? ('$' + parseFloat(tx.price).toFixed(2)).padStart(9) : '        -';
+        const amount = tx.amount ? ('$' + parseFloat(tx.amount).toFixed(2)).padStart(10) : '         -';
+        const fees = tx.fees && parseFloat(tx.fees) > 0 ? ('$' + parseFloat(tx.fees).toFixed(2)).padStart(7) : '      -';
+        const running = runningQty !== 0 ? runningQty.toFixed(6).padStart(12) : '           -';
+
+        const line = `${date} | ${type} | ${qty} | ${price} | ${amount} | ${fees} | ${running}`;
+        drawText(line, 6);
+      }
+
+      y -= 8;
     }
   }
 
