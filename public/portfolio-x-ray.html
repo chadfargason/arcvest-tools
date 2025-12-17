@@ -250,6 +250,14 @@
       <h2>Connect Your Account</h2>
       <p style="margin-bottom: 20px;">Securely connect your investment account using Plaid to get started.</p>
       <button class="btn" id="connect-btn">Connect Account</button>
+
+      <!-- Dev Mode Toggle -->
+      <div style="margin-top: 30px; padding-top: 20px; border-top: 1px solid #E2E8F0;">
+        <label style="display: flex; align-items: center; gap: 10px; cursor: pointer; font-size: 14px; color: #64748B;">
+          <input type="checkbox" id="dev-mode-toggle" style="width: 18px; height: 18px; cursor: pointer;">
+          <span>Dev Mode (use test data file instead of Plaid)</span>
+        </label>
+      </div>
     </div>
 
     <!-- Loading Section -->
@@ -414,168 +422,192 @@
       }
     }
 
+    // Process fetched data (shared between dev mode and Plaid mode)
+    async function processPortfolioData(data) {
+      // Store raw fetched data for debugging
+      rawFetchedData = data;
+
+      console.log('Fetched data structure:', {
+        hasTransactions: !!data.transactions,
+        hasHoldings: !!data.holdings,
+        transactionSecuritiesCount: data.transactions?.securities?.length || 0,
+        holdingsSecuritiesCount: data.holdings?.securities?.length || 0,
+        holdingsCount: data.holdings?.holdings?.length || 0,
+        transactionsCount: data.transactions?.investment_transactions?.length || 0,
+      });
+
+      // Combine securities from both transactions and holdings
+      const transactionSecurities = data.transactions?.securities || [];
+      const holdingsSecurities = data.holdings?.securities || [];
+
+      // Create a map to deduplicate securities by security_id
+      const securitiesMap = new Map();
+      [...transactionSecurities, ...holdingsSecurities].forEach((sec) => {
+        if (sec.security_id && !securitiesMap.has(sec.security_id)) {
+          securitiesMap.set(sec.security_id, sec);
+        }
+      });
+      const allSecurities = Array.from(securitiesMap.values());
+
+      // Analyze
+      updateLoading('Analyzing your portfolio...');
+      console.log('Sending analysis request with', {
+        securitiesCount: allSecurities.length,
+        holdingsCount: data.holdings?.holdings?.length || 0,
+        transactionsCount: data.transactions?.investment_transactions?.length || 0,
+      });
+
+      const analyzeResponse = await fetch('/api/portfolio-x-ray/analyze', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          transactions: data.transactions,
+          holdings: data.holdings,
+          securities: { securities: allSecurities },
+        }),
+      });
+
+      console.log('Analyze response status:', analyzeResponse.status);
+
+      if (!analyzeResponse.ok) {
+        const errorData = await analyzeResponse.json().catch(() => ({}));
+        console.error('Analysis failed:', errorData);
+        const errorMsg = errorData.details || errorData.error || 'Analysis failed';
+        throw new Error(errorMsg);
+      }
+
+      analysisResults = await analyzeResponse.json();
+      console.log('Analysis results received:', analysisResults);
+
+      if (!analysisResults) {
+        console.error('No analysis results returned');
+        throw new Error('Analysis returned no data');
+      }
+
+      // Display results (even if summary is missing, show what we have)
+      console.log('Calling displayResults...');
+      displayResults(analysisResults);
+    }
+
     // Connect button handler
     document.getElementById('connect-btn').addEventListener('click', async () => {
+      const devModeToggle = document.getElementById('dev-mode-toggle');
+      const isDevMode = devModeToggle && devModeToggle.checked;
+
       try {
         showSection('loading-section');
-        updateLoading('Generating secure connection...');
 
-        // Get link token
-        const userId = getUserId();
-        const linkTokenResponse = await fetch('/api/portfolio-x-ray/link-token', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ userId }),
-        });
+        if (isDevMode) {
+          // Dev mode: fetch mock data directly
+          updateLoading('Loading test data file...');
 
-        if (!linkTokenResponse.ok) {
-          const errorData = await linkTokenResponse.json().catch(() => ({}));
-          console.error('Link token error response:', errorData);
-          
-          // Extract error message properly
-          let errorMessage = 'Failed to get link token';
-          if (errorData.details) {
-            errorMessage = typeof errorData.details === 'string' 
-              ? errorData.details 
-              : JSON.stringify(errorData.details);
-          } else if (errorData.error) {
-            errorMessage = typeof errorData.error === 'string'
-              ? errorData.error
-              : JSON.stringify(errorData.error);
+          const mockResponse = await fetch('/api/portfolio-x-ray/mock-data');
+          if (!mockResponse.ok) {
+            const errorData = await mockResponse.json().catch(() => ({}));
+            throw new Error(errorData.error || 'Failed to load mock data');
           }
-          
-          throw new Error(errorMessage);
-        }
 
-        const { link_token } = await linkTokenResponse.json();
+          const data = await mockResponse.json();
+          await processPortfolioData(data);
 
-        // Initialize Plaid Link
-        if (linkHandler) {
-          linkHandler.destroy();
-        }
+        } else {
+          // Production mode: use Plaid
+          updateLoading('Generating secure connection...');
 
-        linkHandler = Plaid.create({
-          token: link_token,
-          onSuccess: async (publicToken, metadata) => {
-            updateLoading('Exchanging tokens...');
-            
-            try {
-              // Exchange public token for access token
-              const exchangeResponse = await fetch('/api/portfolio-x-ray/exchange-token', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ public_token: publicToken }),
-              });
+          // Get link token
+          const userId = getUserId();
+          const linkTokenResponse = await fetch('/api/portfolio-x-ray/link-token', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ userId }),
+          });
 
-              if (!exchangeResponse.ok) {
-                throw new Error('Failed to exchange token');
-              }
+          if (!linkTokenResponse.ok) {
+            const errorData = await linkTokenResponse.json().catch(() => ({}));
+            console.error('Link token error response:', errorData);
 
-              const { access_token } = await exchangeResponse.json();
-              accessToken = access_token;
-
-              // Fetch data from Plaid
-              updateLoading('Fetching your investment data...');
-              const fetchResponse = await fetch('/api/portfolio-x-ray/fetch-data', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ access_token: accessToken }),
-              });
-
-              if (!fetchResponse.ok) {
-                if (fetchResponse.status === 401) {
-                  throw new Error('Please reconnect your account');
-                }
-                throw new Error('Failed to fetch data');
-              }
-
-              const data = await fetchResponse.json();
-              // Store raw fetched data for debugging
-              rawFetchedData = data;
-              
-              console.log('Fetched data structure:', {
-                hasTransactions: !!data.transactions,
-                hasHoldings: !!data.holdings,
-                transactionSecuritiesCount: data.transactions?.securities?.length || 0,
-                holdingsSecuritiesCount: data.holdings?.securities?.length || 0,
-                holdingsCount: data.holdings?.holdings?.length || 0,
-                transactionsCount: data.transactions?.investment_transactions?.length || 0,
-              });
-
-              // Combine securities from both transactions and holdings
-              const transactionSecurities = data.transactions?.securities || [];
-              const holdingsSecurities = data.holdings?.securities || [];
-              
-              // Create a map to deduplicate securities by security_id
-              const securitiesMap = new Map();
-              [...transactionSecurities, ...holdingsSecurities].forEach((sec) => {
-                if (sec.security_id && !securitiesMap.has(sec.security_id)) {
-                  securitiesMap.set(sec.security_id, sec);
-                }
-              });
-              const allSecurities = Array.from(securitiesMap.values());
-
-              // Analyze
-              updateLoading('Analyzing your portfolio...');
-              console.log('Sending analysis request with', {
-                securitiesCount: allSecurities.length,
-                holdingsCount: data.holdings?.holdings?.length || 0,
-                transactionsCount: data.transactions?.investment_transactions?.length || 0,
-              });
-              
-              const analyzeResponse = await fetch('/api/portfolio-x-ray/analyze', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                  transactions: data.transactions,
-                  holdings: data.holdings,
-                  securities: { securities: allSecurities },
-                }),
-              });
-
-              console.log('Analyze response status:', analyzeResponse.status);
-
-              if (!analyzeResponse.ok) {
-                const errorData = await analyzeResponse.json().catch(() => ({}));
-                console.error('Analysis failed:', errorData);
-                const errorMsg = errorData.details || errorData.error || 'Analysis failed';
-                throw new Error(errorMsg);
-              }
-
-              analysisResults = await analyzeResponse.json();
-              console.log('Analysis results received:', analysisResults);
-              
-              if (!analysisResults) {
-                console.error('No analysis results returned');
-                throw new Error('Analysis returned no data');
-              }
-
-              // Display results (even if summary is missing, show what we have)
-              console.log('Calling displayResults...');
-              displayResults(analysisResults);
-
-            } catch (error) {
-              console.error('Error in analysis flow:', error);
-              const errorMsg = error instanceof Error ? error.message : String(error);
-              updateLoading('Error: ' + errorMsg);
-              // Show error for a moment, then go back
-              setTimeout(() => {
-                alert('Error: ' + errorMsg);
-                showSection('connect-section');
-              }, 2000);
+            // Extract error message properly
+            let errorMessage = 'Failed to get link token';
+            if (errorData.details) {
+              errorMessage = typeof errorData.details === 'string'
+                ? errorData.details
+                : JSON.stringify(errorData.details);
+            } else if (errorData.error) {
+              errorMessage = typeof errorData.error === 'string'
+                ? errorData.error
+                : JSON.stringify(errorData.error);
             }
-          },
-          onExit: (err, metadata) => {
-            if (err) {
-              console.error('Plaid Link error:', err);
-              alert('Connection cancelled or error occurred');
-            }
-            showSection('connect-section');
-          },
-        });
 
-        linkHandler.open();
+            throw new Error(errorMessage);
+          }
 
+          const { link_token } = await linkTokenResponse.json();
+
+          // Initialize Plaid Link
+          if (linkHandler) {
+            linkHandler.destroy();
+          }
+
+          linkHandler = Plaid.create({
+            token: link_token,
+            onSuccess: async (publicToken, metadata) => {
+              updateLoading('Exchanging tokens...');
+
+              try {
+                // Exchange public token for access token
+                const exchangeResponse = await fetch('/api/portfolio-x-ray/exchange-token', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ public_token: publicToken }),
+                });
+
+                if (!exchangeResponse.ok) {
+                  throw new Error('Failed to exchange token');
+                }
+
+                const { access_token } = await exchangeResponse.json();
+                accessToken = access_token;
+
+                // Fetch data from Plaid
+                updateLoading('Fetching your investment data...');
+                const fetchResponse = await fetch('/api/portfolio-x-ray/fetch-data', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ access_token: accessToken }),
+                });
+
+                if (!fetchResponse.ok) {
+                  if (fetchResponse.status === 401) {
+                    throw new Error('Please reconnect your account');
+                  }
+                  throw new Error('Failed to fetch data');
+                }
+
+                const data = await fetchResponse.json();
+                await processPortfolioData(data);
+
+              } catch (error) {
+                console.error('Error in analysis flow:', error);
+                const errorMsg = error instanceof Error ? error.message : String(error);
+                updateLoading('Error: ' + errorMsg);
+                // Show error for a moment, then go back
+                setTimeout(() => {
+                  alert('Error: ' + errorMsg);
+                  showSection('connect-section');
+                }, 2000);
+              }
+            },
+            onExit: (err, metadata) => {
+              if (err) {
+                console.error('Plaid Link error:', err);
+                alert('Connection cancelled or error occurred');
+              }
+              showSection('connect-section');
+            },
+          });
+
+          linkHandler.open();
+        }
       } catch (error) {
         console.error('Error:', error);
         const errorMsg = error instanceof Error ? error.message : String(error);
