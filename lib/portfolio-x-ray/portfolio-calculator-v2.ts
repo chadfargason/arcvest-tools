@@ -295,7 +295,7 @@ export class PortfolioCalculator {
     const externalCashflows = this.extractExternalCashflows(txsInRange);
     const irr = this.calculateIRR(startValue, endValue, externalCashflows, startDateStr, endDateStr);
 
-    // Step 6: Calculate benchmark
+    // Step 6: Calculate benchmark (securities and cash tracked separately)
     const {
       benchmarkReturn,
       benchmarkIrr,
@@ -306,6 +306,7 @@ export class PortfolioCalculator {
       startValue,
       endValue,
       startPositions,
+      startCash,
       externalCashflows,
       securities,
       monthEnds,
@@ -691,11 +692,17 @@ export class PortfolioCalculator {
 
   /**
    * Calculate benchmark performance
+   *
+   * The benchmark tracks securities and cash separately:
+   * - Securities portion grows at weighted benchmark rates (SPY, BND, etc.)
+   * - Cash portion grows at SGOV rate (short-term treasury ETF)
+   * - Negative cash (margin) costs the SGOV rate
    */
   private async calculateBenchmark(
     startValue: number,
     endValue: number,
     startPositions: Map<string, Position>,
+    startCash: number,
     cashflows: Array<{ date: string; amount: number }>,
     securities: Map<string, Security>,
     monthEnds: Date[],
@@ -708,10 +715,13 @@ export class PortfolioCalculator {
     benchmarkMonthlyData: BenchmarkMonthlyData[];
     benchmarkEndValue: number;
   }> {
+    // Cash rate benchmark ticker
+    const CASH_BENCHMARK = 'SGOV';
+
     try {
-      // Map positions to benchmarks
+      // Map positions to benchmarks (securities only, not cash)
       const benchmarkWeights = new Map<string, number>();
-      let totalValue = 0;
+      let totalSecuritiesValue = 0;
 
       for (const [secId, pos] of startPositions) {
         const security = securities.get(secId);
@@ -727,28 +737,32 @@ export class PortfolioCalculator {
           benchmark,
           (benchmarkWeights.get(benchmark) || 0) + Math.abs(pos.value)
         );
-        totalValue += Math.abs(pos.value);
+        totalSecuritiesValue += Math.abs(pos.value);
       }
 
-      // Normalize weights to percentages
-      if (totalValue > 0) {
+      // Normalize weights to percentages (of securities portion only)
+      if (totalSecuritiesValue > 0) {
         for (const [benchmark, weight] of benchmarkWeights) {
-          benchmarkWeights.set(benchmark, (weight / totalValue) * 100);
+          benchmarkWeights.set(benchmark, (weight / totalSecuritiesValue) * 100);
         }
       }
 
-      // Get benchmark returns
+      // Get benchmark returns - include SGOV for cash
       const benchmarkTickers = Array.from(benchmarkWeights.keys());
+      if (!benchmarkTickers.includes(CASH_BENCHMARK)) {
+        benchmarkTickers.push(CASH_BENCHMARK);
+      }
       const returns = await this.marketData.getMonthlyReturns(
         benchmarkTickers,
         startDate,
         endDate
       );
 
-      // Calculate benchmark portfolio return
-      let benchmarkValue = startValue;
-      const cashflowsByMonth = new Map<string, number>();
+      // Track securities and cash separately
+      let securitiesValue = totalSecuritiesValue;
+      let cashValue = startCash;
 
+      const cashflowsByMonth = new Map<string, number>();
       for (const cf of cashflows) {
         const monthEnd = formatDate(getMonthEnd(parseDate(cf.date)));
         cashflowsByMonth.set(monthEnd, (cashflowsByMonth.get(monthEnd) || 0) + cf.amount);
@@ -756,6 +770,8 @@ export class PortfolioCalculator {
 
       // Track benchmark value evolution
       const benchmarkEvolution: BenchmarkMonthlyData[] = [];
+
+      console.log(`[Benchmark] Starting securities: $${securitiesValue.toFixed(2)}, cash: $${cashValue.toFixed(2)}`);
 
       for (let i = 0; i < monthEnds.length; i++) {
         const monthEnd = monthEnds[i];
@@ -766,38 +782,48 @@ export class PortfolioCalculator {
           benchmarkEvolution.push({
             month: monthEndStr,
             return: 0, // No return applied in starting month
-            value: benchmarkValue,
+            value: securitiesValue + cashValue,
             cashflow: 0
           });
           continue;
         }
 
-        // Apply return for all months after the first
-        let portfolioReturn = 0;
+        // Apply securities return (weighted benchmark)
+        let securitiesReturn = 0;
         for (const [ticker, weight] of benchmarkWeights) {
           const tickerReturns = returns.get(ticker);
           const monthReturn = tickerReturns?.get(monthEndStr) || 0;
           // Convert weight from percentage (0-100) to decimal (0-1)
-          portfolioReturn += (weight / 100) * monthReturn;
+          securitiesReturn += (weight / 100) * monthReturn;
         }
+        securitiesValue *= (1 + securitiesReturn);
 
-        benchmarkValue *= (1 + portfolioReturn);
+        // Apply cash return (SGOV rate)
+        // Positive cash earns SGOV return, negative cash (margin) costs SGOV return
+        const cashReturn = returns.get(CASH_BENCHMARK)?.get(monthEndStr) || 0;
+        cashValue *= (1 + cashReturn);
 
-        // Apply cashflows
+        // Apply cashflows to cash portion
         // Cashflows are negative for contributions, positive for withdrawals
-        // Negate to apply correctly: contributions ADD to value, withdrawals SUBTRACT
+        // Negate to apply correctly: contributions ADD to cash, withdrawals SUBTRACT
         const cashflow = cashflowsByMonth.get(monthEndStr) || 0;
-        benchmarkValue -= cashflow;
+        cashValue -= cashflow;
+
+        // Calculate combined return for reporting
+        const prevTotal = benchmarkEvolution[i - 1].value;
+        const currentTotal = securitiesValue + cashValue;
+        const combinedReturn = prevTotal !== 0 ? ((currentTotal - prevTotal + cashflow) / prevTotal) : 0;
 
         // Record evolution
         benchmarkEvolution.push({
           month: monthEndStr,
-          return: portfolioReturn * 100, // Convert to percentage
-          value: benchmarkValue,
+          return: combinedReturn * 100, // Convert to percentage
+          value: currentTotal,
           cashflow: cashflow
         });
       }
 
+      const benchmarkValue = securitiesValue + cashValue;
       const benchmarkTotalReturn = ((benchmarkValue - startValue) / startValue) * 100;
       const years = monthEnds.length / 12;
       const benchmarkReturn = (Math.pow(1 + benchmarkTotalReturn / 100, 1 / years) - 1) * 100;
@@ -807,19 +833,20 @@ export class PortfolioCalculator {
 
       // DEBUG: Log benchmark details
       if (process.env.NODE_ENV === 'development') {
-        console.log('\n=== BENCHMARK IRR CALCULATION DEBUG ===');
-        console.log('Benchmark Weights:');
+        console.log('\n=== BENCHMARK CALCULATION DEBUG ===');
+        console.log('Securities Benchmark Weights:');
         for (const [ticker, weight] of benchmarkWeights) {
           console.log(`  ${ticker}: ${weight.toFixed(2)}%`);
         }
-        console.log(`\nStart Value: $${startValue.toFixed(2)}`);
-        console.log(`End Value: $${benchmarkValue.toFixed(2)}`);
-        console.log('\nMonthly Evolution:');
-        for (const month of benchmarkEvolution) {
-          console.log(`  ${month.month}: Return=${(month.return * 100).toFixed(2)}%, Cashflow=${month.cashflow < 0 ? '-' : '+'}$${Math.abs(month.cashflow).toFixed(2)}, Value=$${month.value.toFixed(2)}`);
-        }
+        console.log(`Cash Benchmark: ${CASH_BENCHMARK}`);
+        console.log(`\nStarting Securities: $${totalSecuritiesValue.toFixed(2)}`);
+        console.log(`Starting Cash: $${startCash.toFixed(2)}`);
+        console.log(`Start Total: $${startValue.toFixed(2)}`);
+        console.log(`\nEnding Securities: $${securitiesValue.toFixed(2)}`);
+        console.log(`Ending Cash: $${cashValue.toFixed(2)}`);
+        console.log(`End Total: $${benchmarkValue.toFixed(2)}`);
         console.log(`\nBenchmark IRR: ${benchmarkIrr ? benchmarkIrr.toFixed(2) + '%' : 'N/A'}`);
-        console.log('========================================\n');
+        console.log('====================================\n');
       }
 
       return {
