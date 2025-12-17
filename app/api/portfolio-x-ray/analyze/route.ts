@@ -388,31 +388,43 @@ export async function POST(request: NextRequest) {
     feeTransactions.sort((a, b) => b.date.localeCompare(a.date));
     allTransactions.sort((a, b) => b.date.localeCompare(a.date));
 
-    // Aggregate cashflows from first account (for detailed analysis)
+    // Aggregate cashflows from ALL accounts
     const cashflowDetails: CashflowDetail[] = [];
     if (results.length > 0) {
+      // Use first account for dates (all accounts should have same date range)
       const firstAccountResult = results[0];
 
-      // Add start as first cashflow
+      // Add START as total of all accounts' start values
       cashflowDetails.push({
         date: firstAccountResult.startDate,
-        amount: -firstAccountResult.startValue,
+        amount: -totalStartValue,
         type: 'START'
       });
 
-      // Add external cashflows
-      for (const cf of firstAccountResult.externalCashflows) {
+      // Collect all external cashflows from all accounts and aggregate by date
+      const cashflowsByDate = new Map<string, number>();
+      for (const result of results) {
+        for (const cf of result.externalCashflows) {
+          const existing = cashflowsByDate.get(cf.date) || 0;
+          cashflowsByDate.set(cf.date, existing + cf.amount);
+        }
+      }
+
+      // Sort dates and add to cashflowDetails
+      const sortedDates = Array.from(cashflowsByDate.keys()).sort();
+      for (const date of sortedDates) {
+        const amount = cashflowsByDate.get(date)!;
         cashflowDetails.push({
-          date: cf.date,
-          amount: cf.amount,
-          type: cf.amount < 0 ? 'CONTRIBUTION' : 'WITHDRAWAL'
+          date,
+          amount,
+          type: amount < 0 ? 'CONTRIBUTION' : 'WITHDRAWAL'
         });
       }
 
-      // Add end as last cashflow
+      // Add END as total of all accounts' end values
       cashflowDetails.push({
         date: firstAccountResult.endDate,
-        amount: firstAccountResult.endValue,
+        amount: totalEndValue,
         type: 'END'
       });
     }
