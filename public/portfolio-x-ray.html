@@ -19,7 +19,7 @@
     }
 
     .container {
-      max-width: 900px;
+      max-width: 1200px;
       margin: 0 auto;
       padding: 40px 20px;
     }
@@ -176,6 +176,33 @@
       display: none;
     }
 
+    /* Two-column layout for results */
+    .results-layout {
+      display: grid;
+      grid-template-columns: 1fr 1.5fr;
+      gap: 30px;
+      align-items: start;
+    }
+
+    .metrics-column {
+      display: flex;
+      flex-direction: column;
+    }
+
+    .chart-column {
+      position: sticky;
+      top: 20px;
+    }
+
+    @media (max-width: 900px) {
+      .results-layout {
+        grid-template-columns: 1fr;
+      }
+      .chart-column {
+        position: static;
+      }
+    }
+
     /* Chart styles - matching portfolio-calculator */
     .chart-card {
       background: white;
@@ -202,13 +229,13 @@
 
     .chart-container {
       position: relative;
-      height: 350px;
+      height: 320px;
       width: 100%;
     }
 
     #performance-chart {
       display: block;
-      height: 350px !important;
+      height: 320px !important;
       width: 100% !important;
     }
   </style>
@@ -236,33 +263,40 @@
     <!-- Results Section -->
     <div class="section results hidden" id="results-section">
       <h2>Portfolio Analysis Results</h2>
-      
-      <div class="metric-card">
-        <div class="metric-label">Portfolio IRR</div>
-        <div class="metric-value" id="portfolio-return">—</div>
-      </div>
 
-      <div class="metric-card">
-        <div class="metric-label">Benchmark IRR</div>
-        <div class="metric-value" id="benchmark-return">—</div>
-      </div>
+      <div class="results-layout">
+        <!-- Left column: Metrics -->
+        <div class="metrics-column">
+          <div class="metric-card">
+            <div class="metric-label">Portfolio IRR</div>
+            <div class="metric-value" id="portfolio-return">—</div>
+          </div>
 
-      <div class="metric-card">
-        <div class="metric-label" id="performance-label">Performance</div>
-        <div class="metric-value" id="outperformance">—</div>
-      </div>
+          <div class="metric-card">
+            <div class="metric-label">Benchmark IRR</div>
+            <div class="metric-value" id="benchmark-return">—</div>
+          </div>
 
-      <div class="metric-card">
-        <div class="metric-label">Total Fees Paid (24 Months)</div>
-        <div class="metric-value" id="total-fees">—</div>
-      </div>
+          <div class="metric-card">
+            <div class="metric-label" id="performance-label">Performance</div>
+            <div class="metric-value" id="outperformance">—</div>
+          </div>
 
-      <!-- Performance Chart Section -->
-      <div class="chart-card" id="chart-section" style="display: none;">
-        <div class="chart-label">Portfolio vs Benchmark Growth</div>
-        <div class="chart-subtitle">Monthly values over analysis period</div>
-        <div class="chart-container">
-          <canvas id="performance-chart"></canvas>
+          <div class="metric-card">
+            <div class="metric-label">Total Fees Paid (24 Months)</div>
+            <div class="metric-value" id="total-fees">—</div>
+          </div>
+        </div>
+
+        <!-- Right column: Chart -->
+        <div class="chart-column">
+          <div class="chart-card" id="chart-section" style="display: none;">
+            <div class="chart-label">Portfolio vs Benchmark Growth</div>
+            <div class="chart-subtitle">Monthly values over analysis period</div>
+            <div class="chart-container">
+              <canvas id="performance-chart"></canvas>
+            </div>
+          </div>
         </div>
       </div>
 
@@ -759,12 +793,26 @@
               display: true,
               position: 'top',
               labels: {
-                usePointStyle: true,
+                usePointStyle: false,
+                boxWidth: 40,
+                boxHeight: 2,
                 font: {
                   family: "'Lora', Georgia, serif",
                   size: 12
                 },
-                color: '#0F172A'
+                color: '#0F172A',
+                generateLabels: function(chart) {
+                  const datasets = chart.data.datasets;
+                  return datasets.map((dataset, i) => ({
+                    text: dataset.label,
+                    fillStyle: dataset.borderColor,
+                    strokeStyle: dataset.borderColor,
+                    lineWidth: 2,
+                    lineDash: dataset.borderDash || [],
+                    hidden: !chart.isDatasetVisible(i),
+                    datasetIndex: i
+                  }));
+                }
               }
             },
             tooltip: {
