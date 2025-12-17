@@ -250,13 +250,27 @@ export class PortfolioCalculator {
     // Step 1: Build ending positions from holdings (for reconstructing start)
     const endPositions = this.buildEndPositions(accountHoldings, securities);
 
+    // Step 1b: Extract ending cash from holdings (sum of cash equivalent positions)
+    let endCash = 0;
+    for (const holding of accountHoldings) {
+      const security = securities.get(holding.security_id);
+      if (security?.is_cash_equivalent) {
+        endCash += holding.institution_value;
+      }
+    }
+    console.log(`[Calculator] End cash from holdings: $${endCash.toFixed(2)}`);
+
     // Step 2: Reconstruct starting positions
     const { startPositions, startCash } = this.reconstructStartPositions(
       endPositions,
       txsInRange,
-      securities
+      securities,
+      endCash
     );
+    console.log(`[Calculator] Start cash (may be negative for margin): $${startCash.toFixed(2)}`);
     const startValue = this.calculateTotalValue(startPositions, startCash);
+    console.log(`[Calculator] Start securities value: $${(startValue - startCash).toFixed(2)}`);
+    console.log(`[Calculator] Start total value: $${startValue.toFixed(2)}`);
 
     // Step 3: Build monthly snapshots
     const monthEnds = getMonthEnds(startDate, endDate);
@@ -270,8 +284,7 @@ export class PortfolioCalculator {
 
     // Use the last snapshot's value as the ending value (last complete month-end)
     const endValue = snapshots.length > 0 ? snapshots[snapshots.length - 1].totalValue : startValue;
-
-    console.log(`[Calculator] Start value: $${startValue.toFixed(2)}, End value: $${endValue.toFixed(2)}`);
+    console.log(`[Calculator] End value (from last snapshot): $${endValue.toFixed(2)}`);
 
     // Step 4: Calculate returns
     const totalReturn = ((endValue - startValue) / startValue) * 100;
@@ -360,7 +373,8 @@ export class PortfolioCalculator {
   private reconstructStartPositions(
     endPositions: Map<string, Position>,
     transactions: Transaction[],
-    securities: Map<string, Security>
+    securities: Map<string, Security>,
+    endCash: number
   ): { startPositions: Map<string, Position>; startCash: number } {
     const startQty = new Map<string, number>();
 
@@ -414,11 +428,13 @@ export class PortfolioCalculator {
       });
     }
 
-    // Calculate starting cash
-    // End cash is assumed to be 0 for simplicity (or could extract from holdings)
-    const startCash = cashDelta;
+    // Calculate starting cash by reversing from ending cash
+    // cashDelta represents total cash out - cash in during the period
+    // startCash + transactions = endCash, so startCash = endCash + cashDelta
+    // Note: startCash can be negative for margin accounts (margin debit)
+    const startCash = endCash + cashDelta;
 
-    return { startPositions, startCash: Math.max(0, startCash) };
+    return { startPositions, startCash };
   }
 
   /**
