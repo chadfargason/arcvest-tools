@@ -73,6 +73,10 @@ interface AnalysisResponse {
   holdingsDetails?: HoldingDetail[];
   holdingsAsOfDate?: string; // Date the holdings are as of (last snapshot date)
   cashHoldings?: { value: number; percentage: number };
+  // Actual Plaid holdings for reconciliation
+  plaidHoldings?: HoldingDetail[];
+  plaidCashHoldings?: { value: number; percentage: number };
+  plaidTotalValue?: number;
   benchmarkWeights: { [ticker: string]: number };
   cashflowDetails?: CashflowDetail[];
   benchmarkMonthlyDetails?: BenchmarkMonthlyDetail[];
@@ -366,6 +370,38 @@ export async function POST(request: NextRequest) {
     // Cash percentage of total portfolio
     const cashPercentage = totalPortfolioValue > 0 ? (totalCashValue / totalPortfolioValue) * 100 : 0;
 
+    // Build ACTUAL PLAID holdings for reconciliation (current real-time data)
+    const plaidHoldingsMap: { [ticker: string]: { quantity: number; value: number; price: number } } = {};
+    let plaidCashValue = 0;
+    let plaidTotalValue = 0;
+
+    for (const holding of holdings) {
+      plaidTotalValue += holding.institution_value;
+      const security = securities.get(holding.security_id);
+      if (security?.is_cash_equivalent) {
+        plaidCashValue += holding.institution_value;
+      } else {
+        const ticker = security?.ticker_symbol || security?.name || holding.security_id;
+        if (!plaidHoldingsMap[ticker]) {
+          plaidHoldingsMap[ticker] = { quantity: 0, value: 0, price: holding.institution_price };
+        }
+        plaidHoldingsMap[ticker].quantity += holding.quantity;
+        plaidHoldingsMap[ticker].value += holding.institution_value;
+      }
+    }
+
+    const plaidHoldings = Object.entries(plaidHoldingsMap)
+      .map(([ticker, data]) => ({
+        ticker,
+        quantity: data.quantity,
+        price: data.price,
+        value: data.value,
+        percentage: plaidTotalValue > 0 ? (data.value / plaidTotalValue) * 100 : 0
+      }))
+      .sort((a, b) => b.value - a.value);
+
+    const plaidCashPercentage = plaidTotalValue > 0 ? (plaidCashValue / plaidTotalValue) * 100 : 0;
+
     // Aggregate benchmark weights from all accounts (weighted by account start value)
     const benchmarkWeights: { [ticker: string]: number } = {};
     let totalBenchmarkWeight = 0;
@@ -553,6 +589,10 @@ export async function POST(request: NextRequest) {
       holdingsDetails,
       holdingsAsOfDate: formatDateToMMDDYYYY(firstResult.endDate),
       cashHoldings: { value: totalCashValue, percentage: cashPercentage },
+      // Actual Plaid holdings for reconciliation
+      plaidHoldings,
+      plaidCashHoldings: { value: plaidCashValue, percentage: plaidCashPercentage },
+      plaidTotalValue,
       benchmarkWeights,
       cashflowDetails,
       benchmarkMonthlyDetails,

@@ -263,6 +263,66 @@ async function buildPdfBuffer({
 
   y -= 20;
 
+  // Actual Plaid Holdings Section (for reconciliation)
+  const plaidHoldings = analysis.plaidHoldings || [];
+  const plaidCashHoldings = analysis.plaidCashHoldings || { value: 0, percentage: 0 };
+  const plaidTotalValue = analysis.plaidTotalValue || 0;
+
+  if (plaidHoldings.length > 0) {
+    drawNewPageIfNeeded(200);
+    drawText('Current Holdings (from Plaid - Real-time)', 18, { bold: true });
+    y -= 10;
+
+    // Column headers
+    drawText('Ticker                  | Quantity      | Price      | Value        | %', 8, { bold: true });
+    y -= 5;
+
+    // Show all Plaid holdings with full details
+    for (const holding of plaidHoldings.slice(0, 15)) {
+      drawNewPageIfNeeded(15);
+      const ticker = (holding.ticker || 'Unknown').substring(0, 22).padEnd(22);
+      const qty = holding.quantity.toFixed(2).padStart(13);
+      const price = ('$' + holding.price.toFixed(2)).padStart(10);
+      const value = ('$' + holding.value.toFixed(2)).padStart(12);
+      const pct = (holding.percentage.toFixed(1) + '%').padStart(6);
+      drawText(`${ticker} | ${qty} | ${price} | ${value} | ${pct}`, 7);
+    }
+
+    // Show cash/equivalents
+    if (plaidCashHoldings.value > 0) {
+      y -= 5;
+      const cashTicker = 'Cash & Equivalents'.padEnd(22);
+      const cashQty = '-'.padStart(13);
+      const cashPrice = '-'.padStart(10);
+      const cashValue = ('$' + plaidCashHoldings.value.toFixed(2)).padStart(12);
+      const cashPct = (plaidCashHoldings.percentage.toFixed(1) + '%').padStart(6);
+      drawText(`${cashTicker} | ${cashQty} | ${cashPrice} | ${cashValue} | ${cashPct}`, 7, { bold: true });
+    }
+
+    // Total line
+    y -= 5;
+    const plaidTotalTicker = 'TOTAL'.padEnd(22);
+    const plaidTotalQty = '-'.padStart(13);
+    const plaidTotalPrice = '-'.padStart(10);
+    const plaidTotalValueStr = ('$' + plaidTotalValue.toFixed(2)).padStart(12);
+    const plaidTotalPct = '100.0%'.padStart(6);
+    drawText(`${plaidTotalTicker} | ${plaidTotalQty} | ${plaidTotalPrice} | ${plaidTotalValueStr} | ${plaidTotalPct}`, 7, { bold: true });
+
+    // Reconciliation note
+    y -= 10;
+    const calculatedTotal = holdingsDetails.reduce((sum, h) => sum + h.value, 0) + cashHoldings.value;
+    const diff = plaidTotalValue - calculatedTotal;
+    if (Math.abs(diff) > 0.01) {
+      drawText(`Reconciliation:`, 9, { bold: true });
+      drawText(`  Calculated (${holdingsAsOfDate}): ${formatCurrency(calculatedTotal)}`, 8);
+      drawText(`  Current (Plaid):                ${formatCurrency(plaidTotalValue)}`, 8);
+      drawText(`  Difference:                     ${formatCurrency(diff)} (${((diff / calculatedTotal) * 100).toFixed(2)}%)`, 8, { color: subtleColor });
+      drawText(`  (Difference reflects market movements since month-end)`, 7, { color: subtleColor });
+    }
+  }
+
+  y -= 20;
+
   // Benchmark Composition Section
   drawNewPageIfNeeded(200);
   drawText('Benchmark Composition', 18, { bold: true });
