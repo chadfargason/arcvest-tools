@@ -175,6 +175,42 @@
     .hidden {
       display: none;
     }
+
+    /* Chart styles - matching portfolio-calculator */
+    .chart-card {
+      background: white;
+      padding: 20px;
+      margin-bottom: 20px;
+      border: 1px solid #E2E8F0;
+      border-radius: 8px;
+    }
+
+    .chart-label {
+      font-size: 14px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      color: #0F172A;
+      margin-bottom: 4px;
+    }
+
+    .chart-subtitle {
+      font-size: 12px;
+      color: #64748B;
+      margin-bottom: 16px;
+    }
+
+    .chart-container {
+      position: relative;
+      height: 350px;
+      width: 100%;
+    }
+
+    #performance-chart {
+      display: block;
+      height: 350px !important;
+      width: 100% !important;
+    }
   </style>
 </head>
 <body>
@@ -219,6 +255,15 @@
       <div class="metric-card">
         <div class="metric-label">Total Fees Paid (24 Months)</div>
         <div class="metric-value" id="total-fees">—</div>
+      </div>
+
+      <!-- Performance Chart Section -->
+      <div class="chart-card" id="chart-section" style="display: none;">
+        <div class="chart-label">Portfolio vs Benchmark Growth</div>
+        <div class="chart-subtitle">Monthly values over analysis period</div>
+        <div class="chart-container">
+          <canvas id="performance-chart"></canvas>
+        </div>
       </div>
 
       <div class="email-form">
@@ -284,6 +329,9 @@
       </div>
     </div>
   </div>
+
+  <!-- Chart.js for performance visualization -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 
   <!-- Plaid Link Script -->
   <script src="https://cdn.plaid.com/link/v2/stable/link-initialize.js"></script>
@@ -594,6 +642,210 @@
       toggleBtn.addEventListener('click', toggleDebugSection);
     }
 
+    // Performance chart instance
+    let _performanceChart = null;
+
+    // Render performance chart - matching portfolio-calculator style
+    function renderPerformanceChart(monthlyAnalysis, benchmarkMonthlyDetails, summary) {
+      // Build labels and data arrays
+      const labels = [];
+      const portfolioValues = [];
+      const benchmarkValues = [];
+
+      // Use monthlyAnalysis for portfolio data
+      if (monthlyAnalysis && monthlyAnalysis.length > 0) {
+        for (const month of monthlyAnalysis) {
+          // month.month is in MM-DD-YYYY format, convert to readable format
+          const parts = month.month.split('-');
+          const label = `${parts[0]}/${parts[2]}`; // MM/YYYY
+          labels.push(label);
+          portfolioValues.push(month.portfolioValue);
+        }
+      }
+
+      // Use benchmarkMonthlyDetails for benchmark data if available
+      if (benchmarkMonthlyDetails && benchmarkMonthlyDetails.length > 0) {
+        for (const month of benchmarkMonthlyDetails) {
+          benchmarkValues.push(month.value);
+        }
+      }
+
+      // If no benchmark values from benchmarkMonthlyDetails, try to compute from summary
+      if (benchmarkValues.length === 0 && summary && summary.startValue && summary.benchmarkEndValue) {
+        // Create a simple linear interpolation for benchmark
+        const startVal = summary.startValue;
+        const endVal = summary.benchmarkEndValue;
+        const numMonths = portfolioValues.length;
+
+        if (numMonths > 0) {
+          const monthlyGrowth = Math.pow(endVal / startVal, 1 / (numMonths - 1));
+          for (let i = 0; i < numMonths; i++) {
+            benchmarkValues.push(startVal * Math.pow(monthlyGrowth, i));
+          }
+        }
+      }
+
+      // If still no data, don't render the chart
+      if (portfolioValues.length === 0) {
+        console.log('No monthly data available for chart');
+        return;
+      }
+
+      // Show the chart section
+      const chartSection = document.getElementById('chart-section');
+      if (chartSection) {
+        chartSection.style.display = 'block';
+      }
+
+      const ctx = document.getElementById('performance-chart').getContext('2d');
+
+      // Destroy previous chart if exists
+      if (_performanceChart) {
+        _performanceChart.destroy();
+      }
+
+      // Performance optimization for large datasets
+      const isLargeDataset = portfolioValues.length > 50;
+
+      // Build datasets array
+      const datasets = [
+        {
+          label: 'Your Portfolio',
+          data: portfolioValues,
+          fill: false,
+          borderColor: '#1B9C85', // ArcVest green
+          backgroundColor: '#1B9C85',
+          tension: 0.25,
+          borderWidth: 2,
+          pointRadius: 0,
+          pointHoverRadius: 4,
+          pointHitRadius: 10
+        }
+      ];
+
+      // Add benchmark dataset if we have data
+      if (benchmarkValues.length > 0) {
+        datasets.push({
+          label: 'Benchmark Portfolio',
+          data: benchmarkValues,
+          fill: false,
+          borderColor: '#64748B', // Slate gray
+          backgroundColor: '#64748B',
+          tension: 0.25,
+          borderWidth: 2,
+          borderDash: [5, 5], // Dashed line for benchmark
+          pointRadius: 0,
+          pointHoverRadius: 4,
+          pointHitRadius: 10
+        });
+      }
+
+      _performanceChart = new Chart(ctx, {
+        type: 'line',
+        data: {
+          labels: labels,
+          datasets: datasets
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          animation: isLargeDataset ? false : { duration: 750 },
+          interaction: {
+            mode: 'index',
+            intersect: false
+          },
+          plugins: {
+            legend: {
+              display: true,
+              position: 'top',
+              labels: {
+                usePointStyle: true,
+                font: {
+                  family: "'Lora', Georgia, serif",
+                  size: 12
+                },
+                color: '#0F172A'
+              }
+            },
+            tooltip: {
+              mode: 'index',
+              intersect: false,
+              backgroundColor: '#0F172A',
+              titleFont: {
+                family: "'Lora', Georgia, serif",
+                size: 13
+              },
+              bodyFont: {
+                family: "'Lora', Georgia, serif",
+                size: 12
+              },
+              callbacks: {
+                label: function(context) {
+                  let label = context.dataset.label || '';
+                  if (label) {
+                    label += ': ';
+                  }
+                  if (context.parsed.y !== null) {
+                    label += '$' + context.parsed.y.toLocaleString('en-US', {
+                      minimumFractionDigits: 0,
+                      maximumFractionDigits: 0
+                    });
+                  }
+                  return label;
+                }
+              }
+            },
+            decimation: {
+              enabled: isLargeDataset,
+              algorithm: 'lttb',
+              samples: 100
+            }
+          },
+          scales: {
+            x: {
+              ticks: {
+                maxRotation: 0,
+                autoSkip: true,
+                autoSkipPadding: 20,
+                maxTicksLimit: isLargeDataset ? 10 : 15,
+                font: {
+                  family: "'Lora', Georgia, serif",
+                  size: 11
+                },
+                color: '#64748B'
+              },
+              grid: {
+                display: false
+              }
+            },
+            y: {
+              ticks: {
+                callback: function(value) {
+                  if (typeof value === 'number') {
+                    return '$' + value.toLocaleString('en-US', {
+                      minimumFractionDigits: 0,
+                      maximumFractionDigits: 0
+                    });
+                  }
+                  return value;
+                },
+                font: {
+                  family: "'Lora', Georgia, serif",
+                  size: 11
+                },
+                color: '#64748B'
+              },
+              grid: {
+                color: 'rgba(148, 163, 184, 0.2)'
+              }
+            }
+          }
+        }
+      });
+
+      console.log('Chart rendered with', portfolioValues.length, 'portfolio points and', benchmarkValues.length, 'benchmark points');
+    }
+
     // Display results
     function displayResults(results) {
       console.log('Displaying results:', results);
@@ -643,10 +895,21 @@
         feesEl.textContent = formatCurrency(fees.totalFees || 0);
       }
 
+      // Render the performance chart
+      try {
+        renderPerformanceChart(
+          results.monthlyAnalysis,
+          results.benchmarkMonthlyDetails,
+          summary
+        );
+      } catch (chartError) {
+        console.error('Error rendering chart:', chartError);
+      }
+
       // Show results section
       console.log('Showing results section...');
       showSection('results-section');
-      
+
       // Double-check it's visible
       setTimeout(() => {
         const resultsSection = document.getElementById('results-section');
