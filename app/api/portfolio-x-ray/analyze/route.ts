@@ -192,52 +192,51 @@ export async function POST(request: NextRequest) {
     );
     const calculator = new PortfolioCalculator(marketData);
 
-    // Calculate for each account
-    const results = [];
+    // Calculate for ALL ACCOUNTS COMBINED as a single portfolio
+    // This ensures proper IRR calculation with combined cashflows
+    console.log(`\n=== Calculating for ALL ACCOUNTS COMBINED ===`);
 
-    for (const accountId of accountIds) {
-      try {
-        console.log(`\n=== Calculating for account ${accountId} ===`);
-        const result = await calculator.calculate(
-          accountId,
-          holdings,
-          transactions,
-          securities,
-          24 // 24 months lookback
-        );
-        results.push(result);
-        console.log(`Account ${accountId} results:`, {
-          startValue: result.startValue,
-          endValue: result.endValue,
-          totalReturn: result.totalReturn.toFixed(2) + '%',
-          irr: result.irr ? result.irr.toFixed(2) + '%' : 'N/A',
-          snapshots: result.monthlySnapshots.length,
-        });
-
-        // Debug output only in local development
-        if (process.env.NODE_ENV === 'development') {
-          try {
-            const debugOutputBaseDir = 'C:\\code\\portfolio_x_ray\\debug_output';
-            const accountDebugDir = path.join(debugOutputBaseDir, accountId);
-            exportSnapshotsToCSV(accountId, result.monthlySnapshots, securities, accountDebugDir);
-            exportTransactionsToCSV(accountId, transactions, securities, accountDebugDir);
-            exportSummaryToText(accountId, result, accountDebugDir);
-            exportTransactionLedger(accountId, result.monthlySnapshots, transactions, securities, accountDebugDir);
-          } catch (debugError) {
-            console.error(`Error exporting debug files for ${accountId}:`, debugError);
-          }
-        }
-      } catch (error: any) {
-        console.error(`Error calculating account ${accountId}:`, error.message);
-      }
-    }
-
-    if (results.length === 0) {
+    let combinedResult;
+    try {
+      combinedResult = await calculator.calculate(
+        'COMBINED', // Use a special ID for combined calculation
+        holdings,   // Pass ALL holdings (calculator will sum across accounts)
+        transactions, // Pass ALL transactions
+        securities,
+        24 // 24 months lookback
+      );
+      console.log(`Combined results:`, {
+        startValue: combinedResult.startValue,
+        endValue: combinedResult.endValue,
+        totalReturn: combinedResult.totalReturn.toFixed(2) + '%',
+        irr: combinedResult.irr ? combinedResult.irr.toFixed(2) + '%' : 'N/A',
+        benchmarkIrr: combinedResult.benchmarkIrr ? combinedResult.benchmarkIrr.toFixed(2) + '%' : 'N/A',
+        snapshots: combinedResult.monthlySnapshots.length,
+      });
+    } catch (error: any) {
+      console.error(`Error calculating combined portfolio:`, error.message);
       return NextResponse.json(
-        { error: 'No valid calculation results' },
+        { error: 'Portfolio calculation failed', details: error.message },
         { status: 500 }
       );
     }
+
+    // Debug output only in local development
+    if (process.env.NODE_ENV === 'development') {
+      try {
+        const debugOutputBaseDir = 'C:\\code\\portfolio_x_ray\\debug_output';
+        const accountDebugDir = path.join(debugOutputBaseDir, 'COMBINED');
+        exportSnapshotsToCSV('COMBINED', combinedResult.monthlySnapshots, securities, accountDebugDir);
+        exportTransactionsToCSV('COMBINED', transactions, securities, accountDebugDir);
+        exportSummaryToText('COMBINED', combinedResult, accountDebugDir);
+        exportTransactionLedger('COMBINED', combinedResult.monthlySnapshots, transactions, securities, accountDebugDir);
+      } catch (debugError) {
+        console.error(`Error exporting debug files:`, debugError);
+      }
+    }
+
+    // Use combined result as our single result
+    const results = [combinedResult];
 
     // Aggregate results
     const totalStartValue = results.reduce((sum, r) => sum + r.startValue, 0);

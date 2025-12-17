@@ -223,10 +223,11 @@ export class PortfolioCalculator {
     securities: Map<string, Security>,
     lookbackMonths: number = 24
   ): Promise<CalculationResult> {
-    // Filter to this account only
-    const accountHoldings = holdings.filter(h => h.account_id === accountId);
-    const accountTxs = transactions
-      .filter(t => t.account_id === accountId)
+    // When accountId is 'COMBINED', use all holdings/transactions without filtering
+    // This allows calculating IRR across all accounts as a single combined portfolio
+    const isCombined = accountId === 'COMBINED';
+    const accountHoldings = isCombined ? holdings : holdings.filter(h => h.account_id === accountId);
+    const accountTxs = (isCombined ? transactions : transactions.filter(t => t.account_id === accountId))
       .sort((a, b) => a.date.localeCompare(b.date));
 
     if (accountTxs.length === 0) {
@@ -288,20 +289,35 @@ export class PortfolioCalculator {
       monthEnds
     );
 
+    // Use first month-end snapshot as the true start value for IRR calculations
+    // The reconstructed startValue is an approximation; month-end snapshots are more reliable
+    const snapshotStartValue = snapshots.length > 0 ? snapshots[0].totalValue : startValue;
+    const snapshotStartDate = snapshots.length > 0 ? snapshots[0].date : startDateStr;
+    console.log(`[Calculator] First month-end value (IRR start): $${snapshotStartValue.toFixed(2)} on ${snapshotStartDate}`);
+
     // Use the last snapshot's value as the ending value (last complete month-end)
     const endValue = snapshots.length > 0 ? snapshots[snapshots.length - 1].totalValue : startValue;
     console.log(`[Calculator] End value (from last snapshot): $${endValue.toFixed(2)}`);
 
-    // Step 4: Calculate returns
-    const totalReturn = ((endValue - startValue) / startValue) * 100;
+    // Step 4: Calculate returns (using first month-end as true start)
+    const totalReturn = ((endValue - snapshotStartValue) / snapshotStartValue) * 100;
     const years = lookbackMonths / 12;
     const annualizedReturn = (Math.pow(1 + totalReturn / 100, 1 / years) - 1) * 100;
 
-    // Step 5: Calculate IRR
-    const externalCashflows = this.extractExternalCashflows(txsInRange);
-    const irr = this.calculateIRR(startValue, endValue, externalCashflows, startDateStr, endDateStr);
+    // Step 5: Calculate IRR using first month-end as start
+    // Filter cashflows to only include those after the first month-end
+    const externalCashflows = this.extractExternalCashflows(txsInRange)
+      .filter(cf => cf.date > snapshotStartDate);
+    const irr = this.calculateIRR(snapshotStartValue, endValue, externalCashflows, snapshotStartDate, endDateStr);
 
     // Step 6: Calculate benchmark (securities and cash tracked separately)
+    // Get start positions and cash from first snapshot for benchmark
+    const firstSnapshot = snapshots[0];
+    const snapshotStartCash = firstSnapshot?.cash || startCash;
+
+    // Filter monthEnds to only include dates from the snapshot start date onward
+    const benchmarkMonthEnds = monthEnds.filter(d => formatDate(d) >= snapshotStartDate);
+
     const {
       benchmarkReturn,
       benchmarkIrr,
@@ -309,26 +325,26 @@ export class PortfolioCalculator {
       benchmarkMonthlyData,
       benchmarkEndValue
     } = await this.calculateBenchmark(
-      startValue,
+      snapshotStartValue,
       endValue,
-      startPositions,
-      startCash,
+      firstSnapshot?.positions || startPositions,
+      snapshotStartCash,
       externalCashflows,
       securities,
-      monthEnds,
-      startDateStr,
+      benchmarkMonthEnds,
+      snapshotStartDate,
       endDateStr
     );
 
     // Step 7: Calculate fees
     const explicitFees = this.calculateExplicitFees(txsInRange);
-    const implicitFees = this.estimateImplicitFees(accountHoldings, securities, startValue, endValue, years);
+    const implicitFees = this.estimateImplicitFees(accountHoldings, securities, snapshotStartValue, endValue, years);
 
     return {
       accountId,
-      startDate: startDateStr,
+      startDate: snapshotStartDate,
       endDate: endDateStr,
-      startValue,
+      startValue: snapshotStartValue,
       endValue,
       totalReturn,
       annualizedReturn,
@@ -837,23 +853,26 @@ export class PortfolioCalculator {
       // Calculate benchmark IRR
       const benchmarkIrr = this.calculateIRR(startValue, benchmarkValue, cashflows, startDate, endDate);
 
-      // DEBUG: Log benchmark details
-      if (process.env.NODE_ENV === 'development') {
-        console.log('\n=== BENCHMARK CALCULATION DEBUG ===');
-        console.log('Securities Benchmark Weights:');
-        for (const [ticker, weight] of benchmarkWeights) {
-          console.log(`  ${ticker}: ${weight.toFixed(2)}%`);
-        }
-        console.log(`Cash Benchmark: ${CASH_BENCHMARK}`);
-        console.log(`\nStarting Securities: $${totalSecuritiesValue.toFixed(2)}`);
-        console.log(`Starting Cash: $${startCash.toFixed(2)}`);
-        console.log(`Start Total: $${startValue.toFixed(2)}`);
-        console.log(`\nEnding Securities: $${securitiesValue.toFixed(2)}`);
-        console.log(`Ending Cash: $${cashValue.toFixed(2)}`);
-        console.log(`End Total: $${benchmarkValue.toFixed(2)}`);
-        console.log(`\nBenchmark IRR: ${benchmarkIrr ? benchmarkIrr.toFixed(2) + '%' : 'N/A'}`);
-        console.log('====================================\n');
+      // DEBUG: Log benchmark details (always log for now to debug)
+      console.log('\n=== BENCHMARK CALCULATION DEBUG ===');
+      console.log('Securities Benchmark Weights:');
+      for (const [ticker, weight] of benchmarkWeights) {
+        console.log(`  ${ticker}: ${weight.toFixed(2)}%`);
       }
+      console.log(`Cash Benchmark: ${CASH_BENCHMARK}`);
+      console.log(`\nStarting Securities: $${totalSecuritiesValue.toFixed(2)}`);
+      console.log(`Starting Cash: $${startCash.toFixed(2)}`);
+      console.log(`Start Total: $${startValue.toFixed(2)}`);
+      console.log(`\nEnding Securities: $${securitiesValue.toFixed(2)}`);
+      console.log(`Ending Cash: $${cashValue.toFixed(2)}`);
+      console.log(`End Total (benchmarkValue): $${benchmarkValue.toFixed(2)}`);
+      console.log(`\nCashflows passed to benchmark IRR:`);
+      for (const cf of cashflows) {
+        console.log(`  ${cf.date}: $${cf.amount.toFixed(2)}`);
+      }
+      console.log(`\nBenchmark IRR: ${benchmarkIrr ? benchmarkIrr.toFixed(2) + '%' : 'N/A'}`);
+      console.log(`Month ends count: ${monthEnds.length}`);
+      console.log('====================================\n');
 
       return {
         benchmarkReturn,
