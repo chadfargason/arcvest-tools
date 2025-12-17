@@ -207,14 +207,57 @@ async function buildPdfBuffer({
   drawText('Current Holdings', 18, { bold: true });
   y -= 10;
 
-  const allocation = analysis.portfolioAllocation || {};
-  const holdings = Object.entries(allocation)
-    .sort((a, b) => Number(b[1]) - Number(a[1]))
-    .slice(0, 15); // Top 15 holdings
+  // Use detailed holdings if available, fall back to simple allocation
+  const holdingsDetails = analysis.holdingsDetails || [];
+  const cashHoldings = analysis.cashHoldings || { value: 0, percentage: 0 };
 
-  for (const [ticker, weight] of holdings) {
-    drawNewPageIfNeeded(20);
-    drawText(`${ticker}: ${Number(weight).toFixed(1)}%`, 10);
+  if (holdingsDetails.length > 0) {
+    // Column headers
+    drawText('Ticker                  | Quantity      | Price      | Value        | %', 8, { bold: true });
+    y -= 5;
+
+    // Show top 15 holdings with full details
+    for (const holding of holdingsDetails.slice(0, 15)) {
+      drawNewPageIfNeeded(15);
+      const ticker = (holding.ticker || 'Unknown').substring(0, 22).padEnd(22);
+      const qty = holding.quantity.toFixed(2).padStart(13);
+      const price = ('$' + holding.price.toFixed(2)).padStart(10);
+      const value = ('$' + holding.value.toFixed(2)).padStart(12);
+      const pct = (holding.percentage.toFixed(1) + '%').padStart(6);
+      drawText(`${ticker} | ${qty} | ${price} | ${value} | ${pct}`, 7);
+    }
+
+    // Show cash/equivalents
+    if (cashHoldings.value > 0) {
+      y -= 5;
+      const cashTicker = 'Cash & Equivalents'.padEnd(22);
+      const cashQty = '-'.padStart(13);
+      const cashPrice = '-'.padStart(10);
+      const cashValue = ('$' + cashHoldings.value.toFixed(2)).padStart(12);
+      const cashPct = (cashHoldings.percentage.toFixed(1) + '%').padStart(6);
+      drawText(`${cashTicker} | ${cashQty} | ${cashPrice} | ${cashValue} | ${cashPct}`, 7, { bold: true });
+    }
+
+    // Total line
+    y -= 5;
+    const totalValue = holdingsDetails.reduce((sum, h) => sum + h.value, 0) + cashHoldings.value;
+    const totalTicker = 'TOTAL'.padEnd(22);
+    const totalQty = '-'.padStart(13);
+    const totalPrice = '-'.padStart(10);
+    const totalValueStr = ('$' + totalValue.toFixed(2)).padStart(12);
+    const totalPct = '100.0%'.padStart(6);
+    drawText(`${totalTicker} | ${totalQty} | ${totalPrice} | ${totalValueStr} | ${totalPct}`, 7, { bold: true });
+  } else {
+    // Fallback to simple percentage display
+    const allocation = analysis.portfolioAllocation || {};
+    const holdings = Object.entries(allocation)
+      .sort((a, b) => Number(b[1]) - Number(a[1]))
+      .slice(0, 15);
+
+    for (const [ticker, weight] of holdings) {
+      drawNewPageIfNeeded(20);
+      drawText(`${ticker}: ${Number(weight).toFixed(1)}%`, 10);
+    }
   }
 
   y -= 20;
@@ -438,6 +481,13 @@ async function buildPdfBuffer({
     drawText('Transaction Ledger', 18, { bold: true });
     y -= 10;
 
+    // Build a map of current holdings quantities for comparison
+    const currentHoldingsQty = new Map<string, number>();
+    const ledgerHoldingsDetails = analysis.holdingsDetails || [];
+    for (const h of ledgerHoldingsDetails) {
+      currentHoldingsQty.set(h.ticker, h.quantity);
+    }
+
     // Group transactions by security
     const txBySecurity = new Map<string, any[]>();
     for (const tx of analysis.allTransactions) {
@@ -457,9 +507,11 @@ async function buildPdfBuffer({
     for (const [security, txs] of Array.from(txBySecurity.entries()).sort((a, b) => a[0].localeCompare(b[0]))) {
       drawNewPageIfNeeded(120);
 
-      // Security header
+      // Security header - show current holdings quantity
       const securityName = security.length > 50 ? security.substring(0, 47) + '...' : security;
-      drawText(`${securityName}`, 11, { bold: true });
+      const currentQty = currentHoldingsQty.get(security);
+      const currentQtyStr = currentQty !== undefined ? ` (Current: ${currentQty.toFixed(2)} shares)` : '';
+      drawText(`${securityName}${currentQtyStr}`, 11, { bold: true });
       y -= 5;
 
       // Column headers (compact format for PDF)
@@ -490,6 +542,13 @@ async function buildPdfBuffer({
 
         const line = `${date} | ${type} | ${qty} | ${price} | ${amount} | ${fees} | ${running}`;
         drawText(line, 6);
+      }
+
+      // Show reconciliation note if running qty doesn't match current holdings
+      if (currentQty !== undefined && Math.abs(runningQty - currentQty) > 0.001) {
+        y -= 3;
+        drawText(`  Note: Transaction history shows ${runningQty.toFixed(2)}, current holdings show ${currentQty.toFixed(2)}`, 6, { color: subtleColor });
+        drawText(`  (Difference may be due to transactions before the 24-month lookback period)`, 6, { color: subtleColor });
       }
 
       y -= 8;

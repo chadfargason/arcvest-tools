@@ -36,6 +36,14 @@ interface BenchmarkMonthlyDetail {
   value: number;
 }
 
+interface HoldingDetail {
+  ticker: string;
+  quantity: number;
+  price: number;
+  value: number;
+  percentage: number;
+}
+
 interface AnalysisResponse {
   monthlyAnalysis: MonthlyAnalysis[];
   summary: {
@@ -62,6 +70,8 @@ interface AnalysisResponse {
     feeTransactions: any[];
   };
   portfolioAllocation: { [ticker: string]: number };
+  holdingsDetails?: HoldingDetail[];
+  cashHoldings?: { value: number; percentage: number };
   benchmarkWeights: { [ticker: string]: number };
   cashflowDetails?: CashflowDetail[];
   benchmarkMonthlyDetails?: BenchmarkMonthlyDetail[];
@@ -299,30 +309,53 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // Calculate portfolio allocation
+    // Calculate portfolio allocation with detailed holdings info
     // First, calculate total portfolio value (including cash equivalents)
     let totalPortfolioValue = 0;
+    let totalCashValue = 0;
     for (const holding of holdings) {
       totalPortfolioValue += holding.institution_value;
+      const security = securities.get(holding.security_id);
+      if (security?.is_cash_equivalent) {
+        totalCashValue += holding.institution_value;
+      }
     }
 
-    // Then build allocation for non-cash securities as percentage of TOTAL portfolio
-    const portfolioAllocation: { [ticker: string]: number } = {};
+    // Build detailed holdings data for non-cash securities
+    const holdingsDetailMap: { [ticker: string]: { quantity: number; value: number; price: number } } = {};
     for (const holding of holdings) {
       const security = securities.get(holding.security_id);
       if (security && !security.is_cash_equivalent) {
         const ticker = security.ticker_symbol || security.name;
-        const value = holding.institution_value;
-        portfolioAllocation[ticker] = (portfolioAllocation[ticker] || 0) + value;
+        if (!holdingsDetailMap[ticker]) {
+          holdingsDetailMap[ticker] = { quantity: 0, value: 0, price: holding.institution_price };
+        }
+        holdingsDetailMap[ticker].quantity += holding.quantity;
+        holdingsDetailMap[ticker].value += holding.institution_value;
       }
     }
 
-    // Convert to percentages using total portfolio value (not just non-cash holdings)
+    // Build portfolioAllocation (percentages only - for backward compatibility)
+    const portfolioAllocation: { [ticker: string]: number } = {};
     if (totalPortfolioValue > 0) {
-      for (const ticker in portfolioAllocation) {
-        portfolioAllocation[ticker] = (portfolioAllocation[ticker] / totalPortfolioValue) * 100;
+      for (const ticker in holdingsDetailMap) {
+        portfolioAllocation[ticker] = (holdingsDetailMap[ticker].value / totalPortfolioValue) * 100;
       }
     }
+
+    // Build detailed holdings array for PDF
+    const holdingsDetails = Object.entries(holdingsDetailMap)
+      .map(([ticker, data]) => ({
+        ticker,
+        quantity: data.quantity,
+        price: data.price,
+        value: data.value,
+        percentage: totalPortfolioValue > 0 ? (data.value / totalPortfolioValue) * 100 : 0
+      }))
+      .sort((a, b) => b.value - a.value);
+
+    // Add cash/equivalents as a summary item
+    const cashPercentage = totalPortfolioValue > 0 ? (totalCashValue / totalPortfolioValue) * 100 : 0;
 
     // Aggregate benchmark weights from all accounts (weighted by account start value)
     const benchmarkWeights: { [ticker: string]: number } = {};
@@ -508,6 +541,8 @@ export async function POST(request: NextRequest) {
         feeTransactions,
       },
       portfolioAllocation,
+      holdingsDetails,
+      cashHoldings: { value: totalCashValue, percentage: cashPercentage },
       benchmarkWeights,
       cashflowDetails,
       benchmarkMonthlyDetails,
