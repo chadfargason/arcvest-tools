@@ -741,9 +741,9 @@ export class PortfolioCalculator {
 
         benchmarkWeights.set(
           benchmark,
-          (benchmarkWeights.get(benchmark) || 0) + Math.abs(pos.value)
+          (benchmarkWeights.get(benchmark) || 0) + pos.value
         );
-        totalSecuritiesValue += Math.abs(pos.value);
+        totalSecuritiesValue += pos.value;
       }
 
       // Normalize weights to percentages (of securities portion only)
@@ -777,7 +777,7 @@ export class PortfolioCalculator {
       // Track benchmark value evolution
       const benchmarkEvolution: BenchmarkMonthlyData[] = [];
 
-      console.log(`[Benchmark] Starting securities: $${securitiesValue.toFixed(2)}, cash: $${cashValue.toFixed(2)}`);
+      console.log(`[Benchmark] Starting securities: $${securitiesValue.toFixed(2)}, cash: $${cashValue.toFixed(2)}, total: $${(securitiesValue + cashValue).toFixed(2)}, expected: $${startValue.toFixed(2)}`);
 
       for (let i = 0; i < monthEnds.length; i++) {
         const monthEnd = monthEnds[i];
