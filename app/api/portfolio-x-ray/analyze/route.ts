@@ -300,23 +300,27 @@ export async function POST(request: NextRequest) {
     }
 
     // Calculate portfolio allocation
-    const portfolioAllocation: { [ticker: string]: number } = {};
-    let totalHoldingsValue = 0;
+    // First, calculate total portfolio value (including cash equivalents)
+    let totalPortfolioValue = 0;
+    for (const holding of holdings) {
+      totalPortfolioValue += holding.institution_value;
+    }
 
+    // Then build allocation for non-cash securities as percentage of TOTAL portfolio
+    const portfolioAllocation: { [ticker: string]: number } = {};
     for (const holding of holdings) {
       const security = securities.get(holding.security_id);
       if (security && !security.is_cash_equivalent) {
         const ticker = security.ticker_symbol || security.name;
         const value = holding.institution_value;
-        totalHoldingsValue += value;
         portfolioAllocation[ticker] = (portfolioAllocation[ticker] || 0) + value;
       }
     }
 
-    // Convert to percentages
-    if (totalHoldingsValue > 0) {
+    // Convert to percentages using total portfolio value (not just non-cash holdings)
+    if (totalPortfolioValue > 0) {
       for (const ticker in portfolioAllocation) {
-        portfolioAllocation[ticker] = (portfolioAllocation[ticker] / totalHoldingsValue) * 100;
+        portfolioAllocation[ticker] = (portfolioAllocation[ticker] / totalPortfolioValue) * 100;
       }
     }
 

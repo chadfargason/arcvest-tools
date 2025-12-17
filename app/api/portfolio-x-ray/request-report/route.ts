@@ -472,13 +472,10 @@ async function buildPdfBuffer({
       for (const tx of txs) {
         drawNewPageIfNeeded(15);
 
-        // Update running quantity
+        // Update running quantity - tx.quantity is signed (positive for buys, negative for sells)
+        // So we simply add it to get the correct running total
         const txQty = parseFloat(tx.quantity || 0);
-        if (tx.type === 'buy' || tx.type === 'transfer') {
-          runningQty += txQty;
-        } else if (tx.type === 'sell') {
-          runningQty -= txQty;
-        }
+        runningQty += txQty;
 
         // Format fields
         const date = tx.date.substring(0, 10); // YYYY-MM-DD format
