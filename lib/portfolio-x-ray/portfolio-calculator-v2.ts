@@ -248,6 +248,7 @@ export class PortfolioCalculator {
     console.log(`[Calculator] Account ${accountId}: ${txsInRange.length} transactions from ${startDateStr} to ${endDateStr}`);
 
     // Step 1: Build ending positions from holdings (for reconstructing start)
+    // Note: Holdings are as of TODAY, not as of endDate
     const endPositions = this.buildEndPositions(accountHoldings, securities);
 
     // Step 1b: Extract ending cash from holdings (sum of cash equivalent positions)
@@ -258,12 +259,17 @@ export class PortfolioCalculator {
         endCash += holding.institution_value;
       }
     }
-    console.log(`[Calculator] End cash from holdings: $${endCash.toFixed(2)}`);
+    console.log(`[Calculator] End cash from holdings (as of today): $${endCash.toFixed(2)}`);
 
     // Step 2: Reconstruct starting positions
+    // IMPORTANT: We need to reverse ALL transactions from startDate to today (not just to endDate)
+    // because holdings are as of today, not as of endDate
+    const allTxsFromStart = accountTxs.filter(t => t.date >= startDateStr);
+    console.log(`[Calculator] Reversing ${allTxsFromStart.length} transactions to reconstruct start positions`);
+
     const { startPositions, startCash } = this.reconstructStartPositions(
       endPositions,
-      txsInRange,
+      allTxsFromStart,
       securities,
       endCash
     );
