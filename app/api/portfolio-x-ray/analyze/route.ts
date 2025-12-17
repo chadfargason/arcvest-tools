@@ -270,20 +270,20 @@ export async function POST(request: NextRequest) {
 
       for (let i = 0; i < numMonths; i++) {
         // Sum up values across all accounts for this month
-        let totalPortfolioValue = 0;
+        let monthlyPortfolioValue = 0;
         let totalBenchmarkValue = 0;
         let monthDate = results[0].monthlySnapshots[i].date;
 
         for (const result of results) {
           if (i < result.monthlySnapshots.length) {
-            totalPortfolioValue += result.monthlySnapshots[i].totalValue;
+            monthlyPortfolioValue += result.monthlySnapshots[i].totalValue;
             // TODO: Add benchmark value when available
           }
         }
 
         // Calculate return from previous month
         const prevMonthValue = i > 0 ? monthlyAnalysis[i - 1].portfolioValue : totalStartValue;
-        const monthReturn = ((totalPortfolioValue - prevMonthValue) / prevMonthValue) * 100;
+        const monthReturn = ((monthlyPortfolioValue - prevMonthValue) / prevMonthValue) * 100;
 
         // Format date as MM-DD-YYYY (convert from YYYY-MM-DD)
         const dateParts = monthDate.split('-');
@@ -292,7 +292,7 @@ export async function POST(request: NextRequest) {
         monthlyAnalysis.push({
           month: formattedDate,
           portfolioReturn: monthReturn,
-          portfolioValue: totalPortfolioValue,
+          portfolioValue: monthlyPortfolioValue,
           benchmarkReturn: 0, // TODO: calculate from benchmark snapshots
           benchmarkValue: 0,
         });
