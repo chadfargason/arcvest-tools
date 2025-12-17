@@ -241,7 +241,7 @@ async function buildPdfBuffer({
 
     // Total line
     y -= 5;
-    const totalValue = holdingsDetails.reduce((sum, h) => sum + h.value, 0) + cashHoldings.value;
+    const totalValue = holdingsDetails.reduce((sum: number, h: any) => sum + h.value, 0) + cashHoldings.value;
     const totalTicker = 'TOTAL'.padEnd(22);
     const totalQty = '-'.padStart(13);
     const totalPrice = '-'.padStart(10);
@@ -310,7 +310,7 @@ async function buildPdfBuffer({
 
     // Reconciliation note
     y -= 10;
-    const calculatedTotal = holdingsDetails.reduce((sum, h) => sum + h.value, 0) + cashHoldings.value;
+    const calculatedTotal = holdingsDetails.reduce((sum: number, h: any) => sum + h.value, 0) + cashHoldings.value;
     const diff = plaidTotalValue - calculatedTotal;
     if (Math.abs(diff) > 0.01) {
       drawText(`Reconciliation:`, 9, { bold: true });
