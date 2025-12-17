@@ -204,7 +204,8 @@ async function buildPdfBuffer({
 
   // Current Holdings Section
   drawNewPageIfNeeded(200);
-  drawText('Current Holdings', 18, { bold: true });
+  const holdingsAsOfDate = analysis.holdingsAsOfDate || summary.endDate || 'N/A';
+  drawText(`Portfolio Holdings (as of ${holdingsAsOfDate})`, 18, { bold: true });
   y -= 10;
 
   // Use detailed holdings if available, fall back to simple allocation

@@ -71,6 +71,7 @@ interface AnalysisResponse {
   };
   portfolioAllocation: { [ticker: string]: number };
   holdingsDetails?: HoldingDetail[];
+  holdingsAsOfDate?: string; // Date the holdings are as of (last snapshot date)
   cashHoldings?: { value: number; percentage: number };
   benchmarkWeights: { [ticker: string]: number };
   cashflowDetails?: CashflowDetail[];
@@ -309,31 +310,39 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // Calculate portfolio allocation with detailed holdings info
-    // First, calculate total portfolio value (including cash equivalents)
-    let totalPortfolioValue = 0;
+    // Calculate portfolio allocation from FINAL SNAPSHOT (not current Plaid holdings)
+    // This ensures holdings match the final month-end portfolio value shown in monthly analysis
+    const holdingsDetailMap: { [ticker: string]: { quantity: number; value: number; price: number } } = {};
     let totalCashValue = 0;
-    for (const holding of holdings) {
-      totalPortfolioValue += holding.institution_value;
-      const security = securities.get(holding.security_id);
-      if (security?.is_cash_equivalent) {
-        totalCashValue += holding.institution_value;
+
+    // Aggregate final positions from all accounts' last snapshots
+    for (const result of results) {
+      const lastSnapshot = result.monthlySnapshots[result.monthlySnapshots.length - 1];
+      if (lastSnapshot) {
+        // Add cash from this account's final snapshot
+        totalCashValue += lastSnapshot.cash;
+
+        // Add positions from this account's final snapshot
+        for (const [securityId, position] of lastSnapshot.positions) {
+          const security = securities.get(securityId);
+          const ticker = security?.ticker_symbol || security?.name || securityId;
+
+          // Check if this security is cash equivalent
+          if (security?.is_cash_equivalent) {
+            totalCashValue += position.value;
+          } else {
+            if (!holdingsDetailMap[ticker]) {
+              holdingsDetailMap[ticker] = { quantity: 0, value: 0, price: position.price };
+            }
+            holdingsDetailMap[ticker].quantity += position.quantity;
+            holdingsDetailMap[ticker].value += position.value;
+          }
+        }
       }
     }
 
-    // Build detailed holdings data for non-cash securities
-    const holdingsDetailMap: { [ticker: string]: { quantity: number; value: number; price: number } } = {};
-    for (const holding of holdings) {
-      const security = securities.get(holding.security_id);
-      if (security && !security.is_cash_equivalent) {
-        const ticker = security.ticker_symbol || security.name;
-        if (!holdingsDetailMap[ticker]) {
-          holdingsDetailMap[ticker] = { quantity: 0, value: 0, price: holding.institution_price };
-        }
-        holdingsDetailMap[ticker].quantity += holding.quantity;
-        holdingsDetailMap[ticker].value += holding.institution_value;
-      }
-    }
+    // Total portfolio value = totalEndValue (already calculated from snapshots)
+    const totalPortfolioValue = totalEndValue;
 
     // Build portfolioAllocation (percentages only - for backward compatibility)
     const portfolioAllocation: { [ticker: string]: number } = {};
@@ -354,7 +363,7 @@ export async function POST(request: NextRequest) {
       }))
       .sort((a, b) => b.value - a.value);
 
-    // Add cash/equivalents as a summary item
+    // Cash percentage of total portfolio
     const cashPercentage = totalPortfolioValue > 0 ? (totalCashValue / totalPortfolioValue) * 100 : 0;
 
     // Aggregate benchmark weights from all accounts (weighted by account start value)
@@ -542,6 +551,7 @@ export async function POST(request: NextRequest) {
       },
       portfolioAllocation,
       holdingsDetails,
+      holdingsAsOfDate: formatDateToMMDDYYYY(firstResult.endDate),
       cashHoldings: { value: totalCashValue, percentage: cashPercentage },
       benchmarkWeights,
       cashflowDetails,
