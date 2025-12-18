@@ -187,18 +187,7 @@ async function buildPdfBuffer({
     color: outperformance >= 0 ? accentColor : rgb(0.82, 0.16, 0.16)
   });
 
-  y -= 10;
-  const fees = analysis.fees || {};
-  drawText(`Explicit Fees: ${formatCurrency(fees.explicitFees || 0)}`, 10);
-  drawText(`Implicit Fees (est): ${formatCurrency(fees.implicitFees || 0)}`, 10);
-  drawText(`Total Fees Paid: ${formatCurrency(fees.totalFees || 0)}`, 11, { bold: true });
-
-  y -= 10;
-  drawText('Implicit Fee Assumptions:', 9, { bold: true, color: subtleColor });
-  drawText('  • Uses default expense ratios (0.5% for mutual funds, 0.1% for ETFs)', 8, { color: subtleColor });
-  drawText('  • Actual expense ratios vary widely (index funds: 0.03%, active funds: 1.5%+)', 8, { color: subtleColor });
-  drawText('  • Based on current holdings (may not reflect historical positions)', 8, { color: subtleColor });
-  drawText('  • Simple average of start/end value (doesn\'t account for cashflow timing)', 8, { color: subtleColor });
+  // Fee display hidden - Phase 2 (calculations still run, display suppressed)
 
   y -= 20;
 
@@ -522,9 +511,6 @@ async function buildPdfBuffer({
 
         drawText(`  Amount: ${formatCurrency(Math.abs(amount))}`, 8);
 
-        if (tx.fees && tx.fees > 0) {
-          drawText(`  Fees: ${formatCurrency(tx.fees)}`, 8, { color: rgb(0.82, 0.16, 0.16) });
-        }
 
         y -= 3;
         txCount++;
@@ -576,7 +562,7 @@ async function buildPdfBuffer({
       y -= 5;
 
       // Column headers (compact format for PDF)
-      drawText('Date       | Type    | Qty          | Price     | Amount     | Fees    | Running Qty', 7, { bold: true });
+      drawText('Date       | Type    | Qty          | Price     | Amount     | Running Qty', 7, { bold: true });
       y -= 3;
 
       // Track running quantity
@@ -598,10 +584,10 @@ async function buildPdfBuffer({
           : '            ';
         const price = tx.price ? ('$' + parseFloat(tx.price).toFixed(2)).padStart(9) : '        -';
         const amount = tx.amount ? ('$' + parseFloat(tx.amount).toFixed(2)).padStart(10) : '         -';
-        const fees = tx.fees && parseFloat(tx.fees) > 0 ? ('$' + parseFloat(tx.fees).toFixed(2)).padStart(7) : '      -';
+        // Fee column hidden - Phase 2
         const running = runningQty !== 0 ? runningQty.toFixed(6).padStart(12) : '           -';
 
-        const line = `${date} | ${type} | ${qty} | ${price} | ${amount} | ${fees} | ${running}`;
+        const line = `${date} | ${type} | ${qty} | ${price} | ${amount} | ${running}`;
         drawText(line, 6);
       }
 

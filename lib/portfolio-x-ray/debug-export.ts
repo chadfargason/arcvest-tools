@@ -1,30 +1,41 @@
 /**
- * Debug utilities for Portfolio Calculator V2
+ * Portfolio X-Ray - Debug Export Utilities
+ *
+ * Exports portfolio data to CSV and text files for debugging.
  */
 
-import { PortfolioSnapshot, Transaction, Security, Holding } from './portfolio-calculator-v2';
+import { PortfolioSnapshot, Transaction, Security, PortfolioResult } from './types';
 import * as fs from 'fs';
 import * as path from 'path';
 
+/**
+ * Ensure directory exists.
+ */
+function ensureDir(dir: string): void {
+  if (!fs.existsSync(dir)) {
+    fs.mkdirSync(dir, { recursive: true });
+  }
+}
+
+/**
+ * Export monthly snapshots to CSV.
+ */
 export function exportSnapshotsToCSV(
   accountId: string,
   snapshots: PortfolioSnapshot[],
   securities: Map<string, Security>,
   outputDir: string
 ): void {
-  if (!fs.existsSync(outputDir)) {
-    fs.mkdirSync(outputDir, { recursive: true });
-  }
+  ensureDir(outputDir);
 
-  // Monthly snapshots CSV
-  const monthlyLines = ['Date,Security,Ticker,Quantity,Price,Value,Cash,TotalValue'];
+  const lines = ['Date,Security,Ticker,Quantity,Price,Value,Cash,TotalValue'];
 
   for (const snapshot of snapshots) {
     for (const [secId, position] of snapshot.positions) {
       const security = securities.get(secId);
       const ticker = security?.ticker_symbol || security?.name || secId;
 
-      monthlyLines.push(
+      lines.push(
         [
           snapshot.date,
           security?.name || 'Unknown',
@@ -39,8 +50,8 @@ export function exportSnapshotsToCSV(
     }
 
     // Add cash line if there's cash
-    if (snapshot.cash > 0.01) {
-      monthlyLines.push(
+    if (Math.abs(snapshot.cash) > 0.01) {
+      lines.push(
         [
           snapshot.date,
           'Cash',
@@ -55,25 +66,25 @@ export function exportSnapshotsToCSV(
     }
   }
 
-  fs.writeFileSync(path.join(outputDir, 'monthly_snapshots.csv'), monthlyLines.join('\n'));
-  console.log(`Exported monthly snapshots to ${path.join(outputDir, 'monthly_snapshots.csv')}`);
+  const filepath = path.join(outputDir, 'monthly_snapshots.csv');
+  fs.writeFileSync(filepath, lines.join('\n'));
+  console.log(`Exported monthly snapshots to ${filepath}`);
 }
 
+/**
+ * Export transactions to CSV.
+ */
 export function exportTransactionsToCSV(
   accountId: string,
   transactions: Transaction[],
   securities: Map<string, Security>,
   outputDir: string
 ): void {
-  if (!fs.existsSync(outputDir)) {
-    fs.mkdirSync(outputDir, { recursive: true });
-  }
+  ensureDir(outputDir);
 
   const lines = ['Date,Type,Subtype,Security,Ticker,Quantity,Price,Amount,Fees,Name'];
 
-  const sortedTxs = [...transactions]
-    .filter(t => t.account_id === accountId)
-    .sort((a, b) => a.date.localeCompare(b.date));
+  const sortedTxs = [...transactions].sort((a, b) => a.date.localeCompare(b.date));
 
   for (const tx of sortedTxs) {
     const security = tx.security_id ? securities.get(tx.security_id) : null;
@@ -95,31 +106,20 @@ export function exportTransactionsToCSV(
     );
   }
 
-  fs.writeFileSync(path.join(outputDir, 'transactions.csv'), lines.join('\n'));
-  console.log(`Exported transactions to ${path.join(outputDir, 'transactions.csv')}`);
+  const filepath = path.join(outputDir, 'transactions.csv');
+  fs.writeFileSync(filepath, lines.join('\n'));
+  console.log(`Exported transactions to ${filepath}`);
 }
 
+/**
+ * Export summary to text file.
+ */
 export function exportSummaryToText(
   accountId: string,
-  result: {
-    startDate: string;
-    endDate: string;
-    startValue: number;
-    endValue: number;
-    totalReturn: number;
-    annualizedReturn: number;
-    irr: number | null;
-    benchmarkReturn: number;
-    benchmarkIrr: number | null;
-    explicitFees: number;
-    implicitFees: number;
-    totalFees: number;
-  },
+  result: PortfolioResult,
   outputDir: string
 ): void {
-  if (!fs.existsSync(outputDir)) {
-    fs.mkdirSync(outputDir, { recursive: true });
-  }
+  ensureDir(outputDir);
 
   const lines = [
     '='.repeat(60),
@@ -138,25 +138,34 @@ export function exportSummaryToText(
     '',
     'BENCHMARK COMPARISON',
     '-'.repeat(60),
-    `Benchmark Return:       ${result.benchmarkReturn.toFixed(2).padStart(14)}%`,
-    `Benchmark IRR:          ${result.benchmarkIrr ? result.benchmarkIrr.toFixed(2).padStart(14) + '%' : 'N/A'.padStart(15)}`,
-    `Outperformance:         ${(result.annualizedReturn - result.benchmarkReturn).toFixed(2).padStart(14)}%`,
+    `Benchmark Return:       ${result.benchmark.return.toFixed(2).padStart(14)}%`,
+    `Benchmark IRR:          ${result.benchmark.irr ? result.benchmark.irr.toFixed(2).padStart(14) + '%' : 'N/A'.padStart(15)}`,
+    `Outperformance:         ${result.outperformance.toFixed(2).padStart(14)}%`,
     '',
-    'FEES',
+    'BENCHMARK WEIGHTS',
     '-'.repeat(60),
-    `Explicit Fees:         $${result.explicitFees.toFixed(2).padStart(15)}`,
-    `Implicit Fees (est):   $${result.implicitFees.toFixed(2).padStart(15)}`,
-    `Total Fees:            $${result.totalFees.toFixed(2).padStart(15)}`,
-    '',
-    '='.repeat(60),
   ];
 
-  fs.writeFileSync(path.join(outputDir, 'summary.txt'), lines.join('\n'));
-  console.log(`Exported summary to ${path.join(outputDir, 'summary.txt')}`);
+  for (const [ticker, weight] of result.benchmark.weights) {
+    lines.push(`  ${ticker.padEnd(10)}: ${weight.toFixed(2).padStart(10)}%`);
+  }
+
+  lines.push('');
+  lines.push('FEES');
+  lines.push('-'.repeat(60));
+  lines.push(`Explicit Fees:         $${result.fees.explicitFees.toFixed(2).padStart(15)}`);
+  lines.push(`Implicit Fees (est):   $${result.fees.implicitFees.toFixed(2).padStart(15)}`);
+  lines.push(`Total Fees:            $${result.fees.totalFees.toFixed(2).padStart(15)}`);
+  lines.push('');
+  lines.push('='.repeat(60));
+
+  const filepath = path.join(outputDir, 'summary.txt');
+  fs.writeFileSync(filepath, lines.join('\n'));
+  console.log(`Exported summary to ${filepath}`);
 }
 
 /**
- * Export complete transaction ledger by security showing running balances
+ * Export transaction ledger showing running balances.
  */
 export function exportTransactionLedger(
   accountId: string,
@@ -165,9 +174,7 @@ export function exportTransactionLedger(
   securities: Map<string, Security>,
   outputDir: string
 ): void {
-  if (!fs.existsSync(outputDir)) {
-    fs.mkdirSync(outputDir, { recursive: true });
-  }
+  ensureDir(outputDir);
 
   if (snapshots.length === 0) {
     console.log('No snapshots to export ledger');
@@ -177,14 +184,11 @@ export function exportTransactionLedger(
   const startSnapshot = snapshots[0];
   const endSnapshot = snapshots[snapshots.length - 1];
 
-  // Group transactions by security
-  const accountTxs = transactions
-    .filter(t => t.account_id === accountId)
-    .sort((a, b) => a.date.localeCompare(b.date));
+  const sortedTxs = [...transactions].sort((a, b) => a.date.localeCompare(b.date));
 
-  // Get all unique securities from transactions and snapshots
+  // Get all unique securities
   const allSecurityIds = new Set<string>();
-  for (const tx of accountTxs) {
+  for (const tx of sortedTxs) {
     if (tx.security_id) {
       allSecurityIds.add(tx.security_id);
     }
@@ -230,7 +234,7 @@ export function exportTransactionLedger(
     let runningQty = startPos ? startPos.quantity : 0;
 
     // Show all transactions for this security
-    const securityTxs = accountTxs.filter(tx => tx.security_id === securityId);
+    const securityTxs = sortedTxs.filter(tx => tx.security_id === securityId);
 
     if (securityTxs.length === 0) {
       lines.push('(No transactions for this security)');
@@ -272,8 +276,10 @@ export function exportTransactionLedger(
   lines.push('Date       | Type       | Amount      | Description');
   lines.push('-'.repeat(120));
 
-  // Show all cash transactions
-  const cashTxs = accountTxs.filter(tx => !tx.security_id || securities.get(tx.security_id)?.is_cash_equivalent);
+  // Show cash transactions
+  const cashTxs = sortedTxs.filter(tx =>
+    !tx.security_id || securities.get(tx.security_id)?.is_cash_equivalent
+  );
 
   if (cashTxs.length === 0) {
     lines.push('(No cash transactions)');
@@ -291,6 +297,7 @@ export function exportTransactionLedger(
   lines.push('');
   lines.push('='.repeat(120));
 
-  fs.writeFileSync(path.join(outputDir, 'transaction_ledger.txt'), lines.join('\n'));
-  console.log(`Exported transaction ledger to ${path.join(outputDir, 'transaction_ledger.txt')}`);
+  const filepath = path.join(outputDir, 'transaction_ledger.txt');
+  fs.writeFileSync(filepath, lines.join('\n'));
+  console.log(`Exported transaction ledger to ${filepath}`);
 }

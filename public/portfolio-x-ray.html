@@ -243,7 +243,7 @@
 <body>
   <div class="container">
     <h1>Portfolio X-Ray</h1>
-    <p class="subtitle">Connect your investment account to analyze your portfolio performance, compare to benchmarks, and see fees paid over the past 24 months.</p>
+    <p class="subtitle">Connect your investment account to analyze your portfolio performance, compare to benchmarks over the past 24 months.</p>
 
     <!-- Connect Section -->
     <div class="section" id="connect-section">
@@ -284,10 +284,6 @@
             <div class="metric-value" id="outperformance">—</div>
           </div>
 
-          <div class="metric-card">
-            <div class="metric-label">Total Fees Paid (24 Months)</div>
-            <div class="metric-value" id="total-fees">—</div>
-          </div>
         </div>
 
         <!-- Right column: Chart -->
@@ -350,11 +346,6 @@
           <div style="margin-bottom: 20px;">
             <h4 style="margin-bottom: 10px; font-size: 16px; color: #0F172A;">Portfolio Allocation</h4>
             <pre id="debug-allocation" style="background: #F8FAFC; padding: 15px; border-radius: 4px; border: 1px solid #E2E8F0; overflow-x: auto; font-size: 12px; max-height: 300px; overflow-y: auto;"></pre>
-          </div>
-
-          <div style="margin-bottom: 20px;">
-            <h4 style="margin-bottom: 10px; font-size: 16px; color: #0F172A;">Fees Summary</h4>
-            <pre id="debug-fees" style="background: #F8FAFC; padding: 15px; border-radius: 4px; border: 1px solid #E2E8F0; overflow-x: auto; font-size: 12px; max-height: 200px; overflow-y: auto;"></pre>
           </div>
 
           <div style="margin-bottom: 20px;">
@@ -665,12 +656,6 @@
         allocationEl.textContent = JSON.stringify(rawAnalysisData.portfolioAllocation, null, 2);
       }
 
-      // Fees
-      const feesEl = document.getElementById('debug-fees');
-      if (feesEl && rawAnalysisData.fees) {
-        feesEl.textContent = JSON.stringify(rawAnalysisData.fees, null, 2);
-      }
-
       // Raw Fetched Data
       const fetchedEl = document.getElementById('debug-fetched');
       if (fetchedEl && rawFetchedData) {
@@ -935,7 +920,7 @@
       const benchmarkReturnEl = document.getElementById('benchmark-return');
       const outperfEl = document.getElementById('outperformance');
       const performanceLabelEl = document.getElementById('performance-label');
-      const feesEl = document.getElementById('total-fees');
+      // Fee display hidden - Phase 2
 
       if (portfolioReturnEl) {
         const portfolioIrr = summary.irr || 0;
@@ -963,10 +948,6 @@
           (difference >= 0 ? '+' : '') + difference.toFixed(1) + '%';
         outperfEl.className =
           'metric-value ' + (difference >= 0 ? 'positive' : 'negative');
-      }
-
-      if (feesEl) {
-        feesEl.textContent = formatCurrency(fees.totalFees || 0);
       }
 
       // Render the performance chart

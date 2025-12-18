@@ -1,109 +1,187 @@
 /**
- * Calculate fees from Plaid investment transactions
+ * Portfolio X-Ray - Fee Calculator
+ *
+ * Calculates explicit and implicit fees.
+ *
+ * PHASE 2: Fee calculations are preserved but output display is disabled.
+ * The calculations remain for internal use and will be exposed in Phase 2.
  */
 
-export interface FeeTransaction {
-  date: string;
-  amount: number;
-  account_id: string;
-  name: string;
-  type: string;
-}
+import { Transaction, Holding, Security, FeeResult, FeeTransaction } from './types';
+import { FEE_SUBTYPES, DEFAULT_EXPENSE_RATIOS } from './config';
 
-export interface FeeSummary {
-  totalFees: number;
-  feesByType: { [type: string]: number };
-  feesByAccount: { [accountId: string]: number };
-  feeTransactions: FeeTransaction[];
+/**
+ * Check if a transaction represents a fee.
+ */
+export function isFeeTransaction(tx: Transaction): boolean {
+  if (tx.type === 'fee') return true;
+
+  if (tx.type === 'cash' && tx.subtype && FEE_SUBTYPES.has(tx.subtype)) {
+    return true;
+  }
+
+  return false;
 }
 
 /**
- * Calculate total fees from investment transactions
- * 
- * Plaid fee structure:
- * - Transactions with type='fee' are explicit fee charges
- * - The 'fees' field on buy/sell transactions contains transaction fees
- * - Account fees appear as type='fee', subtype='account fee'
+ * Calculate explicit fees from transactions.
+ *
+ * Sources:
+ * - Per-transaction fees field
+ * - Fee-type transactions
+ * - Cash transactions with fee-related subtypes
  */
-export function calculateFees(transactions: any[]): FeeSummary {
+export function calculateExplicitFees(
+  transactions: Transaction[],
+  startDate?: string,
+  endDate?: string
+): { total: number; feesByType: Record<string, number>; feeTransactions: FeeTransaction[] } {
+  let total = 0;
+  const feesByType: Record<string, number> = {};
   const feeTransactions: FeeTransaction[] = [];
-  const feesByType: { [type: string]: number } = {};
-  const feesByAccount: { [accountId: string]: number } = {};
-  let totalFees = 0;
 
-  // Process all transactions to extract fees
   for (const tx of transactions) {
-    const accountId = tx.account_id || 'unknown';
-    let feeAmount = 0;
+    // Filter by date range if specified
+    if (startDate && tx.date < startDate) continue;
+    if (endDate && tx.date > endDate) continue;
 
-    // Explicit fee transactions
-    if (tx.type === 'fee') {
-      // Fee transactions: amount is positive (expense)
-      feeAmount = Math.abs(tx.amount || 0);
-    }
-    
-    // Transaction fees (fees field on buy/sell transactions)
-    if (tx.fees && tx.fees > 0) {
+    let feeAmount = 0;
+    let feeType = '';
+
+    // Per-transaction fees
+    if (tx.fees > 0) {
       feeAmount += tx.fees;
+      feeType = 'transaction fee';
+    }
+
+    // Fee-type transactions
+    if (tx.type === 'fee') {
+      feeAmount += Math.abs(tx.amount);
+      feeType = tx.subtype || 'fee';
+    }
+
+    // Cash transactions with fee subtypes
+    if (tx.type === 'cash' && tx.subtype && FEE_SUBTYPES.has(tx.subtype)) {
+      feeAmount += Math.abs(tx.amount);
+      feeType = tx.subtype;
     }
 
     if (feeAmount > 0) {
-      totalFees += feeAmount;
-
-      // Track by type/subtype
-      const feeType = tx.subtype || tx.type || 'fee';
+      total += feeAmount;
       feesByType[feeType] = (feesByType[feeType] || 0) + feeAmount;
 
-      // Track by account
-      feesByAccount[accountId] = (feesByAccount[accountId] || 0) + feeAmount;
-
       feeTransactions.push({
-        date: tx.date || '',
+        date: tx.date,
         amount: feeAmount,
-        account_id: accountId,
-        name: tx.name || 'Fee',
+        account_id: tx.account_id,
+        name: tx.name,
         type: feeType,
       });
     }
   }
 
-  // Also check for expense ratio fees (may appear as periodic small fees)
-  // These are typically embedded in share prices, but some custodians report them separately
-  const expenseRatioFees = transactions.filter(tx => 
-    tx.name && (
-      tx.name.toLowerCase().includes('expense') ||
-      tx.name.toLowerCase().includes('er ') ||
-      tx.name.toLowerCase().includes('management fee')
-    )
-  );
-
-  for (const tx of expenseRatioFees) {
-    const feeAmount = Math.abs(tx.amount || 0);
-    if (feeAmount > 0 && !feeTransactions.some(ft => ft.date === tx.date && ft.amount === feeAmount)) {
-      totalFees += feeAmount;
-      feesByType['expense_ratio'] = (feesByType['expense_ratio'] || 0) + feeAmount;
-      
-      const accountId = tx.account_id || 'unknown';
-      feesByAccount[accountId] = (feesByAccount[accountId] || 0) + feeAmount;
-
-      feeTransactions.push({
-        date: tx.date || '',
-        amount: feeAmount,
-        account_id: accountId,
-        name: tx.name || 'Expense Ratio',
-        type: 'expense_ratio',
-      });
-    }
-  }
-
-  // Sort fee transactions by date (newest first)
+  // Sort by date descending
   feeTransactions.sort((a, b) => b.date.localeCompare(a.date));
 
+  return { total, feesByType, feeTransactions };
+}
+
+/**
+ * Estimate implicit fees from fund expense ratios.
+ *
+ * Uses default expense ratios:
+ * - Mutual funds: 50 bps (0.50%) annually
+ * - ETFs: 10 bps (0.10%) annually
+ * - Specific ticker overrides from config
+ */
+export function estimateImplicitFees(
+  holdings: Holding[],
+  securities: Map<string, Security>,
+  startValue: number,
+  endValue: number,
+  years: number
+): number {
+  let totalFundValue = 0;
+  let weightedER = 0;
+
+  for (const holding of holdings) {
+    const security = securities.get(holding.security_id);
+    if (!security) continue;
+
+    const type = security.type?.toLowerCase();
+
+    // Only calculate for funds (ETFs and mutual funds)
+    if (type !== 'mutual fund' && type !== 'etf') continue;
+
+    // Get expense ratio: specific ticker > type default
+    let expenseRatio: number;
+    const ticker = security.ticker_symbol?.toUpperCase();
+
+    if (ticker && DEFAULT_EXPENSE_RATIOS[ticker]) {
+      expenseRatio = DEFAULT_EXPENSE_RATIOS[ticker];
+    } else if (type && DEFAULT_EXPENSE_RATIOS[type]) {
+      expenseRatio = DEFAULT_EXPENSE_RATIOS[type];
+    } else {
+      continue;
+    }
+
+    totalFundValue += holding.institution_value;
+    weightedER += holding.institution_value * expenseRatio;
+  }
+
+  if (totalFundValue === 0) return 0;
+
+  // Calculate weighted average expense ratio
+  const avgER = weightedER / totalFundValue;
+
+  // Apply to average portfolio value over the period
+  const avgValue = (startValue + endValue) / 2;
+
+  // Multiply by years to get total fees for the period
+  return avgValue * avgER * years;
+}
+
+/**
+ * Calculate all fees.
+ *
+ * PHASE 2: Calculations preserved, display hidden in API response.
+ */
+export function calculateFees(
+  transactions: Transaction[],
+  holdings: Holding[],
+  securities: Map<string, Security>,
+  startValue: number,
+  endValue: number,
+  years: number,
+  startDate?: string,
+  endDate?: string
+): FeeResult {
+  const explicit = calculateExplicitFees(transactions, startDate, endDate);
+  const implicitFees = estimateImplicitFees(holdings, securities, startValue, endValue, years);
+
   return {
-    totalFees,
-    feesByType,
-    feesByAccount,
-    feeTransactions,
+    explicitFees: explicit.total,
+    implicitFees,
+    totalFees: explicit.total + implicitFees,
+    feesByType: explicit.feesByType,
+    feeTransactions: explicit.feeTransactions,
   };
 }
 
+/**
+ * Calculate fees by account.
+ */
+export function calculateFeesByAccount(transactions: Transaction[]): Record<string, number> {
+  const feesByAccount: Record<string, number> = {};
+
+  for (const tx of transactions) {
+    if (tx.type === 'fee' || tx.fees > 0) {
+      const feeAmount = (tx.type === 'fee' ? Math.abs(tx.amount) : 0) + tx.fees;
+      if (feeAmount > 0) {
+        feesByAccount[tx.account_id] = (feesByAccount[tx.account_id] || 0) + feeAmount;
+      }
+    }
+  }
+
+  return feesByAccount;
+}
