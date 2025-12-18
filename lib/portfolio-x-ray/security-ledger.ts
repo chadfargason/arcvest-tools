@@ -138,6 +138,11 @@ export function buildSecurityLedgers(
 
 /**
  * Build a cash ledger (similar to security ledger but for cash).
+ *
+ * Shows ALL transactions that affect cash, including:
+ * - Pure cash transactions (deposits, withdrawals)
+ * - Cash equivalents (money market funds)
+ * - Buy/sell transactions (these move cash in/out)
  */
 export function buildCashLedger(
   snapshots: PortfolioSnapshot[],
@@ -166,12 +171,9 @@ export function buildCashLedger(
   // Sort transactions by date
   const sortedTxs = [...transactions].sort((a, b) => a.date.localeCompare(b.date));
 
-  // Filter to cash-affecting transactions (no security_id or cash equivalent)
-  const cashTxs = sortedTxs.filter(tx => {
-    if (!tx.security_id) return true;
-    const security = securities.get(tx.security_id);
-    return security?.is_cash_equivalent === true;
-  });
+  // ALL transactions affect cash (via the amount field)
+  // Only skip transactions with zero cash impact
+  const cashTxs = sortedTxs.filter(tx => Math.abs(tx.amount) > 0.001);
 
   const entries: SecurityLedgerEntry[] = [];
 
@@ -194,6 +196,16 @@ export function buildCashLedger(
     // Cash changes by -amount (positive amount = cash out)
     runningCash -= tx.amount;
 
+    // Build description with security info if applicable
+    let description = tx.name || `${tx.type}${tx.subtype ? ` (${tx.subtype})` : ''}`;
+    if (tx.security_id) {
+      const security = securities.get(tx.security_id);
+      const ticker = security?.ticker_symbol || security?.name;
+      if (ticker) {
+        description = `${tx.type}: ${ticker}`;
+      }
+    }
+
     entries.push({
       date: tx.date,
       type: tx.type,
@@ -202,7 +214,7 @@ export function buildCashLedger(
       amount: tx.amount,
       fees: tx.fees,
       runningQty: runningCash,
-      description: tx.name || `${tx.type}${tx.subtype ? ` (${tx.subtype})` : ''}`,
+      description,
     });
   }
 
