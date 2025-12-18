@@ -604,6 +604,94 @@ async function buildPdfBuffer({
 
   y -= 20;
 
+  // Security Ledgers Section (position reconstruction debugging)
+  const securityLedgers = analysis.securityLedgers || [];
+  if (securityLedgers.length > 0) {
+    drawNewPageIfNeeded(200);
+    drawText('Security Position Ledgers', 18, { bold: true });
+    y -= 10;
+    drawText('Shows how each security position was reconstructed from transactions:', 9, { color: subtleColor });
+    y -= 15;
+
+    for (const ledger of securityLedgers) {
+      // Skip securities with no entries and no position
+      if (ledger.entries.length === 0 && Math.abs(ledger.endingQty) < 0.0001) {
+        continue;
+      }
+
+      drawNewPageIfNeeded(120);
+
+      // Security header
+      drawText(`${ledger.ticker} - ${ledger.name}`, 11, { bold: true });
+      y -= 5;
+
+      // Starting and ending positions
+      drawText(`Starting: ${ledger.startingQty.toFixed(4)} shares @ $${ledger.startingPrice.toFixed(2)}`, 8, { color: subtleColor });
+      drawText(`Ending: ${ledger.endingQty.toFixed(4)} shares @ $${ledger.endingPrice.toFixed(2)}`, 8, { color: subtleColor });
+      y -= 5;
+
+      if (ledger.entries.length > 0) {
+        // Column headers
+        drawText('Date       | Type              | Qty Change    | Price     | Running Qty', 7, { bold: true });
+        y -= 3;
+
+        for (const entry of ledger.entries) {
+          drawNewPageIfNeeded(12);
+
+          const date = entry.date.substring(0, 10);
+          const type = entry.type.padEnd(17).substring(0, 17);
+          const qtyChange = entry.type === 'starting_position'
+            ? entry.quantity.toFixed(4).padStart(13)
+            : (entry.quantity >= 0 ? '+' : '') + entry.quantity.toFixed(4).padStart(12);
+          const price = entry.price > 0 ? ('$' + entry.price.toFixed(2)).padStart(9) : '        -';
+          const running = entry.runningQty.toFixed(4).padStart(12);
+
+          drawText(`${date} | ${type} | ${qtyChange} | ${price} | ${running}`, 6);
+        }
+      } else {
+        drawText('(No transactions in analysis period)', 7, { color: subtleColor });
+      }
+
+      y -= 12;
+    }
+  }
+
+  y -= 20;
+
+  // Cash Ledger Section
+  const cashLedger = analysis.cashLedger;
+  if (cashLedger && cashLedger.entries && cashLedger.entries.length > 0) {
+    drawNewPageIfNeeded(200);
+    drawText('Cash Position Ledger', 18, { bold: true });
+    y -= 10;
+    drawText('Shows cash movements throughout the analysis period:', 9, { color: subtleColor });
+    y -= 15;
+
+    // Starting and ending cash
+    drawText(`Starting Cash: $${cashLedger.startingQty.toFixed(2)}`, 9, { color: subtleColor });
+    drawText(`Ending Cash: $${cashLedger.endingQty.toFixed(2)}`, 9, { color: subtleColor });
+    y -= 10;
+
+    // Column headers
+    drawText('Date       | Type              | Cash Change      | Running Balance', 7, { bold: true });
+    y -= 3;
+
+    for (const entry of cashLedger.entries) {
+      drawNewPageIfNeeded(12);
+
+      const date = entry.date.substring(0, 10);
+      const type = entry.type.padEnd(17).substring(0, 17);
+      const change = entry.type === 'starting_position'
+        ? ('$' + entry.runningQty.toFixed(2)).padStart(16)
+        : (entry.quantity >= 0 ? '+$' : '-$') + Math.abs(entry.quantity).toFixed(2).padStart(14);
+      const running = ('$' + entry.runningQty.toFixed(2)).padStart(16);
+
+      drawText(`${date} | ${type} | ${change} | ${running}`, 6);
+    }
+
+    y -= 20;
+  }
+
   // Footer
   const footerText = 'Disclosure - This is for informational and educational purposes only - not advice.';
   pdfDoc.getPages().forEach((pg) => {
