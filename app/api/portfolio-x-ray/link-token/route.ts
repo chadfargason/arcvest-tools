@@ -25,7 +25,7 @@ export async function POST(request: NextRequest) {
 
     const client = createPlaidClient();
     
-    // Build link token request without redirect_uri initially
+    // Build link token request
     const linkTokenRequest: any = {
       user: {
         client_user_id: userId,
@@ -36,10 +36,11 @@ export async function POST(request: NextRequest) {
       language: 'en',
     };
 
-    // Only add redirect_uri if explicitly configured and needed
-    // For standard Link flow, redirect_uri is not required
-    // Plaid will require it only for OAuth-enabled institutions
-    // We omit it to avoid the error
+    // Add redirect_uri for OAuth-enabled institutions (Wells Fargo, Chase, Schwab, etc.)
+    // Required in production for OAuth flow to work
+    if (process.env.PLAID_REDIRECT_URI) {
+      linkTokenRequest.redirect_uri = process.env.PLAID_REDIRECT_URI;
+    }
 
     // Add webhook if configured
     if (process.env.PLAID_WEBHOOK_URL) {
@@ -86,4 +87,3 @@ export async function POST(request: NextRequest) {
     );
   }
 }
-
