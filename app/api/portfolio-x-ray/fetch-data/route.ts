@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createPlaidClient, validatePlaidConfig } from '@/lib/portfolio-x-ray/plaid-client';
-import { 
+import {
   InvestmentsTransactionsGetRequest,
   InvestmentsHoldingsGetRequest,
 } from 'plaid';
@@ -31,39 +31,75 @@ export async function POST(request: NextRequest) {
     const endDate = new Date();
     const startDate = new Date();
     startDate.setMonth(startDate.getMonth() - 24);
-    
+
     const startDateStr = startDate.toISOString().split('T')[0];
     const endDateStr = endDate.toISOString().split('T')[0];
 
-    // Fetch investment transactions (24 months)
-    const transactionsRequest: InvestmentsTransactionsGetRequest = {
+    // Fetch investment transactions (24 months) with pagination
+    // Plaid returns max 100 transactions per request, use offset/count for pagination
+    const PAGE_SIZE = 100;
+    let allTransactions: any[] = [];
+    let allSecurities: any[] = [];
+    let accounts: any[] = [];
+    let totalTransactions = 0;
+    let offset = 0;
+
+    // First request to get total count
+    const firstRequest: InvestmentsTransactionsGetRequest = {
       access_token,
       start_date: startDateStr,
       end_date: endDateStr,
+      options: {
+        count: PAGE_SIZE,
+        offset: 0,
+      },
     };
 
-    const transactionsResponse = await client.investmentsTransactionsGet(transactionsRequest);
-    
-    // Handle pagination if needed
-    let allTransactions = transactionsResponse.data.investment_transactions || [];
-    let responseData = transactionsResponse.data as any;
-    let cursor = responseData.total_investment_transactions > allTransactions.length 
-      ? (responseData.cursor as string | null | undefined)
-      : null;
+    const firstResponse = await client.investmentsTransactionsGet(firstRequest);
+    allTransactions = firstResponse.data.investment_transactions || [];
+    allSecurities = firstResponse.data.securities || [];
+    accounts = firstResponse.data.accounts || [];
+    totalTransactions = firstResponse.data.total_investment_transactions;
 
-    // Fetch more pages if needed
-    while (cursor) {
-      const paginatedRequest = {
+    console.log(`Fetched ${allTransactions.length} of ${totalTransactions} transactions (page 1)`);
+
+    // Fetch remaining pages if needed
+    offset = allTransactions.length;
+    while (offset < totalTransactions) {
+      const paginatedRequest: InvestmentsTransactionsGetRequest = {
         access_token,
         start_date: startDateStr,
         end_date: endDateStr,
-        cursor,
-      } as any; // Plaid types don't include cursor, but API supports it
+        options: {
+          count: PAGE_SIZE,
+          offset: offset,
+        },
+      };
+
       const paginatedResponse = await client.investmentsTransactionsGet(paginatedRequest);
-      allTransactions = allTransactions.concat(paginatedResponse.data.investment_transactions || []);
-      const paginatedData = paginatedResponse.data as any;
-      cursor = paginatedData.cursor || null;
+      const newTransactions = paginatedResponse.data.investment_transactions || [];
+      const newSecurities = paginatedResponse.data.securities || [];
+
+      allTransactions = allTransactions.concat(newTransactions);
+
+      // Merge securities (avoid duplicates)
+      for (const sec of newSecurities) {
+        if (!allSecurities.find(s => s.security_id === sec.security_id)) {
+          allSecurities.push(sec);
+        }
+      }
+
+      offset += newTransactions.length;
+      console.log(`Fetched ${allTransactions.length} of ${totalTransactions} transactions (offset: ${offset})`);
+
+      // Safety check to prevent infinite loop
+      if (newTransactions.length === 0) {
+        console.log('No more transactions returned, stopping pagination');
+        break;
+      }
     }
+
+    console.log(`Total transactions fetched: ${allTransactions.length}`);
 
     // Fetch current holdings
     const holdingsRequest: InvestmentsHoldingsGetRequest = {
@@ -75,8 +111,8 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({
       transactions: {
         investment_transactions: allTransactions,
-        accounts: transactionsResponse.data.accounts,
-        securities: transactionsResponse.data.securities,
+        accounts: accounts,
+        securities: allSecurities,
         total_investment_transactions: allTransactions.length,
       },
       holdings: {
@@ -87,25 +123,24 @@ export async function POST(request: NextRequest) {
     });
   } catch (error: any) {
     console.error('Fetch data error:', error);
-    
+
     // Handle specific Plaid errors
     if (error.response?.data?.error_code === 'ITEM_LOGIN_REQUIRED') {
       return NextResponse.json(
-        { 
+        {
           error: 'ITEM_LOGIN_REQUIRED',
-          message: 'Please reconnect your account' 
+          message: 'Please reconnect your account'
         },
         { status: 401 }
       );
     }
 
     return NextResponse.json(
-      { 
+      {
         error: 'Failed to fetch data',
-        details: error.response?.data || error.message 
+        details: error.response?.data || error.message
       },
       { status: 500 }
     );
   }
 }
-
