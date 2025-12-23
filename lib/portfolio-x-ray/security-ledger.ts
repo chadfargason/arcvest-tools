@@ -172,8 +172,14 @@ export function buildCashLedger(
   const sortedTxs = [...transactions].sort((a, b) => a.date.localeCompare(b.date));
 
   // ALL transactions affect cash (via the amount field)
-  // Only skip transactions with zero cash impact
-  const cashTxs = sortedTxs.filter(tx => Math.abs(tx.amount) > 0.001);
+  // Skip transactions with zero cash impact AND cash equivalent buy/sell
+  // (cash equivalent transactions are internal transfers, not cash flow changes)
+  const cashTxs = sortedTxs.filter(tx => {
+    if (Math.abs(tx.amount) < 0.001) return false;
+    // Skip cash equivalent buy/sell - these are internal transfers
+    if (tx.security_id && securities.get(tx.security_id)?.is_cash_equivalent) return false;
+    return true;
+  });
 
   const entries: SecurityLedgerEntry[] = [];
 

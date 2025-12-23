@@ -87,8 +87,9 @@ export function reconstructStartPositions(
   let cashDelta = 0;
 
   for (const tx of transactions) {
+    const isCashEquivalent = tx.security_id && securities.get(tx.security_id)?.is_cash_equivalent;
     // Reverse quantity changes for non-cash securities
-    if (tx.security_id && !securities.get(tx.security_id)?.is_cash_equivalent) {
+    if (tx.security_id && !isCashEquivalent) {
       const currentQty = quantities.get(tx.security_id) || 0;
       quantities.set(tx.security_id, currentQty - tx.quantity);
 
@@ -102,7 +103,10 @@ export function reconstructStartPositions(
     }
 
     // Reverse cash impact (amount is positive when cash goes out)
-    cashDelta += tx.amount;
+    // Skip cash equivalent buy/sell - internal transfers between cash and money market
+    if (!isCashEquivalent) {
+      cashDelta += tx.amount;
+    }
   }
 
   // Build starting positions with estimated values
@@ -178,6 +182,7 @@ export async function buildMonthlySnapshots(
     }
   }
   for (const tx of transactions) {
+    const isCashEquivalent = tx.security_id && securities.get(tx.security_id)?.is_cash_equivalent;
     if (tx.security_id) {
       const security = securities.get(tx.security_id);
       if (security?.ticker_symbol) {
@@ -218,13 +223,14 @@ export async function buildMonthlySnapshots(
 
     // Apply transactions that occurred in this month
     for (const tx of transactions) {
+    const isCashEquivalent = tx.security_id && securities.get(tx.security_id)?.is_cash_equivalent;
       const shouldApply = lastMonthEndStr === null
         ? tx.date <= monthEndStr
         : tx.date > lastMonthEndStr && tx.date <= monthEndStr;
 
       if (shouldApply) {
         // Update quantities for non-cash securities
-        if (tx.security_id && !securities.get(tx.security_id)?.is_cash_equivalent) {
+        if (tx.security_id && !isCashEquivalent) {
           const currentQty = quantities.get(tx.security_id) || 0;
           quantities.set(tx.security_id, currentQty + tx.quantity);
 
@@ -235,7 +241,10 @@ export async function buildMonthlySnapshots(
         }
 
         // Update cash (amount positive = cash out)
-        cash -= tx.amount;
+        // Skip cash equivalent transactions - internal transfers
+        if (!isCashEquivalent) {
+          cash -= tx.amount;
+        }
       }
     }
 
