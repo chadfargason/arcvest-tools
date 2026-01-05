@@ -444,10 +444,10 @@ function generateYearlyBreakdown(
         // Initialize percentage-based withdrawal on first month of retirement
         if (!withdrawalInitialized && withdrawalType === 'percentage') {
           // Get balance at start of retirement from the monthly balances
+          // The percentage applies to the GROSS (pre-tax) withdrawal amount
           const retirementStartBalance = monthlyBalances[monthsToRetirement + 1] ?? monthlyBalances[monthsToRetirement] ?? 0;
-          const percentageBasedAnnualWithdrawal = retirementStartBalance * withdrawalPercentage;
-          const grossWithdrawal = percentageBasedAnnualWithdrawal / (1 - effectiveTaxRate);
-          currentWithdrawal = grossWithdrawal / 12;
+          const grossAnnualWithdrawal = retirementStartBalance * withdrawalPercentage;
+          currentWithdrawal = grossAnnualWithdrawal / 12;
           withdrawalInitialized = true;
         }
 
@@ -695,11 +695,9 @@ function runSingleScenario(
       // Initialize percentage-based withdrawal on first month of retirement
       if (!withdrawalInitialized && withdrawalType === 'percentage') {
         // Calculate withdrawal based on current balance (at retirement start)
-        const percentageBasedAnnualWithdrawal = balance * withdrawalPercentage;
-
-        // Calculate gross withdrawal needed (to cover taxes)
-        const grossWithdrawal = percentageBasedAnnualWithdrawal / (1 - effectiveTaxRate);
-        currentWithdrawal = grossWithdrawal / 12;
+        // The percentage applies to the GROSS (pre-tax) withdrawal amount
+        const grossAnnualWithdrawal = balance * withdrawalPercentage;
+        currentWithdrawal = grossAnnualWithdrawal / 12;
         withdrawalInitialized = true;
       }
 

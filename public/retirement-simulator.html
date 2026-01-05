@@ -940,7 +940,7 @@
 
         <div class="form-group">
           <label class="form-label">Estimated Tax Rate (%)</label>
-          <input type="number" class="form-input" id="taxRate" value="25" min="0" max="50" step="1">
+          <input type="number" class="form-input" id="taxRate" value="20" min="0" max="50" step="1">
           <div class="form-help">Estimate of blended tax rate for portfolio withdrawals</div>
         </div>
       </div>
@@ -1194,7 +1194,7 @@
         document.getElementById('correlation').value = 0.2;
         document.getElementById('degreesOfFreedom').value = 5;
         document.getElementById('taxablePortion').value = 75;
-        document.getElementById('taxRate').value = 25;
+        document.getElementById('taxRate').value = 20;
         
         // Reset fee selection to ArcVest
         document.querySelector('input[name="feeType"][value="arcvest"]').checked = true;
