@@ -290,6 +290,57 @@ function runMonteCarloSimulation(params: SimulationParams): any {
     taxRate
   );
 
+  // Find failed scenarios and identify the median failure
+  let medianFailureDetails: any[] | null = null;
+  let medianFailureIndex: number | null = null;
+  let medianFailureMonth: number | null = null;
+
+  const failedScenarios = finalBalances.filter(b => b.balance === 0);
+
+  if (failedScenarios.length > 0) {
+    // For each failed scenario, find the month when balance first hit 0
+    const failuresWithMonth = failedScenarios.map(f => {
+      const scenario = scenarios.find(s => s.index === f.index)!;
+      // Find first month where balance is 0 (after retirement starts)
+      const failureMonth = scenario.balances.findIndex((bal, idx) => idx > 0 && bal === 0);
+      return {
+        index: f.index,
+        failureMonth: failureMonth === -1 ? scenario.balances.length : failureMonth
+      };
+    });
+
+    // Sort by failure month (ascending - earlier failures first)
+    failuresWithMonth.sort((a, b) => a.failureMonth - b.failureMonth);
+
+    // Find median failure - pick the "better" one (fails later) for even counts
+    // For n failures: pick index ceil(n/2) - 1 to get the one that fails later
+    const medianFailureIdx = Math.ceil(failuresWithMonth.length / 2) - 1;
+    const medianFailure = failuresWithMonth[Math.min(medianFailureIdx, failuresWithMonth.length - 1)];
+
+    medianFailureIndex = medianFailure.index;
+    medianFailureMonth = medianFailure.failureMonth;
+
+    // Generate yearly breakdown for the median failure
+    const failureSimulation = scenarios.find(s => s.index === medianFailureIndex)!;
+    medianFailureDetails = generateYearlyBreakdown(
+      failureSimulation.balances,
+      failureSimulation.returns,
+      failureSimulation.stockBalances,
+      failureSimulation.bondBalances,
+      currentAge,
+      yearsToRetirement,
+      annualContribution,
+      contributionGrowth,
+      annualWithdrawal,
+      withdrawalType,
+      withdrawalPercentage,
+      withdrawalInflation,
+      yearsContributing * 12,
+      taxablePortion,
+      taxRate
+    );
+  }
+
   const result: any = {
     successRate,
     medianBalance,
@@ -303,6 +354,11 @@ function runMonteCarloSimulation(params: SimulationParams): any {
     distributionPercentages: percentages,
     medianSimulationIndex: medianIndex,
     medianSimulationDetails,
+    // Failure scenario data (null if no failures)
+    medianFailureIndex,
+    medianFailureMonth,
+    medianFailureDetails,
+    failureCount: failedScenarios.length,
     stockReturnDistribution,
     bondReturnDistribution,
     medianIRR: medianIRR * 100, // Convert to percentage

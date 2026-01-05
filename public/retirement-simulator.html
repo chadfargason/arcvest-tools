@@ -699,6 +699,7 @@
       <button class="tab" data-tab="retirement">Retirement</button>
       <button class="tab" data-tab="advanced">Advanced</button>
       <button class="tab" data-tab="detailed">Detailed Outcome</button>
+      <button class="tab" data-tab="failure" id="failureTab" style="display: none;">Detailed Failure</button>
     </div>
 
     <!-- Tab 1: Portfolio -->
@@ -956,6 +957,20 @@
       <div id="detailedOutcome">
         <p style="color: var(--muted); text-align: center; padding: 40px;">
           Run the simulation to see detailed year-by-year results
+        </p>
+      </div>
+    </div>
+
+    <!-- Tab 6: Detailed Failure (hidden by default, shown when there are failures) -->
+    <div class="tab-content" id="failure-tab">
+      <h3 style="font-size: 18px; font-weight: 600; color: var(--text-dark); margin-bottom: 16px;">Median Failure Scenario</h3>
+      <p style="color: var(--muted); margin-bottom: 16px;">
+        This tab shows the year-by-year progression of the median failure scenario.
+        Failed scenarios are ranked by when the money runs out, and this shows the median of those failures.
+      </p>
+      <div id="detailedFailure">
+        <p style="color: var(--muted); text-align: center; padding: 40px;">
+          Run the simulation to see failure scenario details (if any)
         </p>
       </div>
     </div>
@@ -1386,6 +1401,9 @@
       
       // Populate Detailed Outcome tab
       populateDetailedOutcome(data);
+
+      // Populate Detailed Failure tab (if there are failures)
+      populateDetailedFailure(data);
       notifyParentHeight();
 
       const whatThisMeans = document.getElementById('whatThisMeans');
@@ -1748,7 +1766,163 @@
       }
     }
 
-    // Toggle monthly details for a year
+    function populateDetailedFailure(data) {
+      const detailedDiv = document.getElementById('detailedFailure');
+      const failureTabBtn = document.getElementById('failureTab');
+
+      try {
+        // Hide tab if no failures
+        if (!data.medianFailureDetails || data.failureCount === 0) {
+          if (failureTabBtn) failureTabBtn.style.display = 'none';
+          detailedDiv.innerHTML = '<p style="color: var(--muted); text-align: center; padding: 40px;">No failure scenarios to display</p>';
+          notifyParentHeight();
+          return;
+        }
+
+        // Show the failure tab button
+        if (failureTabBtn) failureTabBtn.style.display = 'block';
+
+        const yearData = data.medianFailureDetails;
+        const failureMonth = data.medianFailureMonth || 0;
+        const failureYear = Math.ceil(failureMonth / 12);
+        const totalContributions = yearData.reduce((sum, y) => sum + (y.contributions || 0), 0);
+        const totalWithdrawals = yearData.reduce((sum, y) => sum + (y.withdrawals || 0), 0);
+        const totalReturns = yearData.reduce((sum, y) => sum + (y.returns || 0), 0);
+
+      let html = `
+        <div class="detailed-summary">
+          <h4 style="color: #c0392b;">Median Failure Scenario (Simulation #${data.medianFailureIndex})</h4>
+          <p>This shows the year-by-year progression of the median failure scenario. Out of ${data.failureCount} scenarios where money ran out, this is the median (ranked by when money ran out - month ${failureMonth}, or year ${failureYear}).</p>
+          <div class="summary-stats">
+            <div class="summary-stat">
+              <div class="summary-stat-label">Money Ran Out</div>
+              <div class="summary-stat-value" style="color: #c0392b;">Year ${failureYear} (Month ${failureMonth})</div>
+            </div>
+            <div class="summary-stat">
+              <div class="summary-stat-label">Failed Scenarios</div>
+              <div class="summary-stat-value" style="color: #c0392b;">${data.failureCount} of 1,000</div>
+            </div>
+            <div class="summary-stat">
+              <div class="summary-stat-label">Total Contributions</div>
+              <div class="summary-stat-value positive">${formatCurrency(totalContributions)}</div>
+            </div>
+            <div class="summary-stat">
+              <div class="summary-stat-label">Total Withdrawals</div>
+              <div class="summary-stat-value negative">${formatCurrency(totalWithdrawals)}</div>
+            </div>
+            <div class="summary-stat">
+              <div class="summary-stat-label">Total Investment Returns</div>
+              <div class="summary-stat-value">${formatCurrency(totalReturns)}</div>
+            </div>
+          </div>
+        </div>
+
+        <table class="detailed-table">
+          <thead>
+            <tr>
+              <th>Year</th>
+              <th>Age</th>
+              <th>Start Balance</th>
+              <th>Stock Return</th>
+              <th>Bond Return</th>
+              <th>Total Returns</th>
+              <th>Contributions</th>
+              <th>Withdrawal (Gross)</th>
+              <th>Tax</th>
+              <th>Withdrawal (Net)</th>
+              <th>End Balance</th>
+              <th>Net Change</th>
+            </tr>
+          </thead>
+          <tbody>
+      `;
+
+      yearData.forEach((row, index) => {
+        const phaseClass = row.phase === 'Accumulation' ? 'phase-accumulation' : 'phase-retirement';
+        const netChange = row.netChange || 0;
+        const netClass = netChange >= 0 ? 'positive' : 'negative';
+        const isFailed = row.endBalance === 0;
+
+        html += `
+          <tr class="${phaseClass} year-row ${isFailed ? 'failure-row' : ''}" data-year="${row.year}" onclick="toggleFailureMonthly(${row.year})" style="${isFailed ? 'background-color: #fff5f5;' : ''}">
+            <td><span class="expand-icon" id="failure-expand-${row.year}">▶</span> ${row.year || 0}</td>
+            <td>${row.age || 0}</td>
+            <td>${formatCurrency(row.startBalance || 0)}</td>
+            <td>${row.stockReturn || '0.0%'}</td>
+            <td>${row.bondReturn || '0.0%'}</td>
+            <td class="${(row.returns || 0) >= 0 ? 'positive' : 'negative'}">${formatCurrency(row.returns || 0, true)}</td>
+            <td class="positive">${(row.contributions || 0) > 0 ? '+' + formatCurrency(row.contributions) : '—'}</td>
+            <td class="negative">${(row.withdrawalGross || 0) > 0 ? '-' + formatCurrency(row.withdrawalGross) : '—'}</td>
+            <td class="negative">${(row.tax || 0) > 0 ? '-' + formatCurrency(row.tax) : '—'}</td>
+            <td style="color: var(--text-dark);">${(row.withdrawalNet || 0) > 0 ? formatCurrency(row.withdrawalNet) : '—'}</td>
+            <td><strong style="${isFailed ? 'color: #c0392b;' : ''}">${formatCurrency(row.endBalance || 0)}</strong></td>
+            <td class="${netClass}">${formatCurrency(netChange, true)}</td>
+          </tr>
+        `;
+
+        // Add monthly detail rows (hidden by default)
+        if (row.monthlyDetails && row.monthlyDetails.length > 0) {
+          row.monthlyDetails.forEach(monthData => {
+            const monthNetClass = (monthData.netChange || 0) >= 0 ? 'positive' : 'negative';
+            const monthReturnClass = (monthData.returns || 0) >= 0 ? 'positive' : 'negative';
+            const monthFailed = monthData.balance === 0;
+
+            // Safely get values with defaults
+            const startStockBal = monthData.startStockBalance ?? 0;
+            const startBondBal = monthData.startBondBalance ?? 0;
+            const startBal = monthData.startBalance ?? 0;
+
+            // Calculate allocation percentage at START of month
+            let startStockPct = '0.0';
+            let startBondPct = '0.0';
+
+            if (startBal > 0 && !isNaN(startBal)) {
+              const stockPctVal = (startStockBal / startBal) * 100;
+              const bondPctVal = (startBondBal / startBal) * 100;
+              startStockPct = !isNaN(stockPctVal) ? stockPctVal.toFixed(1) : '0.0';
+              startBondPct = !isNaN(bondPctVal) ? bondPctVal.toFixed(1) : '0.0';
+            }
+
+            html += `
+              <tr class="monthly-row failure-monthly-year-${row.year}" style="${monthFailed ? 'background-color: #fff5f5;' : ''}">
+                <td class="monthly-label" colspan="2">
+                  ${monthData.monthName || 'N/A'} (Month ${monthData.month || 0})
+                  <span style="color: var(--muted); font-size: 10px; margin-left: 8px;">
+                    START: Stocks ${formatCurrency(startStockBal, true)} (${startStockPct}%) |
+                    Bonds ${formatCurrency(startBondBal, true)} (${startBondPct}%)
+                  </span>
+                </td>
+                <td>${formatCurrency(monthData.startBalance || 0)}</td>
+                <td>${monthData.stockReturn || '0.0%'}</td>
+                <td>${monthData.bondReturn || '0.0%'}</td>
+                <td class="${monthReturnClass}">${formatCurrency(monthData.returns || 0, true)}</td>
+                <td class="positive">${(monthData.contribution || 0) > 0 ? '+' + formatCurrency(monthData.contribution || 0) : '—'}</td>
+                <td class="negative">${(monthData.withdrawalGross || 0) > 0 ? '-' + formatCurrency(monthData.withdrawalGross || 0) : '—'}</td>
+                <td class="negative">${(monthData.tax || 0) > 0 ? '-' + formatCurrency(monthData.tax || 0) : '—'}</td>
+                <td style="color: var(--text-dark);">${(monthData.withdrawalNet || 0) > 0 ? formatCurrency(monthData.withdrawalNet || 0) : '—'}</td>
+                <td><strong style="${monthFailed ? 'color: #c0392b;' : ''}">${formatCurrency(monthData.balance || 0)}</strong></td>
+                <td class="${monthNetClass}">${formatCurrency(monthData.netChange || 0, true)}</td>
+              </tr>
+            `;
+          });
+        }
+      });
+
+      html += `
+          </tbody>
+        </table>
+      `;
+
+      detailedDiv.innerHTML = html;
+      notifyParentHeight();
+      } catch (error) {
+        console.error('Error populating detailed failure:', error);
+        detailedDiv.innerHTML = `<div class="alert alert-error">Error displaying failure details: ${error.message}</div>`;
+        notifyParentHeight();
+      }
+    }
+
+    // Toggle monthly details for a year (Detailed Outcome tab)
     window.toggleMonthly = function(year) {
       const monthlyRows = document.querySelectorAll(`.monthly-year-${year}`);
       const expandIcon = document.getElementById(`expand-${year}`);
@@ -1765,6 +1939,34 @@
         }
       });
       
+      if (expandIcon) {
+        if (isVisible) {
+          expandIcon.classList.remove('expanded');
+          expandIcon.textContent = '▶';
+        } else {
+          expandIcon.classList.add('expanded');
+          expandIcon.textContent = '▼';
+        }
+      }
+    };
+
+    // Toggle monthly details for a year (Detailed Failure tab)
+    window.toggleFailureMonthly = function(year) {
+      const monthlyRows = document.querySelectorAll(`.failure-monthly-year-${year}`);
+      const expandIcon = document.getElementById(`failure-expand-${year}`);
+
+      if (monthlyRows.length === 0) return;
+
+      const isVisible = monthlyRows[0].classList.contains('visible');
+
+      monthlyRows.forEach(row => {
+        if (isVisible) {
+          row.classList.remove('visible');
+        } else {
+          row.classList.add('visible');
+        }
+      });
+
       if (expandIcon) {
         if (isVisible) {
           expandIcon.classList.remove('expanded');
