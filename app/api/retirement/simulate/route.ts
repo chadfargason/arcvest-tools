@@ -439,7 +439,8 @@ function generateYearlyBreakdown(
           monthContribution = currentContribution;
           annualContributionTotal += currentContribution;
         }
-      } else if (isRetired) {
+      } else {
+        // Retirement phase (monthNum > monthsToRetirement)
         // Initialize percentage-based withdrawal on first month of retirement
         if (!withdrawalInitialized && withdrawalType === 'percentage') {
           // Get balance at start of retirement from the monthly balances
@@ -498,10 +499,14 @@ function generateYearlyBreakdown(
     // Calculate investment returns (approximate)
     const investmentReturns = endBalance - startBalance - annualContributionTotal + annualWithdrawalGross;
     
+    // Determine phase based on whether any withdrawals occurred this year
+    const hasWithdrawals = annualWithdrawalGross > 0;
+    const phase = hasWithdrawals ? 'Retirement' : 'Accumulation';
+
     yearData.push({
       year,
       age,
-      phase: isRetired ? 'Retirement' : 'Accumulation',
+      phase,
       startBalance,
       contributions: annualContributionTotal,
       withdrawalGross: annualWithdrawalGross,
@@ -514,12 +519,12 @@ function generateYearlyBreakdown(
       netChange: endBalance - startBalance,
       monthlyDetails  // ← Include monthly data
     });
-    
+
     // Update contribution/withdrawal for next year
-    if (!isRetired) {
+    if (annualContributionTotal > 0) {
       currentContribution *= (1 + contributionGrowth);
     }
-    if (isRetired && year > yearsToRetirement) {
+    if (hasWithdrawals) {
       currentWithdrawal *= (1 + withdrawalInflation);
     }
   }
