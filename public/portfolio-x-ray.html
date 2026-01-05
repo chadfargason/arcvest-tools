@@ -176,6 +176,104 @@
       display: none;
     }
 
+    /* Account selection styles */
+    .account-list {
+      margin: 20px 0;
+    }
+
+    .account-item {
+      display: flex;
+      align-items: center;
+      padding: 16px;
+      background: white;
+      border: 1px solid #E2E8F0;
+      border-radius: 6px;
+      margin-bottom: 10px;
+      cursor: pointer;
+      transition: border-color 0.2s, background-color 0.2s;
+    }
+
+    .account-item:hover {
+      border-color: #1B9C85;
+      background-color: #F0FDF9;
+    }
+
+    .account-item.selected {
+      border-color: #1B9C85;
+      background-color: #F0FDF9;
+    }
+
+    .account-checkbox {
+      width: 20px;
+      height: 20px;
+      margin-right: 16px;
+      accent-color: #1B9C85;
+      cursor: pointer;
+    }
+
+    .account-info {
+      flex: 1;
+    }
+
+    .account-name {
+      font-weight: 600;
+      color: #0F172A;
+      margin-bottom: 4px;
+    }
+
+    .account-details {
+      font-size: 14px;
+      color: #64748B;
+    }
+
+    .account-balance {
+      text-align: right;
+    }
+
+    .account-balance-value {
+      font-weight: 600;
+      color: #0F172A;
+      font-size: 18px;
+    }
+
+    .account-balance-label {
+      font-size: 12px;
+      color: #64748B;
+    }
+
+    .selection-actions {
+      display: flex;
+      gap: 12px;
+      margin-top: 20px;
+    }
+
+    .btn-secondary {
+      background: white;
+      color: #64748B;
+      border: 1px solid #CBD5E1;
+      padding: 14px 28px;
+      font-size: 16px;
+      font-family: 'Lora', Georgia, serif;
+      cursor: pointer;
+      border-radius: 4px;
+      transition: background 0.2s, border-color 0.2s;
+    }
+
+    .btn-secondary:hover {
+      background: #F8FAFC;
+      border-color: #94A3B8;
+    }
+
+    .selection-summary {
+      margin-top: 16px;
+      padding: 12px 16px;
+      background: #F0FDF9;
+      border: 1px solid #1B9C85;
+      border-radius: 4px;
+      color: #0F172A;
+      font-size: 14px;
+    }
+
     /* Two-column layout for results */
     .results-layout {
       display: grid;
@@ -260,6 +358,26 @@
       <div class="loading">
         <div class="spinner"></div>
         <p id="loading-text">Connecting to your account...</p>
+      </div>
+    </div>
+
+    <!-- Account Selection Section -->
+    <div class="section hidden" id="account-selection-section">
+      <h2>Select Accounts to Analyze</h2>
+      <p style="margin-bottom: 20px;">Choose which investment accounts you want to include in your portfolio analysis.</p>
+
+      <div class="account-list" id="account-list">
+        <!-- Accounts will be populated by JavaScript -->
+      </div>
+
+      <div class="selection-summary hidden" id="selection-summary">
+        <strong id="selected-count">0 accounts</strong> selected
+      </div>
+
+      <div class="selection-actions">
+        <button class="btn" id="analyze-selected-btn" disabled>Analyze Selected Accounts</button>
+        <button class="btn-secondary" id="select-all-btn">Select All</button>
+        <button class="btn-secondary" id="back-btn">Back</button>
       </div>
     </div>
 
@@ -384,6 +502,8 @@
       let linkHandler = null;
       let analysisResults = null;
       let accessToken = null;
+      let availableAccounts = [];
+      let selectedAccountIds = new Set();
 
       // Generate unique user ID
       function getUserId() {
@@ -487,6 +607,187 @@
       displayResults(analysisResults);
     }
 
+    // Format currency for account display
+    function formatAccountBalance(value) {
+      if (value === null || value === undefined) return '—';
+      return new Intl.NumberFormat('en-US', {
+        style: 'currency',
+        currency: 'USD',
+        maximumFractionDigits: 0,
+      }).format(value);
+    }
+
+    // Display accounts for selection
+    function displayAccounts(accounts) {
+      availableAccounts = accounts;
+      selectedAccountIds.clear();
+
+      const accountList = document.getElementById('account-list');
+      accountList.innerHTML = '';
+
+      for (const account of accounts) {
+        const item = document.createElement('div');
+        item.className = 'account-item';
+        item.dataset.accountId = account.account_id;
+
+        const accountType = account.subtype || account.type || 'Investment';
+        const accountMask = account.mask ? ` ••••${account.mask}` : '';
+        const holdingsText = account.holdings_count
+          ? `${account.holdings_count} holding${account.holdings_count !== 1 ? 's' : ''}`
+          : 'No holdings';
+
+        item.innerHTML = `
+          <input type="checkbox" class="account-checkbox" data-account-id="${account.account_id}">
+          <div class="account-info">
+            <div class="account-name">${account.name || account.official_name || 'Investment Account'}${accountMask}</div>
+            <div class="account-details">${accountType} • ${holdingsText}</div>
+          </div>
+          <div class="account-balance">
+            <div class="account-balance-value">${formatAccountBalance(account.balances?.current)}</div>
+            <div class="account-balance-label">Current Balance</div>
+          </div>
+        `;
+
+        // Click anywhere on item to toggle
+        item.addEventListener('click', (e) => {
+          if (e.target.type !== 'checkbox') {
+            const checkbox = item.querySelector('.account-checkbox');
+            checkbox.checked = !checkbox.checked;
+            toggleAccountSelection(account.account_id, checkbox.checked);
+          }
+        });
+
+        // Checkbox change handler
+        const checkbox = item.querySelector('.account-checkbox');
+        checkbox.addEventListener('change', (e) => {
+          e.stopPropagation();
+          toggleAccountSelection(account.account_id, e.target.checked);
+        });
+
+        accountList.appendChild(item);
+      }
+
+      updateSelectionUI();
+    }
+
+    // Toggle account selection
+    function toggleAccountSelection(accountId, isSelected) {
+      const item = document.querySelector(`.account-item[data-account-id="${accountId}"]`);
+
+      if (isSelected) {
+        selectedAccountIds.add(accountId);
+        item?.classList.add('selected');
+      } else {
+        selectedAccountIds.delete(accountId);
+        item?.classList.remove('selected');
+      }
+
+      updateSelectionUI();
+    }
+
+    // Update selection UI state
+    function updateSelectionUI() {
+      const count = selectedAccountIds.size;
+      const summaryEl = document.getElementById('selection-summary');
+      const countEl = document.getElementById('selected-count');
+      const analyzeBtn = document.getElementById('analyze-selected-btn');
+      const selectAllBtn = document.getElementById('select-all-btn');
+
+      if (count > 0) {
+        summaryEl.classList.remove('hidden');
+        countEl.textContent = `${count} account${count !== 1 ? 's' : ''}`;
+        analyzeBtn.disabled = false;
+      } else {
+        summaryEl.classList.add('hidden');
+        analyzeBtn.disabled = true;
+      }
+
+      // Update Select All button text
+      selectAllBtn.textContent = count === availableAccounts.length ? 'Deselect All' : 'Select All';
+    }
+
+    // Select/deselect all accounts
+    function toggleSelectAll() {
+      const allSelected = selectedAccountIds.size === availableAccounts.length;
+
+      document.querySelectorAll('.account-checkbox').forEach((checkbox) => {
+        checkbox.checked = !allSelected;
+      });
+
+      if (allSelected) {
+        // Deselect all
+        selectedAccountIds.clear();
+        document.querySelectorAll('.account-item').forEach((item) => {
+          item.classList.remove('selected');
+        });
+      } else {
+        // Select all
+        availableAccounts.forEach((account) => {
+          selectedAccountIds.add(account.account_id);
+        });
+        document.querySelectorAll('.account-item').forEach((item) => {
+          item.classList.add('selected');
+        });
+      }
+
+      updateSelectionUI();
+    }
+
+    // Fetch accounts from Plaid
+    async function fetchAccountList(token) {
+      const response = await fetch('/api/portfolio-x-ray/list-accounts', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ access_token: token }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.error || 'Failed to fetch accounts');
+      }
+
+      return response.json();
+    }
+
+    // Analyze selected accounts
+    async function analyzeSelectedAccounts() {
+      if (selectedAccountIds.size === 0) {
+        alert('Please select at least one account');
+        return;
+      }
+
+      try {
+        showSection('loading-section');
+        updateLoading('Fetching your investment data...');
+
+        // Fetch data for selected accounts only
+        const fetchResponse = await fetch('/api/portfolio-x-ray/fetch-data', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            access_token: accessToken,
+            account_ids: Array.from(selectedAccountIds),
+          }),
+        });
+
+        if (!fetchResponse.ok) {
+          if (fetchResponse.status === 401) {
+            throw new Error('Please reconnect your account');
+          }
+          throw new Error('Failed to fetch data');
+        }
+
+        const data = await fetchResponse.json();
+        await processPortfolioData(data);
+
+      } catch (error) {
+        console.error('Error analyzing accounts:', error);
+        const errorMsg = error instanceof Error ? error.message : String(error);
+        alert('Error: ' + errorMsg);
+        showSection('account-selection-section');
+      }
+    }
+
     // Connect button handler
     document.getElementById('connect-btn').addEventListener('click', async () => {
       const devModeToggle = document.getElementById('dev-mode-toggle');
@@ -573,26 +874,20 @@
                 const { access_token } = await exchangeResponse.json();
                 accessToken = access_token;
 
-                // Fetch data from Plaid
-                updateLoading('Fetching your investment data...');
-                const fetchResponse = await fetch('/api/portfolio-x-ray/fetch-data', {
-                  method: 'POST',
-                  headers: { 'Content-Type': 'application/json' },
-                  body: JSON.stringify({ access_token: accessToken }),
-                });
+                // Fetch account list for selection
+                updateLoading('Loading your accounts...');
+                const accountsData = await fetchAccountList(accessToken);
 
-                if (!fetchResponse.ok) {
-                  if (fetchResponse.status === 401) {
-                    throw new Error('Please reconnect your account');
-                  }
-                  throw new Error('Failed to fetch data');
+                if (!accountsData.accounts || accountsData.accounts.length === 0) {
+                  throw new Error('No investment accounts found');
                 }
 
-                const data = await fetchResponse.json();
-                await processPortfolioData(data);
+                // Show account selection UI
+                displayAccounts(accountsData.accounts);
+                showSection('account-selection-section');
 
               } catch (error) {
-                console.error('Error in analysis flow:', error);
+                console.error('Error in connection flow:', error);
                 const errorMsg = error instanceof Error ? error.message : String(error);
                 updateLoading('Error: ' + errorMsg);
                 // Show error for a moment, then go back
@@ -705,6 +1000,24 @@
     const toggleBtn = document.getElementById('toggle-debug-btn');
     if (toggleBtn) {
       toggleBtn.addEventListener('click', toggleDebugSection);
+    }
+
+    // Account selection button handlers
+    const analyzeSelectedBtn = document.getElementById('analyze-selected-btn');
+    if (analyzeSelectedBtn) {
+      analyzeSelectedBtn.addEventListener('click', analyzeSelectedAccounts);
+    }
+
+    const selectAllBtn = document.getElementById('select-all-btn');
+    if (selectAllBtn) {
+      selectAllBtn.addEventListener('click', toggleSelectAll);
+    }
+
+    const backBtn = document.getElementById('back-btn');
+    if (backBtn) {
+      backBtn.addEventListener('click', () => {
+        showSection('connect-section');
+      });
     }
 
     // Performance chart instance

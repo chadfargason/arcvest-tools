@@ -16,7 +16,7 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { access_token } = body;
+    const { access_token, account_ids } = body;
 
     if (!access_token) {
       return NextResponse.json(
@@ -24,6 +24,11 @@ export async function POST(request: NextRequest) {
         { status: 400 }
       );
     }
+
+    // account_ids is optional - if provided, filter to only those accounts
+    const selectedAccountIds: string[] | null = account_ids && Array.isArray(account_ids) && account_ids.length > 0
+      ? account_ids
+      : null;
 
     const client = createPlaidClient();
 
@@ -108,17 +113,67 @@ export async function POST(request: NextRequest) {
 
     const holdingsResponse = await client.investmentsHoldingsGet(holdingsRequest);
 
+    // Filter by selected accounts if specified
+    let filteredTransactions = allTransactions;
+    let filteredAccounts = accounts;
+    let filteredHoldings = holdingsResponse.data.holdings;
+    let filteredHoldingsAccounts = holdingsResponse.data.accounts;
+
+    if (selectedAccountIds) {
+      console.log(`Filtering to selected accounts: ${selectedAccountIds.join(', ')}`);
+
+      // Filter transactions
+      filteredTransactions = allTransactions.filter(
+        (tx: any) => selectedAccountIds.includes(tx.account_id)
+      );
+
+      // Filter transaction accounts
+      filteredAccounts = accounts.filter(
+        (acc: any) => selectedAccountIds.includes(acc.account_id)
+      );
+
+      // Filter holdings
+      filteredHoldings = holdingsResponse.data.holdings.filter(
+        (h) => selectedAccountIds.includes(h.account_id)
+      );
+
+      // Filter holdings accounts
+      filteredHoldingsAccounts = holdingsResponse.data.accounts.filter(
+        (acc) => selectedAccountIds.includes(acc.account_id)
+      );
+
+      console.log(`Filtered: ${filteredTransactions.length} transactions, ${filteredHoldings.length} holdings`);
+    }
+
+    // Get security IDs that are still referenced after filtering
+    const referencedSecurityIds = new Set<string>();
+    for (const tx of filteredTransactions) {
+      if (tx.security_id) referencedSecurityIds.add(tx.security_id);
+    }
+    for (const h of filteredHoldings) {
+      if (h.security_id) referencedSecurityIds.add(h.security_id);
+    }
+
+    // Filter securities to only those referenced
+    const filteredSecurities = selectedAccountIds
+      ? allSecurities.filter((s: any) => referencedSecurityIds.has(s.security_id))
+      : allSecurities;
+
+    const filteredHoldingsSecurities = selectedAccountIds
+      ? holdingsResponse.data.securities.filter((s) => referencedSecurityIds.has(s.security_id))
+      : holdingsResponse.data.securities;
+
     return NextResponse.json({
       transactions: {
-        investment_transactions: allTransactions,
-        accounts: accounts,
-        securities: allSecurities,
-        total_investment_transactions: allTransactions.length,
+        investment_transactions: filteredTransactions,
+        accounts: filteredAccounts,
+        securities: filteredSecurities,
+        total_investment_transactions: filteredTransactions.length,
       },
       holdings: {
-        accounts: holdingsResponse.data.accounts,
-        holdings: holdingsResponse.data.holdings,
-        securities: holdingsResponse.data.securities,
+        accounts: filteredHoldingsAccounts,
+        holdings: filteredHoldings,
+        securities: filteredHoldingsSecurities,
       },
     });
   } catch (error: any) {

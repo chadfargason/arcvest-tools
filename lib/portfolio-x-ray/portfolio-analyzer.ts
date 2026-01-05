@@ -27,7 +27,7 @@ import {
   buildMonthlySnapshots,
   calculateTotalValue,
 } from './holdings-tracker';
-import { extractExternalCashflows } from './cashflow-analyzer';
+import { extractExternalCashflowsHybrid } from './cashflow-analyzer';
 import { calculatePortfolioReturns, calculateBenchmark } from './return-calculator';
 import { calculateFees } from './fee-calculator';
 
@@ -147,8 +147,15 @@ export class PortfolioAnalyzer {
     this.log(`Snapshot start: $${snapshotStartValue.toFixed(2)} on ${snapshotStartDate}`);
     this.log(`Snapshot end: $${endValue.toFixed(2)} on ${endDateStr}`);
 
-    // Extract external cashflows (after first snapshot)
-    const allCashflows = extractExternalCashflows(txsInRange, startDateStr, endDateStr);
+    // Extract external cashflows using hybrid approach
+    // This uses BANKLINK for withdrawals (JPMorgan), accounting identity for deposits
+    // and falls back to pure accounting identity when patterns aren't detected
+    const allCashflows = extractExternalCashflowsHybrid(
+      txsInRange,
+      securities,
+      startDateStr,
+      endDateStr
+    );
     const externalCashflows = allCashflows.filter(cf => cf.date > snapshotStartDate);
 
     this.log(`External cashflows: ${externalCashflows.length}`);
