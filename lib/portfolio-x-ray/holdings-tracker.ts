@@ -13,7 +13,7 @@ import { MarketDataProvider } from './market-data';
 
 /**
  * Build current positions from Plaid holdings.
- * Excludes cash equivalents (tracked separately).
+ * Includes cash equivalents so portfolio value reflects all holdings.
  */
 export function buildCurrentPositions(
   holdings: Holding[],
@@ -24,16 +24,20 @@ export function buildCurrentPositions(
   for (const holding of holdings) {
     const security = securities.get(holding.security_id);
 
-    // Skip cash equivalents - tracked separately
-    if (!security || security.is_cash_equivalent) {
+    if (!security) {
       continue;
     }
+
+    // For cash equivalents, use quantity as value (they're ~$1/share)
+    const isCashEquiv = security.is_cash_equivalent;
+    const value = isCashEquiv ? holding.quantity : holding.institution_value;
+    const price = isCashEquiv ? 1.0 : holding.institution_price;
 
     positions.set(holding.security_id, {
       security_id: holding.security_id,
       quantity: holding.quantity,
-      value: holding.institution_value,
-      price: holding.institution_price,
+      value,
+      price,
     });
   }
 
@@ -88,13 +92,14 @@ export function reconstructStartPositions(
 
   for (const tx of transactions) {
     const isCashEquivalent = tx.security_id && securities.get(tx.security_id)?.is_cash_equivalent;
-    // Reverse quantity changes for non-cash securities
-    if (tx.security_id && !isCashEquivalent) {
+
+    // Reverse quantity changes for ALL securities (including cash equivalents)
+    if (tx.security_id) {
       const currentQty = quantities.get(tx.security_id) || 0;
       quantities.set(tx.security_id, currentQty - tx.quantity);
 
-      // Track prices for later valuation
-      if (tx.price > 0) {
+      // Track prices for later valuation (not needed for cash equiv, but doesn't hurt)
+      if (tx.price > 0 && !isCashEquivalent) {
         if (!priceHistory.has(tx.security_id)) {
           priceHistory.set(tx.security_id, []);
         }
@@ -103,7 +108,7 @@ export function reconstructStartPositions(
     }
 
     // Reverse cash impact (amount is positive when cash goes out)
-    // Skip cash equivalent buy/sell - internal transfers between cash and money market
+    // Skip cash equivalent buy/sell - they're tracked as positions
     if (!isCashEquivalent) {
       cashDelta += tx.amount;
     }
@@ -115,6 +120,19 @@ export function reconstructStartPositions(
   for (const [secId, qty] of quantities) {
     // Skip zero/near-zero positions
     if (Math.abs(qty) < 0.000001) continue;
+
+    const security = securities.get(secId);
+
+    // For cash equivalents, use $1/share
+    if (security?.is_cash_equivalent) {
+      startPositions.set(secId, {
+        security_id: secId,
+        quantity: qty,
+        value: qty, // Cash equivalents valued at $1/share
+        price: 1.0,
+      });
+      continue;
+    }
 
     // Get price: prefer first transaction price, fall back to current
     const currentPos = currentPositions.get(secId);
@@ -229,19 +247,20 @@ export async function buildMonthlySnapshots(
         : tx.date > lastMonthEndStr && tx.date <= monthEndStr;
 
       if (shouldApply) {
-        // Update quantities for non-cash securities
-        if (tx.security_id && !isCashEquivalent) {
+        // Update quantities for ALL securities (including cash equivalents)
+        // Cash equivalents need to be tracked so portfolio value reflects deposits
+        if (tx.security_id) {
           const currentQty = quantities.get(tx.security_id) || 0;
           quantities.set(tx.security_id, currentQty + tx.quantity);
 
-          // Set base price if not already set
+          // Set base price if not already set (not needed for cash equiv, but doesn't hurt)
           if (tx.price > 0 && !basePrices.has(tx.security_id)) {
             basePrices.set(tx.security_id, tx.price);
           }
         }
 
         // Update cash (amount positive = cash out)
-        // Skip cash equivalent transactions - internal transfers
+        // Skip cash equivalent transactions - they're tracked as positions now
         if (!isCashEquivalent) {
           cash -= tx.amount;
         }
@@ -256,7 +275,21 @@ export async function buildMonthlySnapshots(
       if (Math.abs(qty) < 0.000001) continue;
 
       const security = securities.get(secId);
-      if (!security || security.is_cash_equivalent) continue;
+      if (!security) continue;
+
+      // For cash equivalents, use quantity directly as value (they're $1/share)
+      // This ensures deposits into sweep/money market are reflected in portfolio value
+      if (security.is_cash_equivalent) {
+        const value = qty; // Cash equivalents are valued at $1/share
+        totalValue += value;
+        positions.set(secId, {
+          security_id: secId,
+          quantity: qty,
+          value,
+          price: 1.0,
+        });
+        continue;
+      }
 
       const ticker = security.ticker_symbol;
       const basePrice = basePrices.get(secId) || 0;
