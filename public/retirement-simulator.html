@@ -1100,13 +1100,15 @@
     // Fee selection handling
     function getFeePercentage() {
       const feeType = document.querySelector('input[name="feeType"]:checked').value;
-      
+
       if (feeType === 'typical') {
         return 1.25;
       } else if (feeType === 'arcvest') {
         return 0.40;
       } else if (feeType === 'custom') {
-        return parseFloat(document.getElementById('customFee').value) || 1.00;
+        const customValue = parseFloat(document.getElementById('customFee').value);
+        // Use isNaN check instead of || to allow 0 as a valid value
+        return Number.isNaN(customValue) ? 1.00 : customValue;
       }
       return 0.40; // Default to ArcVest
     }
