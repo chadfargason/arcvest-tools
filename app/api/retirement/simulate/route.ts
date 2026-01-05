@@ -8,6 +8,8 @@ interface SimulationParams {
   contributionGrowth: number;
   yearsContributing: number;
   annualWithdrawal: number;
+  withdrawalType?: 'fixed' | 'percentage'; // 'fixed' = dollar amount, 'percentage' = % of assets at retirement
+  withdrawalPercentage?: number; // Used when withdrawalType is 'percentage' (e.g., 0.04 for 4%)
   withdrawalInflation: number;
   yearsInRetirement: number;
   simulationCount: number;
@@ -60,6 +62,8 @@ function runMonteCarloSimulation(params: SimulationParams): any {
     contributionGrowth,
     yearsContributing,
     annualWithdrawal,
+    withdrawalType = 'fixed',
+    withdrawalPercentage = 0.04,
     withdrawalInflation,
     yearsInRetirement,
     simulationCount,
@@ -132,6 +136,8 @@ function runMonteCarloSimulation(params: SimulationParams): any {
       contributionGrowth,
       yearsContributing * 12,
       annualWithdrawal,
+      withdrawalType,
+      withdrawalPercentage,
       withdrawalInflation,
       stockAllocation,
       bondAllocation,
@@ -276,6 +282,8 @@ function runMonteCarloSimulation(params: SimulationParams): any {
     annualContribution,
     contributionGrowth,
     annualWithdrawal,
+    withdrawalType,
+    withdrawalPercentage,
     withdrawalInflation,
     yearsContributing * 12, // Convert to months
     taxablePortion,
@@ -330,6 +338,8 @@ function runMonteCarloSimulation(params: SimulationParams): any {
       annualContribution,
       contributionGrowth,
       annualWithdrawal,
+      withdrawalType,
+      withdrawalPercentage,
       withdrawalInflation,
       yearsContributing * 12,
       taxablePortion,
@@ -360,6 +370,8 @@ function generateYearlyBreakdown(
   annualContribution: number,
   contributionGrowth: number,
   annualWithdrawal: number,
+  withdrawalType: 'fixed' | 'percentage',
+  withdrawalPercentage: number,
   withdrawalInflation: number,
   monthsContributing: number,
   taxablePortion: number,
@@ -367,17 +379,24 @@ function generateYearlyBreakdown(
 ): any[] {
   const totalYears = Math.floor(monthlyBalances.length / 12);
   const yearData = [];
-  
+
   let currentContribution = annualContribution / 12;
-  
-  // Inflation-adjust the withdrawal amount from the start (same as simulation)
-  const inflationAdjustedAnnualWithdrawal = annualWithdrawal * Math.pow(1 + withdrawalInflation, yearsToRetirement);
-  
-  // Calculate tax parameters (same as simulation)
+
+  // Calculate tax parameters
   const effectiveTaxRate = taxablePortion * taxRate;
-  const grossWithdrawal = inflationAdjustedAnnualWithdrawal / (1 - effectiveTaxRate);
-  let currentWithdrawal = grossWithdrawal / 12;
   const monthsToRetirement = yearsToRetirement * 12;
+
+  // For fixed withdrawals, pre-calculate; for percentage, we'll calculate when retirement begins
+  let currentWithdrawal = 0;
+  let withdrawalInitialized = false;
+
+  if (withdrawalType === 'fixed') {
+    // Inflation-adjust the withdrawal amount from the start (same as simulation)
+    const inflationAdjustedAnnualWithdrawal = annualWithdrawal * Math.pow(1 + withdrawalInflation, yearsToRetirement);
+    const grossWithdrawal = inflationAdjustedAnnualWithdrawal / (1 - effectiveTaxRate);
+    currentWithdrawal = grossWithdrawal / 12;
+    withdrawalInitialized = true;
+  }
   
   for (let year = 0; year <= totalYears; year++) {
     const age = startAge + year;
@@ -421,6 +440,16 @@ function generateYearlyBreakdown(
           annualContributionTotal += currentContribution;
         }
       } else if (isRetired) {
+        // Initialize percentage-based withdrawal on first month of retirement
+        if (!withdrawalInitialized && withdrawalType === 'percentage') {
+          // Get balance at start of retirement from the monthly balances
+          const retirementStartBalance = monthlyBalances[monthsToRetirement + 1] ?? monthlyBalances[monthsToRetirement] ?? 0;
+          const percentageBasedAnnualWithdrawal = retirementStartBalance * withdrawalPercentage;
+          const grossWithdrawal = percentageBasedAnnualWithdrawal / (1 - effectiveTaxRate);
+          currentWithdrawal = grossWithdrawal / 12;
+          withdrawalInitialized = true;
+        }
+
         monthWithdrawalGross = currentWithdrawal;
         monthTax = monthWithdrawalGross * effectiveTaxRate;
         monthWithdrawalNet = monthWithdrawalGross - monthTax;
@@ -506,6 +535,8 @@ function runSingleScenario(
   contributionGrowth: number,
   monthsContributing: number,
   annualWithdrawal: number,
+  withdrawalType: 'fixed' | 'percentage',
+  withdrawalPercentage: number,
   withdrawalInflation: number,
   stockAllocation: number,
   bondAllocation: number,
@@ -556,18 +587,28 @@ function runSingleScenario(
   const comparisonBondBalances: number[] = comparisonFee !== undefined ? [comparisonBondBalance] : [];
 
   let currentContribution = annualContribution / 12;
-  
-  // Inflation-adjust the withdrawal amount from the start
-  // At retirement, withdrawal should be: baseAmount × (1 + inflation)^yearsToRetirement
-  const yearsUntilRetirement = monthsToRetirement / 12;
-  const inflationAdjustedAnnualWithdrawal = annualWithdrawal * Math.pow(1 + withdrawalInflation, yearsUntilRetirement);
-  
-  // Calculate effective tax rate and gross withdrawal needed
-  // The annualWithdrawal is the desired after-tax spending
-  // Need to withdraw more to cover taxes: grossWithdrawal = netSpending / (1 - effectiveTaxRate)
+
+  // Calculate effective tax rate for withdrawals
   const effectiveTaxRate = taxablePortion * taxRate;
-  const grossWithdrawal = inflationAdjustedAnnualWithdrawal / (1 - effectiveTaxRate);
-  let currentWithdrawal = grossWithdrawal / 12;
+
+  // For fixed withdrawals, pre-calculate the inflation-adjusted amount
+  // For percentage-based, we'll calculate when retirement begins
+  const yearsUntilRetirement = monthsToRetirement / 12;
+  let currentWithdrawal = 0;
+  let withdrawalInitialized = false;
+
+  if (withdrawalType === 'fixed') {
+    // Inflation-adjust the withdrawal amount from the start
+    // At retirement, withdrawal should be: baseAmount × (1 + inflation)^yearsToRetirement
+    const inflationAdjustedAnnualWithdrawal = annualWithdrawal * Math.pow(1 + withdrawalInflation, yearsUntilRetirement);
+
+    // Calculate gross withdrawal needed (to cover taxes)
+    // The annualWithdrawal is the desired after-tax spending
+    const grossWithdrawal = inflationAdjustedAnnualWithdrawal / (1 - effectiveTaxRate);
+    currentWithdrawal = grossWithdrawal / 12;
+    withdrawalInitialized = true;
+  }
+  // For percentage-based, currentWithdrawal will be set when retirement begins
 
   for (let month = 0; month < monthsTotal; month++) {
     // Generate correlated returns using Cholesky decomposition
@@ -645,6 +686,18 @@ function runSingleScenario(
       }
     } else {
       // Withdrawal phase
+
+      // Initialize percentage-based withdrawal on first month of retirement
+      if (!withdrawalInitialized && withdrawalType === 'percentage') {
+        // Calculate withdrawal based on current balance (at retirement start)
+        const percentageBasedAnnualWithdrawal = balance * withdrawalPercentage;
+
+        // Calculate gross withdrawal needed (to cover taxes)
+        const grossWithdrawal = percentageBasedAnnualWithdrawal / (1 - effectiveTaxRate);
+        currentWithdrawal = grossWithdrawal / 12;
+        withdrawalInitialized = true;
+      }
+
       balance -= currentWithdrawal;
       cashFlows.push(currentWithdrawal); // Withdrawal is positive cash flow (money coming in)
 
