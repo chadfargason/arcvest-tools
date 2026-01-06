@@ -1277,14 +1277,16 @@
         const monthlyBondVol = bondVol / Math.sqrt(12);
         const monthlyFee = fee / 12;
 
-        // Run Monte Carlo simulation (1000 scenarios, 12 months each)
+        // Run Monte Carlo simulation (1000 scenarios, 600 months / 50 years each)
         const numSimulations = 1000;
-        const annualReturns = [];
+        const numMonths = 600;
+        const numYears = numMonths / 12;
+        const cagrs = [];
 
         for (let sim = 0; sim < numSimulations; sim++) {
           let balance = 1.0; // Start with $1
 
-          for (let month = 0; month < 12; month++) {
+          for (let month = 0; month < numMonths; month++) {
             // Generate correlated monthly returns
             const [stockRet, bondRet] = mcGenerateCorrelatedReturns(
               monthlyStockReturn, monthlyStockVol,
@@ -1300,13 +1302,15 @@
             balance *= (1 - monthlyFee);
           }
 
-          // Calculate annual return for this simulation
-          annualReturns.push(balance - 1);
+          // Calculate CAGR for this 50-year simulation
+          // CAGR = (ending/starting)^(1/years) - 1
+          const cagr = Math.pow(balance, 1 / numYears) - 1;
+          cagrs.push(cagr);
         }
 
-        // Find median annual return
-        annualReturns.sort((a, b) => a - b);
-        const medianReturn = annualReturns[Math.floor(numSimulations / 2)];
+        // Find median CAGR
+        cagrs.sort((a, b) => a - b);
+        const medianReturn = cagrs[Math.floor(numSimulations / 2)];
 
         // Display as percentage
         const cagrDisplay = document.getElementById('expectedCAGR');
