@@ -826,7 +826,7 @@
 
       <div class="fee-selector">
         <label class="fee-option">
-          <input type="radio" name="withdrawalType" value="fixed" class="withdrawal-type-radio" checked>
+          <input type="radio" name="withdrawalType" value="fixed" class="withdrawal-type-radio">
           <span class="fee-label">
             <span class="fee-title">Fixed Amount</span>
             <span class="fee-value">Set a specific dollar amount</span>
@@ -834,7 +834,7 @@
         </label>
 
         <label class="fee-option">
-          <input type="radio" name="withdrawalType" value="percentage" class="withdrawal-type-radio">
+          <input type="radio" name="withdrawalType" value="percentage" class="withdrawal-type-radio" checked>
           <span class="fee-label">
             <span class="fee-title">% of Assets</span>
             <span class="fee-value">Percentage of portfolio at retirement</span>
@@ -843,13 +843,13 @@
       </div>
 
       <div class="form-grid" style="margin-top: 16px;">
-        <div class="form-group" id="fixedWithdrawalGroup">
+        <div class="form-group" id="fixedWithdrawalGroup" style="display: none;">
           <label class="form-label">Annual Withdrawal</label>
           <input type="number" class="form-input" id="annualWithdrawal" value="40000" min="0" step="1000">
           <div class="form-help">Amount withdrawn per year</div>
         </div>
 
-        <div class="form-group" id="percentageWithdrawalGroup" style="display: none;">
+        <div class="form-group" id="percentageWithdrawalGroup">
           <label class="form-label">Withdrawal Rate (%)</label>
           <input type="number" class="form-input" id="withdrawalPercentage" value="4.0" min="0" max="20" step="0.1">
           <div class="form-help">4% is a common rule of thumb for sustainable withdrawals</div>
@@ -1216,10 +1216,10 @@
         document.getElementById('customFeeGroup').style.display = 'none';
         document.getElementById('customFee').value = 1.00;
 
-        // Reset withdrawal type to Fixed Amount
-        document.querySelector('input[name="withdrawalType"][value="fixed"]').checked = true;
-        document.getElementById('fixedWithdrawalGroup').style.display = 'block';
-        document.getElementById('percentageWithdrawalGroup').style.display = 'none';
+        // Reset withdrawal type to % of Assets
+        document.querySelector('input[name="withdrawalType"][value="percentage"]').checked = true;
+        document.getElementById('fixedWithdrawalGroup').style.display = 'none';
+        document.getElementById('percentageWithdrawalGroup').style.display = 'block';
         document.getElementById('withdrawalPercentage').value = 4.0;
 
         updateAllocationTotal();
