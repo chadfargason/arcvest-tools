@@ -511,13 +511,13 @@ function generateYearlyBreakdown(
       let monthWithdrawalNet = 0;
       let monthTax = 0;
       
-      if (monthNum <= monthsToRetirement) {
-        if (monthNum <= monthsContributing) {
+      if (monthNum < monthsToRetirement) {
+        if (monthNum < monthsContributing) {
           monthContribution = currentContribution;
           annualContributionTotal += currentContribution;
         }
       } else {
-        // Retirement phase (monthNum > monthsToRetirement)
+        // Retirement phase (monthNum >= monthsToRetirement)
         // Get balance at start of this month
         const monthStartBal = monthlyBalances[monthIndex] ?? 0;
 
@@ -527,7 +527,7 @@ function generateYearlyBreakdown(
           if (!withdrawalInitialized && withdrawalType === 'percentage') {
             // Get balance at start of retirement from the monthly balances
             // The percentage applies to the GROSS (pre-tax) withdrawal amount
-            const retirementStartBalance = monthlyBalances[monthsToRetirement + 1] ?? monthlyBalances[monthsToRetirement] ?? 0;
+            const retirementStartBalance = monthlyBalances[monthsToRetirement] ?? 0;
             const grossAnnualWithdrawal = retirementStartBalance * withdrawalPercentage;
             currentWithdrawal = grossAnnualWithdrawal / 12;
             withdrawalInitialized = true;
@@ -783,9 +783,9 @@ function runSingleScenario(
     }
 
     // Apply contributions/withdrawals
-    if (month <= monthsToRetirement) {
+    if (month < monthsToRetirement) {
       // Accumulation phase
-      if (month <= monthsContributing) {
+      if (month < monthsContributing) {
         balance += currentContribution;
         cashFlows.push(-currentContribution); // Contribution is negative cash flow (money going out)
         
@@ -888,8 +888,8 @@ function runSingleScenario(
       }
 
       // Apply same contributions/withdrawals
-      if (month <= monthsToRetirement) {
-        if (month <= monthsContributing) {
+      if (month < monthsToRetirement) {
+        if (month < monthsContributing) {
           comparisonBalance += currentContribution;
           comparisonStockBalance += currentContribution * stockAllocation;
           comparisonBondBalance += currentContribution * bondAllocation;
