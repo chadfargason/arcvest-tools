@@ -1103,14 +1103,17 @@
     document.querySelectorAll('.tab').forEach(tab => {
       tab.addEventListener('click', () => {
         const tabName = tab.dataset.tab;
-        
+
         // Update tab buttons
         document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
         tab.classList.add('active');
-        
+
         // Update tab content
         document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
         document.getElementById(`${tabName}-tab`).classList.add('active');
+
+        // Notify parent of height change after tab switch (with delay for DOM update)
+        setTimeout(notifyParentHeight, 50);
       });
     });
 
@@ -1759,6 +1762,9 @@
 
       detailedDiv.innerHTML = html;
       notifyParentHeight();
+      // Extra delayed notification to ensure large tables are fully rendered
+      setTimeout(notifyParentHeight, 100);
+      setTimeout(notifyParentHeight, 300);
       } catch (error) {
         console.error('Error populating detailed outcome:', error);
         detailedDiv.innerHTML = `<div class="alert alert-error">Error displaying detailed results: ${error.message}</div>`;
@@ -1914,6 +1920,9 @@
 
       detailedDiv.innerHTML = html;
       notifyParentHeight();
+      // Extra delayed notification to ensure large tables are fully rendered
+      setTimeout(notifyParentHeight, 100);
+      setTimeout(notifyParentHeight, 300);
       } catch (error) {
         console.error('Error populating detailed failure:', error);
         detailedDiv.innerHTML = `<div class="alert alert-error">Error displaying failure details: ${error.message}</div>`;
@@ -1947,6 +1956,9 @@
           expandIcon.textContent = '▼';
         }
       }
+
+      // Notify parent of height change
+      setTimeout(notifyParentHeight, 50);
     };
 
     // Toggle monthly details for a year (Detailed Failure tab)
@@ -1975,6 +1987,9 @@
           expandIcon.textContent = '▼';
         }
       }
+
+      // Notify parent of height change
+      setTimeout(notifyParentHeight, 50);
     };
 
     function createPortfolioChartConfig(data) {
