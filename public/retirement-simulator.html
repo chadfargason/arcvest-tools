@@ -1201,10 +1201,61 @@
       });
     });
 
-    // Calculate and display expected portfolio CAGR using variance drag formula
+    // Random number generation for Monte Carlo CAGR estimation
+    // Box-Muller transform for standard normal
+    function mcRandomNormal() {
+      let u1 = 0, u2 = 0;
+      while (u1 === 0) u1 = Math.random();
+      while (u2 === 0) u2 = Math.random();
+      return Math.sqrt(-2.0 * Math.log(u1)) * Math.cos(2.0 * Math.PI * u2);
+    }
+
+    // Student's t-distribution
+    function mcRandomT(df) {
+      const z = mcRandomNormal();
+      let chiSq = 0;
+      for (let i = 0; i < df; i++) {
+        const n = mcRandomNormal();
+        chiSq += n * n;
+      }
+      if (df > 2) {
+        return z / Math.sqrt(chiSq / df) * Math.sqrt((df - 2) / df);
+      }
+      return z / Math.sqrt(chiSq / df);
+    }
+
+    // Skewed Student's t-distribution (matches API implementation)
+    function mcRandomSkewedT(df, skew) {
+      const t = mcRandomT(df);
+      if (isNaN(t)) return 0;
+
+      let skewed;
+      if (t < 0) {
+        skewed = t * (1 + Math.abs(skew));
+      } else {
+        skewed = t * (1 - Math.abs(skew) * 0.5);
+      }
+      const meanCorrection = 0.18 * Math.abs(skew) / 0.3;
+      return skewed + meanCorrection;
+    }
+
+    // Generate correlated returns using Cholesky decomposition
+    function mcGenerateCorrelatedReturns(mean1, std1, mean2, std2, correlation, df) {
+      const skewness = -0.3;
+      const z1 = df < 30 ? mcRandomSkewedT(df, skewness) : mcRandomNormal();
+      const z2 = df < 30 ? mcRandomSkewedT(df, skewness) : mcRandomNormal();
+
+      const correlationFactor = Math.abs(correlation) < 0.999 ? Math.sqrt(1 - correlation * correlation) : 0;
+      const return1 = mean1 + std1 * z1;
+      const return2 = mean2 + std2 * (correlation * z1 + correlationFactor * z2);
+
+      return [return1, return2];
+    }
+
+    // Calculate median CAGR using Monte Carlo simulation
     function updateExpectedCAGR() {
       try {
-        // Get allocations (as decimals) - these use data-ticker attributes, not IDs
+        // Get allocations (as decimals)
         const stockAlloc = (parseFloat(document.querySelector('[data-ticker="STOCKS"]')?.value) || 0) / 100;
         const bondAlloc = (parseFloat(document.querySelector('[data-ticker="BONDS"]')?.value) || 0) / 100;
 
@@ -1214,27 +1265,54 @@
         const stockVol = (parseFloat(document.getElementById('stockVolatility')?.value) || 0) / 100;
         const bondVol = (parseFloat(document.getElementById('bondVolatility')?.value) || 0) / 100;
         const correlation = parseFloat(document.getElementById('correlation')?.value) || 0;
+        const df = parseFloat(document.getElementById('degreesOfFreedom')?.value) || 5;
 
         // Get fee (as decimal)
         const fee = getFeePercentage() / 100;
 
-        // Portfolio arithmetic return (weighted average)
-        const portfolioReturn = stockAlloc * stockReturn + bondAlloc * bondReturn;
+        // Convert to monthly values
+        const monthlyStockReturn = stockReturn / 12;
+        const monthlyBondReturn = bondReturn / 12;
+        const monthlyStockVol = stockVol / Math.sqrt(12);
+        const monthlyBondVol = bondVol / Math.sqrt(12);
+        const monthlyFee = fee / 12;
 
-        // Portfolio variance: w1²σ1² + w2²σ2² + 2·w1·w2·ρ·σ1·σ2
-        const portfolioVariance =
-          Math.pow(stockAlloc * stockVol, 2) +
-          Math.pow(bondAlloc * bondVol, 2) +
-          2 * stockAlloc * bondAlloc * correlation * stockVol * bondVol;
+        // Run Monte Carlo simulation (300 scenarios, 12 months each)
+        const numSimulations = 300;
+        const annualReturns = [];
 
-        // Expected CAGR ≈ arithmetic return - (variance / 2) - fees
-        const expectedCAGR = portfolioReturn - (portfolioVariance / 2) - fee;
+        for (let sim = 0; sim < numSimulations; sim++) {
+          let balance = 1.0; // Start with $1
+
+          for (let month = 0; month < 12; month++) {
+            // Generate correlated monthly returns
+            const [stockRet, bondRet] = mcGenerateCorrelatedReturns(
+              monthlyStockReturn, monthlyStockVol,
+              monthlyBondReturn, monthlyBondVol,
+              correlation, df
+            );
+
+            // Apply weighted portfolio return
+            const portfolioReturn = stockAlloc * stockRet + bondAlloc * bondRet;
+            balance *= (1 + portfolioReturn);
+
+            // Apply monthly fee
+            balance *= (1 - monthlyFee);
+          }
+
+          // Calculate annual return for this simulation
+          annualReturns.push(balance - 1);
+        }
+
+        // Find median annual return
+        annualReturns.sort((a, b) => a - b);
+        const medianReturn = annualReturns[Math.floor(numSimulations / 2)];
 
         // Display as percentage
         const cagrDisplay = document.getElementById('expectedCAGR');
         if (cagrDisplay) {
-          cagrDisplay.textContent = (expectedCAGR * 100).toFixed(2) + '%';
-          cagrDisplay.style.color = expectedCAGR >= 0 ? 'var(--brand)' : '#dc2626';
+          cagrDisplay.textContent = (medianReturn * 100).toFixed(2) + '%';
+          cagrDisplay.style.color = medianReturn >= 0 ? 'var(--brand)' : '#dc2626';
         }
       } catch (error) {
         console.error('Error calculating expected CAGR:', error);
