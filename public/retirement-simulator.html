@@ -927,6 +927,12 @@
           <input type="number" class="form-input" id="degreesOfFreedom" value="5" min="2" max="100" step="1">
           <div class="form-help">Fat tails: Use 5 for realistic extremes, 30+ for normal distribution</div>
         </div>
+
+        <div class="form-group">
+          <label class="form-label">Expected Portfolio CAGR</label>
+          <div id="expectedCAGR" style="padding: 10px 12px; background: #f8f9fa; border: 1px solid var(--ast-border-color); border-radius: 8px; font-size: 16px; font-weight: 600; color: var(--brand);">—</div>
+          <div class="form-help">Compound annual growth rate (net of fees)</div>
+        </div>
       </div>
 
       <p style="color: var(--muted); font-size: 12px; margin-top: 16px; line-height: 1.5;">
@@ -1173,8 +1179,60 @@
         } else {
           customFeeGroup.style.display = 'none';
         }
+        updateExpectedCAGR();
       });
     });
+
+    // Calculate and display expected portfolio CAGR using variance drag formula
+    function updateExpectedCAGR() {
+      try {
+        // Get allocations (as decimals)
+        const stockAlloc = (parseFloat(document.getElementById('stockAllocation')?.value) || 0) / 100;
+        const bondAlloc = (parseFloat(document.getElementById('bondAllocation')?.value) || 0) / 100;
+
+        // Get returns and volatilities (as decimals)
+        const stockReturn = (parseFloat(document.getElementById('stockReturn')?.value) || 0) / 100;
+        const bondReturn = (parseFloat(document.getElementById('bondReturn')?.value) || 0) / 100;
+        const stockVol = (parseFloat(document.getElementById('stockVolatility')?.value) || 0) / 100;
+        const bondVol = (parseFloat(document.getElementById('bondVolatility')?.value) || 0) / 100;
+        const correlation = parseFloat(document.getElementById('correlation')?.value) || 0;
+
+        // Get fee (as decimal)
+        const fee = getFeePercentage() / 100;
+
+        // Portfolio arithmetic return (weighted average)
+        const portfolioReturn = stockAlloc * stockReturn + bondAlloc * bondReturn;
+
+        // Portfolio variance: w1²σ1² + w2²σ2² + 2·w1·w2·ρ·σ1·σ2
+        const portfolioVariance =
+          Math.pow(stockAlloc * stockVol, 2) +
+          Math.pow(bondAlloc * bondVol, 2) +
+          2 * stockAlloc * bondAlloc * correlation * stockVol * bondVol;
+
+        // Expected CAGR ≈ arithmetic return - (variance / 2) - fees
+        const expectedCAGR = portfolioReturn - (portfolioVariance / 2) - fee;
+
+        // Display as percentage
+        const cagrDisplay = document.getElementById('expectedCAGR');
+        if (cagrDisplay) {
+          cagrDisplay.textContent = (expectedCAGR * 100).toFixed(2) + '%';
+          cagrDisplay.style.color = expectedCAGR >= 0 ? 'var(--brand)' : '#dc2626';
+        }
+      } catch (error) {
+        console.error('Error calculating expected CAGR:', error);
+        const cagrDisplay = document.getElementById('expectedCAGR');
+        if (cagrDisplay) cagrDisplay.textContent = '—';
+      }
+    }
+
+    // Wire up CAGR updates to all relevant inputs
+    ['stockAllocation', 'bondAllocation', 'stockReturn', 'bondReturn',
+     'stockVolatility', 'bondVolatility', 'correlation', 'customFee'].forEach(id => {
+      const el = document.getElementById(id);
+      if (el) el.addEventListener('input', updateExpectedCAGR);
+    });
+
+    // Also update CAGR when fee type changes (handled above in radio listener)
 
     // Show/hide withdrawal type inputs
     document.querySelectorAll('input[name="withdrawalType"]').forEach(radio => {
@@ -1230,6 +1288,7 @@
         document.getElementById('withdrawalPercentage').value = 4.0;
 
         updateAllocationTotal();
+        updateExpectedCAGR();
       }
     });
 
@@ -2209,6 +2268,7 @@
 
     // Initialize
     updateAllocationTotal();
+    updateExpectedCAGR();
     notifyParentHeight();
   </script>
 </body>
