@@ -863,6 +863,12 @@
       </div>
 
       <h4 style="font-size: 16px; font-weight: 600; color: var(--text-dark); margin: 24px 0 12px;" id="guardrailsHeader">Guyton-Klinger Guardrails</h4>
+      <div style="margin-bottom: 12px;" id="guardrailsToggleGroup">
+        <label style="display: flex; align-items: center; cursor: pointer;">
+          <input type="checkbox" id="guardrailsEnabled" checked style="width: 18px; height: 18px; margin-right: 8px;">
+          <span style="font-size: 14px; color: var(--text-dark);">Enable dynamic spending guardrails</span>
+        </label>
+      </div>
       <div class="form-grid" id="guardrailsGroup">
         <div class="form-group">
           <label class="form-label">Guardrail Band (%)</label>
@@ -1361,30 +1367,45 @@
     // Show/hide withdrawal type inputs and enable/disable guardrails
     function updateGuardrailsState(isPercentage) {
       const guardrailsHeader = document.getElementById('guardrailsHeader');
+      const guardrailsToggleGroup = document.getElementById('guardrailsToggleGroup');
       const guardrailsGroup = document.getElementById('guardrailsGroup');
       const guardrailsExplanation = document.getElementById('guardrailsExplanation');
       const guardrailInputs = document.querySelectorAll('.guardrail-input');
+      const guardrailsEnabledCheckbox = document.getElementById('guardrailsEnabled');
 
       if (isPercentage) {
-        // Enable guardrails
+        // Enable the guardrails section (toggle is available)
         guardrailsHeader.style.opacity = '1';
-        guardrailsGroup.style.opacity = '1';
-        guardrailsExplanation.style.opacity = '1';
+        guardrailsToggleGroup.style.opacity = '1';
+        guardrailsEnabledCheckbox.disabled = false;
+
+        // Band/adjustment inputs depend on toggle state
+        const isEnabled = guardrailsEnabledCheckbox.checked;
+        guardrailsGroup.style.opacity = isEnabled ? '1' : '0.5';
+        guardrailsExplanation.style.opacity = isEnabled ? '1' : '0.5';
         guardrailInputs.forEach(input => {
-          input.disabled = false;
-          input.style.backgroundColor = '';
+          input.disabled = !isEnabled;
+          input.style.backgroundColor = isEnabled ? '' : '#f0f0f0';
         });
       } else {
-        // Disable guardrails (grayed out)
+        // Disable entire guardrails section (grayed out)
         guardrailsHeader.style.opacity = '0.5';
+        guardrailsToggleGroup.style.opacity = '0.5';
         guardrailsGroup.style.opacity = '0.5';
         guardrailsExplanation.style.opacity = '0.5';
+        guardrailsEnabledCheckbox.disabled = true;
         guardrailInputs.forEach(input => {
           input.disabled = true;
           input.style.backgroundColor = '#f0f0f0';
         });
       }
     }
+
+    // Handle guardrails toggle checkbox
+    document.getElementById('guardrailsEnabled').addEventListener('change', () => {
+      const isPercentage = document.querySelector('input[name="withdrawalType"]:checked')?.value === 'percentage';
+      updateGuardrailsState(isPercentage);
+    });
 
     document.querySelectorAll('input[name="withdrawalType"]').forEach(radio => {
       radio.addEventListener('change', (e) => {
@@ -1490,6 +1511,7 @@
         document.getElementById('withdrawalPercentage').value = 4.0;
 
         // Reset guardrails
+        document.getElementById('guardrailsEnabled').checked = true;
         document.getElementById('guardrailBand').value = 20;
         document.getElementById('guardrailAdjustment').value = 10;
         updateGuardrailsState(true);
@@ -1532,9 +1554,9 @@
         annualWithdrawal: parseFloat(document.getElementById('annualWithdrawal').value),
         withdrawalType: withdrawalType,
         withdrawalPercentage: parseFloat(document.getElementById('withdrawalPercentage').value) / 100,
-        // Guardrails (only used when withdrawalType is 'percentage')
-        guardrailBand: withdrawalType === 'percentage' ? parseFloat(document.getElementById('guardrailBand').value) / 100 : 0,
-        guardrailAdjustment: withdrawalType === 'percentage' ? parseFloat(document.getElementById('guardrailAdjustment').value) / 100 : 0,
+        // Guardrails (only used when withdrawalType is 'percentage' AND toggle is enabled)
+        guardrailBand: (withdrawalType === 'percentage' && document.getElementById('guardrailsEnabled').checked) ? parseFloat(document.getElementById('guardrailBand').value) / 100 : 0,
+        guardrailAdjustment: (withdrawalType === 'percentage' && document.getElementById('guardrailsEnabled').checked) ? parseFloat(document.getElementById('guardrailAdjustment').value) / 100 : 0,
         withdrawalInflation: parseFloat(document.getElementById('withdrawalInflation').value) / 100,
         yearsInRetirement: parseInt(document.getElementById('yearsInRetirement').value),
         simulationCount: parseInt(document.getElementById('simulationCount').value),
