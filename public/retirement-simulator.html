@@ -1186,9 +1186,9 @@
     // Calculate and display expected portfolio CAGR using variance drag formula
     function updateExpectedCAGR() {
       try {
-        // Get allocations (as decimals)
-        const stockAlloc = (parseFloat(document.getElementById('stockAllocation')?.value) || 0) / 100;
-        const bondAlloc = (parseFloat(document.getElementById('bondAllocation')?.value) || 0) / 100;
+        // Get allocations (as decimals) - these use data-ticker attributes, not IDs
+        const stockAlloc = (parseFloat(document.querySelector('[data-ticker="STOCKS"]')?.value) || 0) / 100;
+        const bondAlloc = (parseFloat(document.querySelector('[data-ticker="BONDS"]')?.value) || 0) / 100;
 
         // Get returns and volatilities (as decimals)
         const stockReturn = (parseFloat(document.getElementById('stockReturn')?.value) || 0) / 100;
@@ -1226,10 +1226,15 @@
     }
 
     // Wire up CAGR updates to all relevant inputs
-    ['stockAllocation', 'bondAllocation', 'stockReturn', 'bondReturn',
-     'stockVolatility', 'bondVolatility', 'correlation', 'customFee'].forEach(id => {
+    ['stockReturn', 'bondReturn', 'stockVolatility', 'bondVolatility',
+     'correlation', 'customFee'].forEach(id => {
       const el = document.getElementById(id);
       if (el) el.addEventListener('input', updateExpectedCAGR);
+    });
+
+    // Also update CAGR when allocation changes
+    document.querySelectorAll('.allocation-input').forEach(input => {
+      input.addEventListener('input', updateExpectedCAGR);
     });
 
     // Also update CAGR when fee type changes (handled above in radio listener)
