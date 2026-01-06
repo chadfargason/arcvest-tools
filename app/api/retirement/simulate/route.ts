@@ -10,6 +10,8 @@ interface SimulationParams {
   annualWithdrawal: number;
   withdrawalType?: 'fixed' | 'percentage'; // 'fixed' = dollar amount, 'percentage' = % of assets at retirement
   withdrawalPercentage?: number; // Used when withdrawalType is 'percentage' (e.g., 0.04 for 4%)
+  guardrailBand?: number; // Guyton-Klinger guardrail band (e.g., 0.20 for ±20%)
+  guardrailAdjustment?: number; // Adjustment when guardrail triggered (e.g., 0.10 for 10%)
   withdrawalInflation: number;
   yearsInRetirement: number;
   simulationCount: number;
@@ -64,6 +66,8 @@ function runMonteCarloSimulation(params: SimulationParams): any {
     annualWithdrawal,
     withdrawalType = 'fixed',
     withdrawalPercentage = 0.04,
+    guardrailBand = 0,
+    guardrailAdjustment = 0,
     withdrawalInflation,
     yearsInRetirement,
     simulationCount,
@@ -138,6 +142,8 @@ function runMonteCarloSimulation(params: SimulationParams): any {
       annualWithdrawal,
       withdrawalType,
       withdrawalPercentage,
+      guardrailBand,
+      guardrailAdjustment,
       withdrawalInflation,
       stockAllocation,
       bondAllocation,
@@ -284,6 +290,8 @@ function runMonteCarloSimulation(params: SimulationParams): any {
     annualWithdrawal,
     withdrawalType,
     withdrawalPercentage,
+    guardrailBand,
+    guardrailAdjustment,
     withdrawalInflation,
     yearsContributing * 12, // Convert to months
     taxablePortion,
@@ -336,6 +344,8 @@ function runMonteCarloSimulation(params: SimulationParams): any {
       annualWithdrawal,
       withdrawalType,
       withdrawalPercentage,
+      guardrailBand,
+      guardrailAdjustment,
       withdrawalInflation,
       yearsContributing * 12,
       taxablePortion,
@@ -399,6 +409,8 @@ function runMonteCarloSimulation(params: SimulationParams): any {
       annualWithdrawal,
       withdrawalType,
       withdrawalPercentage,
+      guardrailBand,
+      guardrailAdjustment,
       withdrawalInflation,
       yearsContributing * 12,
       taxablePortion,
@@ -431,6 +443,8 @@ function generateYearlyBreakdown(
   annualWithdrawal: number,
   withdrawalType: 'fixed' | 'percentage',
   withdrawalPercentage: number,
+  guardrailBand: number,
+  guardrailAdjustment: number,
   withdrawalInflation: number,
   monthsContributing: number,
   taxablePortion: number,
@@ -448,6 +462,10 @@ function generateYearlyBreakdown(
   // For fixed withdrawals, pre-calculate; for percentage, we'll calculate when retirement begins
   let currentWithdrawal = 0;
   let withdrawalInitialized = false;
+
+  // Track initial withdrawal rate for guardrails
+  let initialWithdrawalRate = 0;
+  const useGuardrails = withdrawalType === 'percentage' && guardrailBand > 0 && guardrailAdjustment > 0;
 
   if (withdrawalType === 'fixed') {
     // Inflation-adjust the withdrawal amount from the start (same as simulation)
@@ -513,6 +531,27 @@ function generateYearlyBreakdown(
             const grossAnnualWithdrawal = retirementStartBalance * withdrawalPercentage;
             currentWithdrawal = grossAnnualWithdrawal / 12;
             withdrawalInitialized = true;
+
+            // Store initial withdrawal rate for guardrails
+            initialWithdrawalRate = withdrawalPercentage;
+          }
+
+          // Apply Guyton-Klinger guardrails at the start of each year (except first year)
+          const monthsIntoRetirement = monthNum - monthsToRetirement;
+          if (useGuardrails && monthsIntoRetirement > 0 && monthsIntoRetirement % 12 === 0) {
+            const annualWithdrawalPlanned = currentWithdrawal * 12;
+            const currentWithdrawalRate = annualWithdrawalPlanned / monthStartBal;
+
+            const upperGuardrail = initialWithdrawalRate * (1 + guardrailBand);
+            const lowerGuardrail = initialWithdrawalRate * (1 - guardrailBand);
+
+            if (currentWithdrawalRate > upperGuardrail) {
+              // Capital preservation: cut spending
+              currentWithdrawal *= (1 - guardrailAdjustment);
+            } else if (currentWithdrawalRate < lowerGuardrail) {
+              // Prosperity: raise spending
+              currentWithdrawal *= (1 + guardrailAdjustment);
+            }
           }
 
           monthWithdrawalGross = currentWithdrawal;
@@ -608,6 +647,8 @@ function runSingleScenario(
   annualWithdrawal: number,
   withdrawalType: 'fixed' | 'percentage',
   withdrawalPercentage: number,
+  guardrailBand: number,
+  guardrailAdjustment: number,
   withdrawalInflation: number,
   stockAllocation: number,
   bondAllocation: number,
@@ -667,6 +708,10 @@ function runSingleScenario(
   const yearsUntilRetirement = monthsToRetirement / 12;
   let currentWithdrawal = 0;
   let withdrawalInitialized = false;
+
+  // Track initial withdrawal rate for guardrails (only used with percentage-based)
+  let initialWithdrawalRate = 0;
+  let useGuardrails = withdrawalType === 'percentage' && guardrailBand > 0 && guardrailAdjustment > 0;
 
   if (withdrawalType === 'fixed') {
     // Inflation-adjust the withdrawal amount from the start
@@ -767,6 +812,28 @@ function runSingleScenario(
           const grossAnnualWithdrawal = balance * withdrawalPercentage;
           currentWithdrawal = grossAnnualWithdrawal / 12;
           withdrawalInitialized = true;
+
+          // Store initial withdrawal rate for guardrails
+          initialWithdrawalRate = withdrawalPercentage;
+        }
+
+        // Apply Guyton-Klinger guardrails at the start of each year (except first year)
+        // Check at month 12, 24, 36, etc. of retirement (i.e., start of years 2, 3, 4...)
+        const monthsIntoRetirement = month - monthsToRetirement;
+        if (useGuardrails && monthsIntoRetirement > 0 && monthsIntoRetirement % 12 === 0) {
+          const annualWithdrawalPlanned = currentWithdrawal * 12;
+          const currentWithdrawalRate = annualWithdrawalPlanned / balance;
+
+          const upperGuardrail = initialWithdrawalRate * (1 + guardrailBand);
+          const lowerGuardrail = initialWithdrawalRate * (1 - guardrailBand);
+
+          if (currentWithdrawalRate > upperGuardrail) {
+            // Capital preservation: cut spending
+            currentWithdrawal *= (1 - guardrailAdjustment);
+          } else if (currentWithdrawalRate < lowerGuardrail) {
+            // Prosperity: raise spending
+            currentWithdrawal *= (1 + guardrailAdjustment);
+          }
         }
 
         balance -= currentWithdrawal;
