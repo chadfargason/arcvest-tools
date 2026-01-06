@@ -947,9 +947,9 @@
         </div>
 
         <div class="form-group">
-          <label class="form-label">Expected Portfolio CAGR</label>
+          <label class="form-label">Compound Annual Growth Rate (Before Fees)</label>
           <div id="expectedCAGR" style="padding: 10px 12px; background: #f8f9fa; border: 1px solid var(--ast-border-color); border-radius: 8px; font-size: 16px; font-weight: 600; color: var(--brand);">—</div>
-          <div class="form-help">Compound annual growth rate (net of fees)</div>
+          <div class="form-help">Expected median portfolio CAGR excluding fees</div>
         </div>
       </div>
 
@@ -1267,15 +1267,11 @@
         const correlation = parseFloat(document.getElementById('correlation')?.value) || 0;
         const df = parseFloat(document.getElementById('degreesOfFreedom')?.value) || 5;
 
-        // Get fee (as decimal)
-        const fee = getFeePercentage() / 100;
-
         // Convert to monthly values
         const monthlyStockReturn = stockReturn / 12;
         const monthlyBondReturn = bondReturn / 12;
         const monthlyStockVol = stockVol / Math.sqrt(12);
         const monthlyBondVol = bondVol / Math.sqrt(12);
-        const monthlyFee = fee / 12;
 
         // Run Monte Carlo simulation (1000 scenarios, 600 months / 50 years each)
         const numSimulations = 1000;
@@ -1294,12 +1290,9 @@
               correlation, df
             );
 
-            // Apply weighted portfolio return
+            // Apply weighted portfolio return (before fees)
             const portfolioReturn = stockAlloc * stockRet + bondAlloc * bondRet;
             balance *= (1 + portfolioReturn);
-
-            // Apply monthly fee
-            balance *= (1 - monthlyFee);
           }
 
           // Calculate CAGR for this 50-year simulation
@@ -1325,9 +1318,9 @@
       }
     }
 
-    // Wire up CAGR updates to all relevant inputs
+    // Wire up CAGR updates to all relevant inputs (before fees, so no fee input)
     ['stockReturn', 'bondReturn', 'stockVolatility', 'bondVolatility',
-     'correlation', 'customFee'].forEach(id => {
+     'correlation', 'degreesOfFreedom'].forEach(id => {
       const el = document.getElementById(id);
       if (el) el.addEventListener('input', updateExpectedCAGR);
     });
@@ -1560,7 +1553,7 @@
           <div class="result-card">
             <div class="result-label">Median IRR</div>
             <div class="result-value">${(data.medianIRR !== undefined && !isNaN(data.medianIRR)) ? data.medianIRR.toFixed(2) + '%' : 'N/A'}</div>
-            <div style="font-size: 12px; color: var(--muted); margin-top: 4px;">Internal Rate of Return</div>
+            <div style="font-size: 12px; color: var(--muted); margin-top: 4px;">Internal Rate of Return (Net of Fees)</div>
           </div>
 
           <div class="result-card">
@@ -1860,7 +1853,7 @@
             <div class="summary-stat">
               <div class="summary-stat-label">Median IRR</div>
               <div class="summary-stat-value">${medianIRR}</div>
-              <div style="font-size: 11px; color: var(--muted); margin-top: 2px;">Internal Rate of Return</div>
+              <div style="font-size: 11px; color: var(--muted); margin-top: 2px;">Internal Rate of Return (Net of Fees)</div>
             </div>
             <div class="summary-stat">
               <div class="summary-stat-label">Median Volatility</div>
