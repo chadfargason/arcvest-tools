@@ -27,7 +27,71 @@ interface SimulationParams {
   taxRate: number;
   investmentFee: number;
   comparisonFee?: number; // Optional: if provided, run both fee scenarios in parallel
+  simulationMode?: 'simple' | 'regime-switching'; // 'simple' = current skewed-t, 'regime-switching' = 3-state Markov
 }
+
+// ============================================================================
+// REGIME-SWITCHING MODEL DEFINITIONS
+// ============================================================================
+// Three-state Markov regime model for more realistic market dynamics:
+// - Calm: Normal markets with negative stock/bond correlation (diversification works)
+// - Crash: Flight-to-quality with stocks down, bonds up (2008-style)
+// - Inflation: Both assets struggle, positive correlation (2022-style)
+
+type RegimeState = 0 | 1 | 2; // 0=Calm, 1=Crash, 2=Inflation
+
+interface RegimeParams {
+  stockMean: number;      // Annual expected return
+  stockVol: number;       // Annual volatility
+  bondMean: number;       // Annual expected return
+  bondVol: number;        // Annual volatility
+  correlation: number;    // Stock/bond correlation
+  df: number;             // Degrees of freedom for t-distribution
+  stockSkew: number;      // Skewness for stocks
+}
+
+// Regime parameters (annualized) - calibrated to historical behavior
+const REGIME_PARAMS: Record<RegimeState, RegimeParams> = {
+  0: { // Calm / Low Inflation
+    stockMean: 0.11,      // 11% annual return
+    stockVol: 0.15,       // 15% volatility
+    bondMean: 0.045,      // 4.5% annual return
+    bondVol: 0.06,        // 6% volatility
+    correlation: -0.25,   // Negative correlation (diversification works)
+    df: 10,               // Moderate fat tails
+    stockSkew: -0.20      // Mild negative skew
+  },
+  1: { // Crash / Flight-to-Quality
+    stockMean: -0.20,     // -20% annual return (crisis)
+    stockVol: 0.30,       // 30% volatility (high fear)
+    bondMean: 0.10,       // 10% annual return (flight to safety)
+    bondVol: 0.10,        // 10% volatility
+    correlation: -0.60,   // Strong negative correlation (bonds hedge)
+    df: 5,                // Very fat tails
+    stockSkew: -0.50      // Strong negative skew (crashes)
+  },
+  2: { // Inflation Shock
+    stockMean: 0.02,      // 2% annual return (struggling)
+    stockVol: 0.22,       // 22% volatility (elevated)
+    bondMean: -0.05,      // -5% annual return (duration losses)
+    bondVol: 0.12,        // 12% volatility (rate volatility)
+    correlation: 0.50,    // Positive correlation (both down together)
+    df: 7,                // Fat tails
+    stockSkew: -0.30      // Moderate negative skew
+  }
+};
+
+// Markov transition matrix (monthly probabilities)
+// Rows: current state, Columns: next state [Calm, Crash, Inflation]
+// Calibrated for realistic regime persistence
+const TRANSITION_MATRIX: number[][] = [
+  [0.960, 0.035, 0.005],  // From Calm: mostly stays calm, small crash risk, rare inflation
+  [0.300, 0.650, 0.050],  // From Crash: often recovers, can persist, rarely to inflation
+  [0.200, 0.000, 0.800]   // From Inflation: can normalize, never direct to crash, often persists
+];
+
+// Starting regime probabilities (unconditional/stationary distribution approximation)
+const INITIAL_REGIME_PROBS = [0.85, 0.10, 0.05]; // Mostly start in Calm
 
 export async function POST(request: NextRequest) {
   try {
@@ -82,7 +146,8 @@ function runMonteCarloSimulation(params: SimulationParams): any {
     taxablePortion,
     taxRate,
     investmentFee,
-    comparisonFee
+    comparisonFee,
+    simulationMode = 'simple'
   } = params;
 
   // Calculate time periods
@@ -157,7 +222,8 @@ function runMonteCarloSimulation(params: SimulationParams): any {
       taxablePortion,
       taxRate,
       finalInvestmentFee,
-      comparisonFee
+      comparisonFee,
+      simulationMode
     );
 
     scenarios.push({
@@ -662,7 +728,8 @@ function runSingleScenario(
   taxablePortion: number,
   taxRate: number,
   investmentFee: number,
-  comparisonFee?: number
+  comparisonFee?: number,
+  simulationMode: 'simple' | 'regime-switching' = 'simple'
 ): { 
   balances: number[]; 
   returns: { stock: number[]; bond: number[] }; 
@@ -726,17 +793,31 @@ function runSingleScenario(
   }
   // For percentage-based, currentWithdrawal will be set when retirement begins
 
+  // Initialize regime state for regime-switching mode
+  let currentRegime: RegimeState = simulationMode === 'regime-switching' ? drawInitialRegime() : 0;
+
   for (let month = 0; month < monthsTotal; month++) {
-    // Generate correlated returns using Cholesky decomposition
-    // Now with Student's t-distribution for fat tails
-    const [stockReturn, bondReturn] = generateCorrelatedReturns(
-      monthlyStockReturn,
-      monthlyStockVol,
-      monthlyBondReturn,
-      monthlyBondVol,
-      correlation,
-      degreesOfFreedom
-    );
+    // Generate correlated returns based on simulation mode
+    let stockReturn: number;
+    let bondReturn: number;
+
+    if (simulationMode === 'regime-switching') {
+      // Use regime-switching model with Markov transitions
+      const regimeResult = generateRegimeSwitchingReturns(currentRegime);
+      stockReturn = regimeResult.stockReturn;
+      bondReturn = regimeResult.bondReturn;
+      currentRegime = regimeResult.newRegime;
+    } else {
+      // Use simple skewed-t model with user-provided parameters
+      [stockReturn, bondReturn] = generateCorrelatedReturns(
+        monthlyStockReturn,
+        monthlyStockVol,
+        monthlyBondReturn,
+        monthlyBondVol,
+        correlation,
+        degreesOfFreedom
+      );
+    }
 
     // Check for NaN in generated returns
     if (isNaN(stockReturn) || isNaN(bondReturn)) {
@@ -993,6 +1074,68 @@ function generateCorrelatedReturns(
   const return2 = mean2 + std2 * (correlation * z1 + correlationFactor * z2);
 
   return [return1, return2];
+}
+
+// ============================================================================
+// REGIME-SWITCHING RETURN GENERATION
+// ============================================================================
+
+// Draw initial regime based on starting probabilities
+function drawInitialRegime(): RegimeState {
+  const r = Math.random();
+  let cumProb = 0;
+  for (let i = 0; i < INITIAL_REGIME_PROBS.length; i++) {
+    cumProb += INITIAL_REGIME_PROBS[i];
+    if (r < cumProb) return i as RegimeState;
+  }
+  return 0; // Default to Calm
+}
+
+// Transition to next regime based on Markov matrix
+function transitionRegime(currentRegime: RegimeState): RegimeState {
+  const r = Math.random();
+  const row = TRANSITION_MATRIX[currentRegime];
+  let cumProb = 0;
+  for (let i = 0; i < row.length; i++) {
+    cumProb += row[i];
+    if (r < cumProb) return i as RegimeState;
+  }
+  return currentRegime; // Fallback: stay in current regime
+}
+
+// Generate correlated returns using regime-specific parameters
+function generateRegimeSwitchingReturns(
+  currentRegime: RegimeState
+): { stockReturn: number; bondReturn: number; newRegime: RegimeState } {
+  // Get regime parameters
+  const params = REGIME_PARAMS[currentRegime];
+
+  // Convert annual parameters to monthly
+  // For log returns: μ_monthly = ln(1 + μ_annual) / 12
+  // For simplicity (small values): μ_monthly ≈ μ_annual / 12
+  // Volatility: σ_monthly = σ_annual / √12
+  const monthlyStockMean = params.stockMean / 12;
+  const monthlyBondMean = params.bondMean / 12;
+  const monthlyStockVol = params.stockVol / Math.sqrt(12);
+  const monthlyBondVol = params.bondVol / Math.sqrt(12);
+
+  // Generate two independent skewed t-distributed random variables
+  // Use regime-specific df and skew for stocks, same df but less skew for bonds
+  const z1 = randomSkewedT(params.df, params.stockSkew);
+  const z2 = randomSkewedT(params.df, params.stockSkew * 0.5); // Bonds have less skew
+
+  // Apply Cholesky decomposition for correlation
+  const correlationFactor = Math.abs(params.correlation) < 0.999
+    ? Math.sqrt(1 - params.correlation * params.correlation)
+    : 0;
+
+  const stockReturn = monthlyStockMean + monthlyStockVol * z1;
+  const bondReturn = monthlyBondMean + monthlyBondVol * (params.correlation * z1 + correlationFactor * z2);
+
+  // Transition to next regime for next month
+  const newRegime = transitionRegime(currentRegime);
+
+  return { stockReturn, bondReturn, newRegime };
 }
 
 // Generate Skewed Student's t-distributed random variable
