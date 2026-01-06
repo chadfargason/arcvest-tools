@@ -294,6 +294,7 @@ function runMonteCarloSimulation(params: SimulationParams): any {
   let medianFailureDetails: any[] | null = null;
   let medianFailureIndex: number | null = null;
   let medianFailureMonth: number | null = null;
+  let medianFailureAge: number | null = null;
 
   const failedScenarios = finalBalances.filter(b => b.balance === 0);
 
@@ -319,6 +320,7 @@ function runMonteCarloSimulation(params: SimulationParams): any {
 
     medianFailureIndex = medianFailure.index;
     medianFailureMonth = medianFailure.failureMonth;
+    medianFailureAge = currentAge + Math.floor(medianFailure.failureMonth / 12);
 
     // Generate yearly breakdown for the median failure
     const failureSimulation = scenarios.find(s => s.index === medianFailureIndex)!;
@@ -357,6 +359,7 @@ function runMonteCarloSimulation(params: SimulationParams): any {
     // Failure scenario data (null if no failures)
     medianFailureIndex,
     medianFailureMonth,
+    medianFailureAge,
     medianFailureDetails,
     failureCount: failedScenarios.length,
     stockReturnDistribution,
@@ -497,22 +500,29 @@ function generateYearlyBreakdown(
         }
       } else {
         // Retirement phase (monthNum > monthsToRetirement)
-        // Initialize percentage-based withdrawal on first month of retirement
-        if (!withdrawalInitialized && withdrawalType === 'percentage') {
-          // Get balance at start of retirement from the monthly balances
-          // The percentage applies to the GROSS (pre-tax) withdrawal amount
-          const retirementStartBalance = monthlyBalances[monthsToRetirement + 1] ?? monthlyBalances[monthsToRetirement] ?? 0;
-          const grossAnnualWithdrawal = retirementStartBalance * withdrawalPercentage;
-          currentWithdrawal = grossAnnualWithdrawal / 12;
-          withdrawalInitialized = true;
-        }
+        // Get balance at start of this month
+        const monthStartBal = monthlyBalances[monthIndex] ?? 0;
 
-        monthWithdrawalGross = currentWithdrawal;
-        monthTax = monthWithdrawalGross * effectiveTaxRate;
-        monthWithdrawalNet = monthWithdrawalGross - monthTax;
-        annualWithdrawalGross += monthWithdrawalGross;
-        annualWithdrawalNet += monthWithdrawalNet;
-        annualTax += monthTax;
+        // Only withdraw if there's money in the account
+        if (monthStartBal > 0) {
+          // Initialize percentage-based withdrawal on first month of retirement
+          if (!withdrawalInitialized && withdrawalType === 'percentage') {
+            // Get balance at start of retirement from the monthly balances
+            // The percentage applies to the GROSS (pre-tax) withdrawal amount
+            const retirementStartBalance = monthlyBalances[monthsToRetirement + 1] ?? monthlyBalances[monthsToRetirement] ?? 0;
+            const grossAnnualWithdrawal = retirementStartBalance * withdrawalPercentage;
+            currentWithdrawal = grossAnnualWithdrawal / 12;
+            withdrawalInitialized = true;
+          }
+
+          monthWithdrawalGross = currentWithdrawal;
+          monthTax = monthWithdrawalGross * effectiveTaxRate;
+          monthWithdrawalNet = monthWithdrawalGross - monthTax;
+          annualWithdrawalGross += monthWithdrawalGross;
+          annualWithdrawalNet += monthWithdrawalNet;
+          annualTax += monthTax;
+        }
+        // If balance is 0, withdrawals remain 0 (initialized above)
       }
       
       // Calculate monthly balances - align with returns array indexing
@@ -748,25 +758,31 @@ function runSingleScenario(
     } else {
       // Withdrawal phase
 
-      // Initialize percentage-based withdrawal on first month of retirement
-      if (!withdrawalInitialized && withdrawalType === 'percentage') {
-        // Calculate withdrawal based on current balance (at retirement start)
-        // The percentage applies to the GROSS (pre-tax) withdrawal amount
-        const grossAnnualWithdrawal = balance * withdrawalPercentage;
-        currentWithdrawal = grossAnnualWithdrawal / 12;
-        withdrawalInitialized = true;
-      }
+      // Only withdraw if there's money in the account
+      if (balance > 0) {
+        // Initialize percentage-based withdrawal on first month of retirement
+        if (!withdrawalInitialized && withdrawalType === 'percentage') {
+          // Calculate withdrawal based on current balance (at retirement start)
+          // The percentage applies to the GROSS (pre-tax) withdrawal amount
+          const grossAnnualWithdrawal = balance * withdrawalPercentage;
+          currentWithdrawal = grossAnnualWithdrawal / 12;
+          withdrawalInitialized = true;
+        }
 
-      balance -= currentWithdrawal;
-      cashFlows.push(currentWithdrawal); // Withdrawal is positive cash flow (money coming in)
+        balance -= currentWithdrawal;
+        cashFlows.push(currentWithdrawal); // Withdrawal is positive cash flow (money coming in)
 
-      // Withdraw proportionally from assets
-      stockBalance -= currentWithdrawal * stockAllocation;
-      bondBalance -= currentWithdrawal * bondAllocation;
+        // Withdraw proportionally from assets
+        stockBalance -= currentWithdrawal * stockAllocation;
+        bondBalance -= currentWithdrawal * bondAllocation;
 
-      // Adjust withdrawal for inflation (annually) - at end of each year
-      if ((month + 1) % 12 === 0) {
-        currentWithdrawal *= (1 + withdrawalInflation);
+        // Adjust withdrawal for inflation (annually) - at end of each year
+        if ((month + 1) % 12 === 0) {
+          currentWithdrawal *= (1 + withdrawalInflation);
+        }
+      } else {
+        // No money left - no withdrawal
+        cashFlows.push(0);
       }
     }
 

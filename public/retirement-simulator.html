@@ -1614,7 +1614,7 @@
         const yearData = data.medianSimulationDetails;
         const finalBalance = yearData[yearData.length - 1].endBalance || 0;
         const totalContributions = yearData.reduce((sum, y) => sum + (y.contributions || 0), 0);
-        const totalWithdrawals = yearData.reduce((sum, y) => sum + (y.withdrawals || 0), 0);
+        const totalWithdrawals = yearData.reduce((sum, y) => sum + (y.withdrawalGross || 0), 0);
         const totalReturns = yearData.reduce((sum, y) => sum + (y.returns || 0), 0);
         const medianIRR = (data.medianIRR !== undefined && !isNaN(data.medianIRR)) ? data.medianIRR.toFixed(2) + '%' : 'N/A';
         const medianVolatility = (data.medianVolatility !== undefined && !isNaN(data.medianVolatility)) ? data.medianVolatility.toFixed(2) + '%' : 'N/A';
@@ -1783,20 +1783,19 @@
         if (failureTabBtn) failureTabBtn.style.display = 'block';
 
         const yearData = data.medianFailureDetails;
-        const failureMonth = data.medianFailureMonth || 0;
-        const failureYear = Math.ceil(failureMonth / 12);
+        const failureAge = data.medianFailureAge || 0;
         const totalContributions = yearData.reduce((sum, y) => sum + (y.contributions || 0), 0);
-        const totalWithdrawals = yearData.reduce((sum, y) => sum + (y.withdrawals || 0), 0);
+        const totalWithdrawals = yearData.reduce((sum, y) => sum + (y.withdrawalGross || 0), 0);
         const totalReturns = yearData.reduce((sum, y) => sum + (y.returns || 0), 0);
 
       let html = `
         <div class="detailed-summary">
           <h4 style="color: #c0392b;">Median Failure Scenario (Simulation #${data.medianFailureIndex})</h4>
-          <p>This shows the year-by-year progression of the median failure scenario. Out of ${data.failureCount} scenarios where money ran out, this is the median (ranked by when money ran out - month ${failureMonth}, or year ${failureYear}).</p>
+          <p>This shows the year-by-year progression of the median failure scenario. Out of ${data.failureCount} scenarios where money ran out, this is the median (ranked by when money ran out).</p>
           <div class="summary-stats">
             <div class="summary-stat">
-              <div class="summary-stat-label">Money Ran Out</div>
-              <div class="summary-stat-value" style="color: #c0392b;">Year ${failureYear} (Month ${failureMonth})</div>
+              <div class="summary-stat-label">Money Ran Out At Age</div>
+              <div class="summary-stat-value" style="color: #c0392b;">${failureAge}</div>
             </div>
             <div class="summary-stat">
               <div class="summary-stat-label">Failed Scenarios</div>
