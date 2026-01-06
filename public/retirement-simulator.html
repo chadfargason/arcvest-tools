@@ -53,6 +53,7 @@
     .container {
       max-width: 1200px;
       margin: 0 auto;
+      padding-bottom: 40px;
     }
 
     .header {
@@ -1466,6 +1467,8 @@
     document.querySelectorAll('input[name="simulationMode"]').forEach(radio => {
       radio.addEventListener('change', (e) => {
         updateSimulationModeState(e.target.value === 'regime-switching');
+        // Notify parent of height change after content change
+        setTimeout(notifyParentHeight, 50);
       });
     });
 
