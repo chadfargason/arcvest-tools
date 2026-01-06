@@ -1043,40 +1043,94 @@ async function buildPdfBuffer({
     'Years in Retirement',
     assumptions?.yearsInRetirement !== undefined ? String(assumptions.yearsInRetirement) : '—'
   )
+
+  // Withdrawal strategy - show based on type
+  const withdrawalType = assumptions?.withdrawalType ?? 'fixed'
+  const hasGuardrails = withdrawalType === 'percentage' &&
+    (assumptions?.guardrailBand > 0 || assumptions?.guardrailAdjustment > 0)
+
+  if (withdrawalType === 'percentage') {
+    // Percentage-based withdrawal
+    const withdrawalPct = assumptions?.withdrawalPercentage ?? 0
+    const strategyLabel = hasGuardrails ? '% of Assets (with Guardrails)' : '% of Assets'
+    drawAssumptionRow(
+      'Withdrawal Strategy',
+      strategyLabel,
+      'Withdrawal Rate',
+      formatPercent(withdrawalPct, true, 1)
+    )
+
+    // Show guardrails if enabled
+    if (hasGuardrails) {
+      drawAssumptionRow(
+        'Guardrail Band',
+        formatPercent(assumptions?.guardrailBand ?? 0, true, 0),
+        'Guardrail Adjustment',
+        formatPercent(assumptions?.guardrailAdjustment ?? 0, true, 0)
+      )
+    }
+  } else {
+    // Fixed dollar withdrawal
+    drawAssumptionRow(
+      'Withdrawal Strategy',
+      'Fixed Amount',
+      'Annual Withdrawal',
+      formatCurrency(assumptions?.annualWithdrawal ?? 0)
+    )
+  }
+
   drawAssumptionRow(
-    'Annual Withdrawal',
-    formatCurrency(assumptions?.annualWithdrawal ?? 0),
     'Withdrawal Inflation',
     formatPercent(assumptions?.withdrawalInflation ?? 0, true)
   )
   y -= 12
 
   drawAssumptionSectionTitle('Advanced')
+  const simulationMode = assumptions?.simulationMode ?? 'simple'
+  const simulationModeLabel = simulationMode === 'regime-switching'
+    ? 'Regime-Switching (3-State Markov)'
+    : 'Simple (Skewed-t Distribution)'
+
   drawAssumptionRow(
     'Simulation Count',
     assumptions?.simulationCount !== undefined ? String(assumptions.simulationCount) : '—',
     'Rebalancing',
     assumptions?.rebalancing ?? '—'
   )
-  drawAssumptionSubheader('Expected Returns and Risk')
   drawAssumptionRow(
-    'Stock Return (%/yr)',
-    formatPercent(assumptions?.stockReturn ?? 0, true, 2),
-    'Stock Volatility (%)',
-    formatPercent(assumptions?.stockVolatility ?? 0, true, 2)
+    'Simulation Mode',
+    simulationModeLabel
   )
-  drawAssumptionRow(
-    'Bond Return (%/yr)',
-    formatPercent(assumptions?.bondReturn ?? 0, true, 2),
-    'Bond Volatility (%)',
-    formatPercent(assumptions?.bondVolatility ?? 0, true, 2)
-  )
-  drawAssumptionRow(
-    'Correlation',
-    assumptions?.correlation !== undefined ? assumptions.correlation.toFixed(2) : '—',
-    'Degrees of Freedom',
-    assumptions?.degreesOfFreedom !== undefined ? String(assumptions.degreesOfFreedom) : '—'
-  )
+
+  if (simulationMode === 'regime-switching') {
+    // Regime-switching mode uses calibrated parameters
+    drawAssumptionSubheader('Regime-Switching Model')
+    drawParagraph(
+      'Uses 3-state Markov model: Calm (85%), Crash (10%), Inflation (5%) with regime-specific returns, volatilities, and correlations.',
+      { size: 9, font: italicFont, color: subtleColor, spacingAfter: 4 }
+    )
+  } else {
+    // Simple mode uses user-provided parameters
+    drawAssumptionSubheader('Expected Returns and Risk')
+    drawAssumptionRow(
+      'Stock Return (%/yr)',
+      formatPercent(assumptions?.stockReturn ?? 0, true, 2),
+      'Stock Volatility (%)',
+      formatPercent(assumptions?.stockVolatility ?? 0, true, 2)
+    )
+    drawAssumptionRow(
+      'Bond Return (%/yr)',
+      formatPercent(assumptions?.bondReturn ?? 0, true, 2),
+      'Bond Volatility (%)',
+      formatPercent(assumptions?.bondVolatility ?? 0, true, 2)
+    )
+    drawAssumptionRow(
+      'Correlation',
+      assumptions?.correlation !== undefined ? assumptions.correlation.toFixed(2) : '—',
+      'Degrees of Freedom',
+      assumptions?.degreesOfFreedom !== undefined ? String(assumptions.degreesOfFreedom) : '—'
+    )
+  }
   y -= 8
 
   drawAssumptionSectionTitle('Taxes - impact of taxes on portfolio withdrawals')
