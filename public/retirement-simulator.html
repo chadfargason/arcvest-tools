@@ -865,7 +865,7 @@
       <h4 style="font-size: 16px; font-weight: 600; color: var(--text-dark); margin: 24px 0 12px;" id="guardrailsHeader">Guyton-Klinger Guardrails</h4>
       <div style="margin-bottom: 12px;" id="guardrailsToggleGroup">
         <label style="display: flex; align-items: center; cursor: pointer;">
-          <input type="checkbox" id="guardrailsEnabled" checked style="width: 18px; height: 18px; margin-right: 8px;">
+          <input type="checkbox" id="guardrailsEnabled" style="width: 18px; height: 18px; margin-right: 8px;">
           <span style="font-size: 14px; color: var(--text-dark);">Enable dynamic spending guardrails</span>
         </label>
       </div>
@@ -1511,7 +1511,7 @@
         document.getElementById('withdrawalPercentage').value = 4.0;
 
         // Reset guardrails
-        document.getElementById('guardrailsEnabled').checked = true;
+        document.getElementById('guardrailsEnabled').checked = false;
         document.getElementById('guardrailBand').value = 20;
         document.getElementById('guardrailAdjustment').value = 10;
         updateGuardrailsState(true);
