@@ -397,7 +397,8 @@ function runMonteCarloSimulation(params: SimulationParams): any {
     withdrawalInflation,
     yearsContributing * 12, // Convert to months
     taxablePortion,
-    taxRate
+    taxRate,
+    historicalScenario
   );
 
   // Find failed scenarios and identify the median failure
@@ -451,7 +452,8 @@ function runMonteCarloSimulation(params: SimulationParams): any {
       withdrawalInflation,
       yearsContributing * 12,
       taxablePortion,
-      taxRate
+      taxRate,
+      historicalScenario
     );
   }
 
@@ -516,7 +518,8 @@ function runMonteCarloSimulation(params: SimulationParams): any {
       withdrawalInflation,
       yearsContributing * 12,
       taxablePortion,
-      taxRate
+      taxRate,
+      historicalScenario
     );
 
     // Calculate comparison median balance
@@ -550,7 +553,8 @@ function generateYearlyBreakdown(
   withdrawalInflation: number,
   monthsContributing: number,
   taxablePortion: number,
-  taxRate: number
+  taxRate: number,
+  historicalScenario: string | null = null
 ): any[] {
   const totalYears = Math.floor(monthlyBalances.length / 12);
   const yearData = [];
@@ -568,6 +572,12 @@ function generateYearlyBreakdown(
   // Track initial withdrawal rate for guardrails
   let initialWithdrawalRate = 0;
   const useGuardrails = withdrawalType === 'percentage' && guardrailBand > 0 && guardrailAdjustment > 0;
+
+  // Historical CPI tracking for historical scenarios
+  const historicalMonths = historicalScenario ? getHistoricalMonthsForScenario(historicalScenario) : [];
+  let historicalMonthIndex = 0;
+  let cumulativeHistoricalCPI = 0;
+  let usingHistoricalCPI = false;
 
   if (withdrawalType === 'fixed') {
     // Inflation-adjust the withdrawal amount from the start (same as simulation)
@@ -662,6 +672,17 @@ function generateYearlyBreakdown(
           annualWithdrawalGross += monthWithdrawalGross;
           annualWithdrawalNet += monthWithdrawalNet;
           annualTax += monthTax;
+
+          // Track historical CPI for inflation adjustments
+          if (historicalScenario && historicalMonthIndex < historicalMonths.length) {
+            const histKey = historicalMonths[historicalMonthIndex];
+            const histReturn = HISTORICAL_RETURNS[histKey];
+            if (histReturn && histReturn.cpi !== undefined) {
+              cumulativeHistoricalCPI += histReturn.cpi;
+              usingHistoricalCPI = true;
+            }
+            historicalMonthIndex++;
+          }
         }
         // If balance is 0, withdrawals remain 0 (initialized above)
       }
@@ -732,7 +753,15 @@ function generateYearlyBreakdown(
       currentContribution *= (1 + contributionGrowth);
     }
     if (hasWithdrawals) {
-      currentWithdrawal *= (1 + withdrawalInflation);
+      // Use historical CPI if available, otherwise use user-specified inflation
+      if (usingHistoricalCPI) {
+        currentWithdrawal *= (1 + cumulativeHistoricalCPI);
+      } else {
+        currentWithdrawal *= (1 + withdrawalInflation);
+      }
+      // Reset for next year
+      cumulativeHistoricalCPI = 0;
+      usingHistoricalCPI = false;
     }
   }
   
@@ -1006,8 +1035,8 @@ function runSingleScenario(
 
         // Adjust withdrawal for inflation (annually) - at end of each year
         if ((month + 1) % 12 === 0) {
-          if (usingHistoricalCPI && cumulativeHistoricalCPI !== 0) {
-            // Use accumulated historical CPI for this year
+          if (usingHistoricalCPI) {
+            // Use accumulated historical CPI for this year (even if 0, meaning no inflation)
             currentWithdrawal *= (1 + cumulativeHistoricalCPI);
           } else {
             // Use user-specified inflation rate
