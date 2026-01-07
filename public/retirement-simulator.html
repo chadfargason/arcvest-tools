@@ -1067,6 +1067,30 @@
           <div style="font-size: 13px; color: var(--muted); line-height: 1.5;">Both stocks AND bonds fell together. A rare 60/40 portfolio disaster as Fed hiked rates.</div>
         </div>
 
+        <div class="historical-card" id="customDateCard" data-scenario="custom" style="padding: 20px; border: 2px solid var(--ast-border-color); border-radius: var(--radius); cursor: pointer; transition: all 0.2s; background: #fff;">
+          <div style="font-size: 16px; font-weight: 600; color: var(--text-dark); margin-bottom: 8px;">Custom Date</div>
+          <div style="font-size: 13px; color: var(--brand); font-weight: 600; margin-bottom: 8px;">Choose Your Own</div>
+          <div style="font-size: 13px; color: var(--muted); line-height: 1.5; margin-bottom: 12px;">Pick any month from January 1928 to December 2025.</div>
+          <div style="display: flex; gap: 8px;" onclick="event.stopPropagation();">
+            <select id="customHistoricalMonth" class="form-select" style="height: 36px; font-size: 14px; padding: 0 8px; flex: 1;">
+              <option value="01">January</option>
+              <option value="02">February</option>
+              <option value="03">March</option>
+              <option value="04">April</option>
+              <option value="05">May</option>
+              <option value="06">June</option>
+              <option value="07">July</option>
+              <option value="08">August</option>
+              <option value="09">September</option>
+              <option value="10">October</option>
+              <option value="11">November</option>
+              <option value="12">December</option>
+            </select>
+            <select id="customHistoricalYear" class="form-select" style="height: 36px; font-size: 14px; padding: 0 8px; flex: 1;">
+            </select>
+          </div>
+        </div>
+
       </div>
 
       <div id="selectedScenarioInfo" style="display: none; padding: 16px; background: rgba(27, 156, 133, 0.05); border: 1px solid var(--brand); border-radius: var(--radius); margin-bottom: 16px;">
@@ -1562,12 +1586,44 @@
       '2022-01': 'January 2022 - Inflation Shock'
     };
 
+    const monthNames = ['January', 'February', 'March', 'April', 'May', 'June',
+                        'July', 'August', 'September', 'October', 'November', 'December'];
+
+    // Populate custom year dropdown (1928-2025)
+    const yearSelect = document.getElementById('customHistoricalYear');
+    for (let year = 1928; year <= 2025; year++) {
+      const option = document.createElement('option');
+      option.value = year;
+      option.textContent = year;
+      yearSelect.appendChild(option);
+    }
+    yearSelect.value = '1928'; // Default to earliest year
+
+    // Helper to get custom date scenario name
+    function getCustomScenarioName() {
+      const month = document.getElementById('customHistoricalMonth').value;
+      const year = document.getElementById('customHistoricalYear').value;
+      const monthName = monthNames[parseInt(month) - 1];
+      return `${monthName} ${year} - Custom Date`;
+    }
+
+    // Helper to get custom date scenario key
+    function getCustomScenarioKey() {
+      const month = document.getElementById('customHistoricalMonth').value;
+      const year = document.getElementById('customHistoricalYear').value;
+      return `${year}-${month}`;
+    }
+
     document.querySelectorAll('.historical-card').forEach(card => {
       card.addEventListener('click', () => {
         const scenario = card.dataset.scenario;
 
+        // For custom card, get the actual date from dropdowns
+        const actualScenario = scenario === 'custom' ? getCustomScenarioKey() : scenario;
+        const scenarioName = scenario === 'custom' ? getCustomScenarioName() : historicalScenarioNames[scenario];
+
         // Toggle selection
-        if (selectedHistoricalScenario === scenario) {
+        if (selectedHistoricalScenario === actualScenario && card.classList.contains('selected')) {
           // Deselect if clicking the same card
           selectedHistoricalScenario = null;
           card.classList.remove('selected');
@@ -1576,11 +1632,28 @@
           // Select new card
           document.querySelectorAll('.historical-card').forEach(c => c.classList.remove('selected'));
           card.classList.add('selected');
-          selectedHistoricalScenario = scenario;
-          document.getElementById('selectedScenarioName').textContent = historicalScenarioNames[scenario];
+          selectedHistoricalScenario = actualScenario;
+          document.getElementById('selectedScenarioName').textContent = scenarioName;
           document.getElementById('selectedScenarioInfo').style.display = 'block';
         }
       });
+    });
+
+    // Update custom scenario when dropdowns change (if custom card is selected)
+    document.getElementById('customHistoricalMonth').addEventListener('change', () => {
+      const customCard = document.getElementById('customDateCard');
+      if (customCard.classList.contains('selected')) {
+        selectedHistoricalScenario = getCustomScenarioKey();
+        document.getElementById('selectedScenarioName').textContent = getCustomScenarioName();
+      }
+    });
+
+    document.getElementById('customHistoricalYear').addEventListener('change', () => {
+      const customCard = document.getElementById('customDateCard');
+      if (customCard.classList.contains('selected')) {
+        selectedHistoricalScenario = getCustomScenarioKey();
+        document.getElementById('selectedScenarioName').textContent = getCustomScenarioName();
+      }
     });
 
     document.getElementById('clearScenario').addEventListener('click', () => {
