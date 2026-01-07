@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { HISTORICAL_RETURNS } from '../historical-returns-data';
 
 interface SimulationParams {
   startingBalance: number;
@@ -28,6 +29,38 @@ interface SimulationParams {
   investmentFee: number;
   comparisonFee?: number; // Optional: if provided, run both fee scenarios in parallel
   simulationMode?: 'simple' | 'regime-switching'; // 'simple' = current skewed-t, 'regime-switching' = 3-state Markov
+  historicalScenario?: string | null; // e.g., '1929-10', '2007-10', etc. If set, uses historical returns during retirement
+}
+
+// ============================================================================
+// HISTORICAL RETURNS DATA
+// ============================================================================
+// Monthly total returns for S&P 500 (stocks) and aggregate bonds
+// Data is imported from historical-returns-data.ts (generated from Supabase)
+// Stock: ^SP500TR (S&P 500 Total Return) - 1927-01 to 2025-12
+// Bond: LONG_BOND (through 2004) + AGG (2005+) - 1928-01 to 2025-12
+
+interface HistoricalReturn {
+  stock: number;
+  bond: number;
+}
+
+// Helper to get historical return for a given month
+function getHistoricalReturn(year: number, month: number): HistoricalReturn | null {
+  const key = `${year}-${String(month).padStart(2, '0')}`;
+  return HISTORICAL_RETURNS[key] || null;
+}
+
+// Get all available months for a scenario (sorted chronologically)
+function getHistoricalMonthsForScenario(scenarioStartKey: string): string[] {
+  const [startYear, startMonth] = scenarioStartKey.split('-').map(Number);
+  const availableKeys = Object.keys(HISTORICAL_RETURNS).sort();
+
+  // Filter to only include months from the start date onwards
+  return availableKeys.filter(key => {
+    const [year, month] = key.split('-').map(Number);
+    return year > startYear || (year === startYear && month >= startMonth);
+  });
 }
 
 // ============================================================================
@@ -147,7 +180,8 @@ function runMonteCarloSimulation(params: SimulationParams): any {
     taxRate,
     investmentFee,
     comparisonFee,
-    simulationMode = 'simple'
+    simulationMode = 'simple',
+    historicalScenario = null
   } = params;
 
   // Calculate time periods
@@ -223,7 +257,8 @@ function runMonteCarloSimulation(params: SimulationParams): any {
       taxRate,
       finalInvestmentFee,
       comparisonFee,
-      simulationMode
+      simulationMode,
+      historicalScenario
     );
 
     scenarios.push({
@@ -729,7 +764,8 @@ function runSingleScenario(
   taxRate: number,
   investmentFee: number,
   comparisonFee?: number,
-  simulationMode: 'simple' | 'regime-switching' = 'simple'
+  simulationMode: 'simple' | 'regime-switching' = 'simple',
+  historicalScenario: string | null = null
 ): { 
   balances: number[]; 
   returns: { stock: number[]; bond: number[] }; 
@@ -796,12 +832,43 @@ function runSingleScenario(
   // Initialize regime state for regime-switching mode
   let currentRegime: RegimeState = simulationMode === 'regime-switching' ? drawInitialRegime() : 0;
 
+  // Historical scenario tracking
+  const historicalMonths = historicalScenario ? getHistoricalMonthsForScenario(historicalScenario) : [];
+  let historicalMonthIndex = 0; // Tracks which historical month we're on (relative to retirement start)
+  let usedHistoricalMonths = 0; // For tracking when history runs out
+
   for (let month = 0; month < monthsTotal; month++) {
     // Generate correlated returns based on simulation mode
     let stockReturn: number;
     let bondReturn: number;
 
-    if (simulationMode === 'regime-switching') {
+    // Check if we should use historical returns (during retirement with a historical scenario)
+    const isInRetirement = month >= monthsToRetirement;
+    const useHistorical = isInRetirement && historicalScenario && historicalMonthIndex < historicalMonths.length;
+
+    if (useHistorical) {
+      // Use actual historical returns
+      const histKey = historicalMonths[historicalMonthIndex];
+      const histReturn = HISTORICAL_RETURNS[histKey];
+      if (histReturn) {
+        stockReturn = histReturn.stock;
+        bondReturn = histReturn.bond;
+        usedHistoricalMonths++;
+      } else {
+        // Fallback to Monte Carlo if historical data is missing
+        if (simulationMode === 'regime-switching') {
+          const regimeResult = generateRegimeSwitchingReturns(currentRegime);
+          stockReturn = regimeResult.stockReturn;
+          bondReturn = regimeResult.bondReturn;
+          currentRegime = regimeResult.newRegime;
+        } else {
+          [stockReturn, bondReturn] = generateCorrelatedReturns(
+            monthlyStockReturn, monthlyStockVol, monthlyBondReturn, monthlyBondVol, correlation, degreesOfFreedom
+          );
+        }
+      }
+      historicalMonthIndex++;
+    } else if (simulationMode === 'regime-switching') {
       // Use regime-switching model with Markov transitions
       const regimeResult = generateRegimeSwitchingReturns(currentRegime);
       stockReturn = regimeResult.stockReturn;

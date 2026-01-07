@@ -278,6 +278,18 @@
       color: var(--muted);
     }
 
+    /* Historical Scenario Cards */
+    .historical-card:hover {
+      border-color: var(--brand);
+      background: rgba(27, 156, 133, 0.02);
+    }
+
+    .historical-card.selected {
+      border-color: var(--brand);
+      background: rgba(27, 156, 133, 0.08);
+      box-shadow: 0 0 0 3px rgba(27, 156, 133, 0.15);
+    }
+
     /* Buttons */
     .btn {
       padding: 16px 32px;
@@ -699,6 +711,7 @@
       <button class="tab" data-tab="contributions">Contributions</button>
       <button class="tab" data-tab="retirement">Retirement</button>
       <button class="tab" data-tab="advanced">Advanced</button>
+      <button class="tab" data-tab="historical">Historical</button>
       <button class="tab" data-tab="detailed">Detailed Outcome</button>
       <button class="tab" data-tab="failure" id="failureTab" style="display: none;">Detailed Failure</button>
     </div>
@@ -1008,7 +1021,69 @@
       </div>
     </div>
 
-    <!-- Tab 5: Detailed Outcome -->
+    <!-- Tab 5: Historical Scenarios -->
+    <div class="tab-content" id="historical-tab">
+      <h3 style="font-size: 18px; font-weight: 600; color: var(--text-dark); margin-bottom: 8px;">Historical Stress Test</h3>
+      <p style="color: var(--muted); margin-bottom: 24px;">
+        Test your retirement plan against historically bad times to retire. Select a scenario below to see how your portfolio
+        would have performed using actual market returns from that period.
+      </p>
+
+      <div class="historical-scenarios" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 16px; margin-bottom: 24px;">
+
+        <div class="historical-card" data-scenario="1929-10" style="padding: 20px; border: 2px solid var(--ast-border-color); border-radius: var(--radius); cursor: pointer; transition: all 0.2s; background: #fff;">
+          <div style="font-size: 16px; font-weight: 600; color: var(--text-dark); margin-bottom: 8px;">October 1929</div>
+          <div style="font-size: 13px; color: var(--brand); font-weight: 600; margin-bottom: 8px;">The Great Depression</div>
+          <div style="font-size: 13px; color: var(--muted); line-height: 1.5;">Stocks fell 89% over 3 years. One of the worst times in history to retire with a stock-heavy portfolio.</div>
+        </div>
+
+        <div class="historical-card" data-scenario="1966-01" style="padding: 20px; border: 2px solid var(--ast-border-color); border-radius: var(--radius); cursor: pointer; transition: all 0.2s; background: #fff;">
+          <div style="font-size: 16px; font-weight: 600; color: var(--text-dark); margin-bottom: 8px;">January 1966</div>
+          <div style="font-size: 13px; color: var(--brand); font-weight: 600; margin-bottom: 8px;">The Lost Decade(s)</div>
+          <div style="font-size: 13px; color: var(--muted); line-height: 1.5;">Start of a 16-year secular bear market. Stocks went nowhere while inflation eroded purchasing power.</div>
+        </div>
+
+        <div class="historical-card" data-scenario="1973-01" style="padding: 20px; border: 2px solid var(--ast-border-color); border-radius: var(--radius); cursor: pointer; transition: all 0.2s; background: #fff;">
+          <div style="font-size: 16px; font-weight: 600; color: var(--text-dark); margin-bottom: 8px;">January 1973</div>
+          <div style="font-size: 13px; color: var(--brand); font-weight: 600; margin-bottom: 8px;">Oil Crisis & Stagflation</div>
+          <div style="font-size: 13px; color: var(--muted); line-height: 1.5;">Stocks dropped 48% over 2 years. Stagflation meant both stocks AND bonds suffered.</div>
+        </div>
+
+        <div class="historical-card" data-scenario="2000-03" style="padding: 20px; border: 2px solid var(--ast-border-color); border-radius: var(--radius); cursor: pointer; transition: all 0.2s; background: #fff;">
+          <div style="font-size: 16px; font-weight: 600; color: var(--text-dark); margin-bottom: 8px;">March 2000</div>
+          <div style="font-size: 13px; color: var(--brand); font-weight: 600; margin-bottom: 8px;">Dot-Com Bubble Peak</div>
+          <div style="font-size: 13px; color: var(--muted); line-height: 1.5;">Tech-heavy portfolios lost up to 80%. S&P 500 didn't recover for 13 years on a real basis.</div>
+        </div>
+
+        <div class="historical-card" data-scenario="2007-10" style="padding: 20px; border: 2px solid var(--ast-border-color); border-radius: var(--radius); cursor: pointer; transition: all 0.2s; background: #fff;">
+          <div style="font-size: 16px; font-weight: 600; color: var(--text-dark); margin-bottom: 8px;">October 2007</div>
+          <div style="font-size: 13px; color: var(--brand); font-weight: 600; margin-bottom: 8px;">Global Financial Crisis</div>
+          <div style="font-size: 13px; color: var(--muted); line-height: 1.5;">Stocks fell 57% in 17 months. Retiring at the peak before the Great Recession was brutal.</div>
+        </div>
+
+        <div class="historical-card" data-scenario="2022-01" style="padding: 20px; border: 2px solid var(--ast-border-color); border-radius: var(--radius); cursor: pointer; transition: all 0.2s; background: #fff;">
+          <div style="font-size: 16px; font-weight: 600; color: var(--text-dark); margin-bottom: 8px;">January 2022</div>
+          <div style="font-size: 13px; color: var(--brand); font-weight: 600; margin-bottom: 8px;">Inflation Shock</div>
+          <div style="font-size: 13px; color: var(--muted); line-height: 1.5;">Both stocks AND bonds fell together. A rare 60/40 portfolio disaster as Fed hiked rates.</div>
+        </div>
+
+      </div>
+
+      <div id="selectedScenarioInfo" style="display: none; padding: 16px; background: rgba(27, 156, 133, 0.05); border: 1px solid var(--brand); border-radius: var(--radius); margin-bottom: 16px;">
+        <div style="display: flex; align-items: center; gap: 12px;">
+          <span style="font-size: 14px; color: var(--text-dark);"><strong>Selected:</strong> <span id="selectedScenarioName"></span></span>
+          <button id="clearScenario" style="padding: 4px 12px; font-size: 12px; background: transparent; border: 1px solid var(--muted); border-radius: 4px; cursor: pointer; color: var(--muted);">Clear</button>
+        </div>
+      </div>
+
+      <p style="color: var(--muted); font-size: 13px; line-height: 1.6;">
+        <strong>How it works:</strong> Your portfolio grows normally until retirement using Monte Carlo simulation.
+        At retirement, the simulation switches to actual historical returns from your selected scenario.
+        If you outlive the historical data, Monte Carlo simulation resumes for the remaining years.
+      </p>
+    </div>
+
+    <!-- Tab 6: Detailed Outcome -->
     <div class="tab-content" id="detailed-tab">
       <h3 style="font-size: 18px; font-weight: 600; color: var(--text-dark); margin-bottom: 16px;">Year-by-Year Breakdown</h3>
       <p style="color: var(--muted); margin-bottom: 16px;">
@@ -1475,6 +1550,45 @@
     // Initialize simulation mode state based on default selection
     updateSimulationModeState(document.querySelector('input[name="simulationMode"]:checked')?.value === 'regime-switching');
 
+    // Historical scenario selection
+    let selectedHistoricalScenario = null;
+
+    const historicalScenarioNames = {
+      '1929-10': 'October 1929 - The Great Depression',
+      '1966-01': 'January 1966 - The Lost Decade(s)',
+      '1973-01': 'January 1973 - Oil Crisis & Stagflation',
+      '2000-03': 'March 2000 - Dot-Com Bubble Peak',
+      '2007-10': 'October 2007 - Global Financial Crisis',
+      '2022-01': 'January 2022 - Inflation Shock'
+    };
+
+    document.querySelectorAll('.historical-card').forEach(card => {
+      card.addEventListener('click', () => {
+        const scenario = card.dataset.scenario;
+
+        // Toggle selection
+        if (selectedHistoricalScenario === scenario) {
+          // Deselect if clicking the same card
+          selectedHistoricalScenario = null;
+          card.classList.remove('selected');
+          document.getElementById('selectedScenarioInfo').style.display = 'none';
+        } else {
+          // Select new card
+          document.querySelectorAll('.historical-card').forEach(c => c.classList.remove('selected'));
+          card.classList.add('selected');
+          selectedHistoricalScenario = scenario;
+          document.getElementById('selectedScenarioName').textContent = historicalScenarioNames[scenario];
+          document.getElementById('selectedScenarioInfo').style.display = 'block';
+        }
+      });
+    });
+
+    document.getElementById('clearScenario').addEventListener('click', () => {
+      selectedHistoricalScenario = null;
+      document.querySelectorAll('.historical-card').forEach(c => c.classList.remove('selected'));
+      document.getElementById('selectedScenarioInfo').style.display = 'none';
+    });
+
     // Reset form
     document.getElementById('resetForm').addEventListener('click', () => {
       if (confirm('Reset all inputs to default values?')) {
@@ -1522,6 +1636,11 @@
         // Reset simulation mode to Simple
         document.querySelector('input[name="simulationMode"][value="simple"]').checked = true;
         updateSimulationModeState(false);
+
+        // Reset historical scenario
+        selectedHistoricalScenario = null;
+        document.querySelectorAll('.historical-card').forEach(c => c.classList.remove('selected'));
+        document.getElementById('selectedScenarioInfo').style.display = 'none';
 
         updateAllocationTotal();
         updateExpectedCAGR();
@@ -1578,7 +1697,9 @@
         // Investment fees
         investmentFee: getFeePercentage() / 100,
         // Simulation mode
-        simulationMode: document.querySelector('input[name="simulationMode"]:checked').value
+        simulationMode: document.querySelector('input[name="simulationMode"]:checked').value,
+        // Historical scenario (if selected)
+        historicalScenario: selectedHistoricalScenario
       };
 
       lastSimulationParams = params;
