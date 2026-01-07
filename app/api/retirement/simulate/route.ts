@@ -43,6 +43,7 @@ interface SimulationParams {
 interface HistoricalReturn {
   stock: number;
   bond: number;
+  cpi?: number;  // Monthly inflation rate (for historical scenarios)
 }
 
 // Helper to get historical return for a given month
@@ -837,10 +838,15 @@ function runSingleScenario(
   let historicalMonthIndex = 0; // Tracks which historical month we're on (relative to retirement start)
   let usedHistoricalMonths = 0; // For tracking when history runs out
 
+  // Track historical CPI for inflation adjustments
+  let cumulativeHistoricalCPI = 0; // Accumulated monthly CPI within the year
+  let usingHistoricalCPI = false; // Whether current year used historical CPI
+
   for (let month = 0; month < monthsTotal; month++) {
     // Generate correlated returns based on simulation mode
     let stockReturn: number;
     let bondReturn: number;
+    let monthlyCPI: number | undefined = undefined;
 
     // Check if we should use historical returns (during retirement with a historical scenario)
     const isInRetirement = month >= monthsToRetirement;
@@ -853,6 +859,7 @@ function runSingleScenario(
       if (histReturn) {
         stockReturn = histReturn.stock;
         bondReturn = histReturn.bond;
+        monthlyCPI = histReturn.cpi; // Track historical CPI
         usedHistoricalMonths++;
       } else {
         // Fallback to Monte Carlo if historical data is missing
@@ -991,9 +998,24 @@ function runSingleScenario(
         stockBalance -= currentWithdrawal * stockAllocation;
         bondBalance -= currentWithdrawal * bondAllocation;
 
+        // Accumulate historical CPI for this month (if using historical data)
+        if (monthlyCPI !== undefined) {
+          cumulativeHistoricalCPI += monthlyCPI;
+          usingHistoricalCPI = true;
+        }
+
         // Adjust withdrawal for inflation (annually) - at end of each year
         if ((month + 1) % 12 === 0) {
-          currentWithdrawal *= (1 + withdrawalInflation);
+          if (usingHistoricalCPI && cumulativeHistoricalCPI !== 0) {
+            // Use accumulated historical CPI for this year
+            currentWithdrawal *= (1 + cumulativeHistoricalCPI);
+          } else {
+            // Use user-specified inflation rate
+            currentWithdrawal *= (1 + withdrawalInflation);
+          }
+          // Reset for next year
+          cumulativeHistoricalCPI = 0;
+          usingHistoricalCPI = false;
         }
       } else {
         // No money left - no withdrawal

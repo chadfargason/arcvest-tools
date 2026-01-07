@@ -78,6 +78,9 @@ async function main() {
   // Fetch AGG (2005-01 to 2025-12) for bond data after 2004
   const aggReturns = await fetchReturns('AGG', '2005-01-01', '2025-12-31');
 
+  // Fetch CPI inflation data (1913-01 to 2025-09)
+  const cpiReturns = await fetchReturns('CPI', '1913-01-01', '2025-12-31');
+
   // Combine bond data: use LONG_BOND through 2004, AGG from 2005+
   const bondReturns = new Map<string, number>();
   for (const [date, ret] of longBondReturns) {
@@ -89,29 +92,38 @@ async function main() {
 
   console.log(`\nTotal stock months: ${stockReturns.size}`);
   console.log(`Total bond months: ${bondReturns.size}`);
+  console.log(`Total CPI months: ${cpiReturns.size}`);
 
   // Generate the historical returns object
-  // Only include months where we have BOTH stock and bond data
-  const historicalReturns: Record<string, { stock: number; bond: number }> = {};
+  // Include stock, bond, and CPI (inflation) data
+  const historicalReturns: Record<string, { stock: number; bond: number; cpi?: number }> = {};
 
   // Get all dates from stock returns, sorted
   const allDates = Array.from(stockReturns.keys()).sort();
 
   let matched = 0;
+  let withCpi = 0;
   for (const date of allDates) {
     const stockRet = stockReturns.get(date);
     const bondRet = bondReturns.get(date);
+    const cpiRet = cpiReturns.get(date);
 
     if (stockRet !== undefined && bondRet !== undefined) {
       historicalReturns[date] = {
         stock: stockRet,
         bond: bondRet
       };
+      // Add CPI if available
+      if (cpiRet !== undefined) {
+        historicalReturns[date].cpi = cpiRet;
+        withCpi++;
+      }
       matched++;
     }
   }
 
   console.log(`\nMatched months (both stock and bond): ${matched}`);
+  console.log(`Months with CPI data: ${withCpi}`);
 
   // Get date range
   const dates = Object.keys(historicalReturns).sort();
@@ -122,8 +134,9 @@ async function main() {
 // Generated from Supabase on ${new Date().toISOString().split('T')[0]}
 // Stock: ^SP500TR (S&P 500 Total Return)
 // Bond: LONG_BOND (through 2004) + AGG (2005+)
+// CPI: Monthly inflation rate
 
-export const HISTORICAL_RETURNS: Record<string, { stock: number; bond: number }> = ${JSON.stringify(historicalReturns, null, 2)};
+export const HISTORICAL_RETURNS: Record<string, { stock: number; bond: number; cpi?: number }> = ${JSON.stringify(historicalReturns, null, 2)};
 `;
 
   // Write to file (use absolute path based on script location)
