@@ -2251,8 +2251,8 @@
           // Plan survived the historical stress test
           para2 = `<strong>Historical Result: Plan Survived</strong><br>`;
           para2 += `Your retirement plan <strong style="color: #0a9488;">survived</strong> the ${historicalInfo.name} stress test with a final balance of <strong>${formatCurrency(data.medianBalance)}</strong>. `;
-          para2 += `<br><br><strong>What happened:</strong> Despite ${historicalInfo.description.toLowerCase()} `;
-          para2 += `Your withdrawal strategy proved sustainable through this challenging period. `;
+          para2 += `<br><br><strong>What happened:</strong> ${historicalInfo.description} `;
+          para2 += `Despite these challenges, your withdrawal strategy proved sustainable. `;
           if (isImmediateRetirement) {
             para2 += `This is a definitive result—your plan would have survived this exact historical sequence.`;
           } else {
