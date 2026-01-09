@@ -1045,10 +1045,28 @@ async function buildPdfBuffer({
   // Build market outcomes description
   let marketDesc = ''
   if (historicalInfo) {
+    // Calculate how many years of historical data are available
+    const historicalScenario = assumptions?.historicalScenario ?? ''
+    const scenarioYear = parseInt(historicalScenario.substring(0, 4)) || 2000
+    const scenarioMonth = parseInt(historicalScenario.substring(5, 7)) || 1
+    const dataEndYear = 2025
+    const dataEndMonth = 12
+    const historicalMonthsAvailable = (dataEndYear - scenarioYear) * 12 + (dataEndMonth - scenarioMonth) + 1
+    const historicalYearsAvailable = Math.floor(historicalMonthsAvailable / 12)
+    const retirementFullyCovered = historicalYearsAvailable >= yearsInRetirement
+
     if (isImmediateRetirement) {
-      marketDesc = `Deterministic: All ${yearsInRetirement} years use actual historical returns from ${historicalInfo.date}.`
+      if (retirementFullyCovered) {
+        marketDesc = `SINGLE PATH: All ${yearsInRetirement} years use actual historical returns from ${historicalInfo.date}. All 1,000 simulations are identical—success is either 0% or 100%.`
+      } else {
+        marketDesc = `Partially Historical: First ${historicalYearsAvailable} years use actual returns from ${historicalInfo.date}. Remaining ${yearsInRetirement - historicalYearsAvailable} years use Monte Carlo.`
+      }
     } else {
-      marketDesc = `Hybrid: Pre-retirement uses Monte Carlo. Retirement uses actual returns starting ${historicalInfo.date}.`
+      if (retirementFullyCovered) {
+        marketDesc = `Hybrid: Pre-retirement (${yearsToRetirement} yrs) uses Monte Carlo. Retirement (${yearsInRetirement} yrs) is deterministic—all scenarios use actual returns from ${historicalInfo.date}.`
+      } else {
+        marketDesc = `Hybrid: Pre-retirement uses Monte Carlo. First ${historicalYearsAvailable} yrs of retirement use actual returns, rest uses Monte Carlo.`
+      }
     }
   } else {
     if (assumptions?.simulationMode === 'regime') {

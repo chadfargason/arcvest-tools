@@ -2123,10 +2123,27 @@
       // Build market outcomes description
       let marketDesc = '';
       if (isHistorical && historicalInfo) {
+        // Calculate how many years of historical data are available from the scenario start date
+        const scenarioYear = parseInt(params.historicalScenario.substring(0, 4));
+        const scenarioMonth = parseInt(params.historicalScenario.substring(5, 7));
+        const dataEndYear = 2025;
+        const dataEndMonth = 12;
+        const historicalMonthsAvailable = (dataEndYear - scenarioYear) * 12 + (dataEndMonth - scenarioMonth) + 1;
+        const historicalYearsAvailable = Math.floor(historicalMonthsAvailable / 12);
+        const retirementFullyCovered = historicalYearsAvailable >= yearsInRetirement;
+
         if (isImmediateRetirement) {
-          marketDesc = `<strong>Deterministic:</strong> All ${yearsInRetirement} retirement years use actual historical returns from ${historicalInfo.date}. This shows exactly what would have happened had you retired at that date.`;
+          if (retirementFullyCovered) {
+            marketDesc = `<strong>Single Deterministic Path:</strong> All ${yearsInRetirement} retirement years use actual historical returns from ${historicalInfo.date}. Since all 1,000 simulations follow the exact same historical sequence, they all produce identical results—your plan either succeeds (100%) or fails (0%). There is no range of outcomes because history only happened one way.`;
+          } else {
+            marketDesc = `<strong>Partially Historical:</strong> The first ${historicalYearsAvailable} years use actual historical returns from ${historicalInfo.date}. The remaining ${yearsInRetirement - historicalYearsAvailable} years use randomized Monte Carlo returns (historical data ends Dec 2025).`;
+          }
         } else {
-          marketDesc = `<strong>Hybrid:</strong> Pre-retirement (${yearsToRetirement} years) uses randomized Monte Carlo returns. Retirement (${yearsInRetirement} years) uses actual historical returns starting ${historicalInfo.date}. Inflation during retirement uses actual historical CPI.`;
+          if (retirementFullyCovered) {
+            marketDesc = `<strong>Hybrid (Deterministic Retirement):</strong> Pre-retirement (${yearsToRetirement} years) uses randomized Monte Carlo returns, creating variability in your balance at retirement. However, the retirement phase (${yearsInRetirement} years) is deterministic—all scenarios use actual historical returns starting ${historicalInfo.date}. Inflation during retirement uses actual historical CPI.`;
+          } else {
+            marketDesc = `<strong>Hybrid:</strong> Pre-retirement (${yearsToRetirement} years) uses Monte Carlo. Retirement: first ${historicalYearsAvailable} years use actual returns from ${historicalInfo.date}, remaining ${yearsInRetirement - historicalYearsAvailable} years use Monte Carlo (historical data ends Dec 2025).`;
+          }
         }
       } else {
         if (params.simulationMode === 'regime') {
