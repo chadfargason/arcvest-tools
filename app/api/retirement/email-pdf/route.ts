@@ -22,6 +22,40 @@ interface EmailPdfRequest {
 
 const MAILERLITE_ENDPOINT = 'https://api.mailerlite.com/api/v2/subscribers'
 
+// Historical scenario descriptions for PDF
+const HISTORICAL_SCENARIO_INFO: Record<string, { name: string; date: string; description: string }> = {
+  '1929-10': {
+    name: 'Great Depression',
+    date: 'October 1929',
+    description: 'The Great Depression saw stocks fall 86% over 3 years, with deflation initially followed by a slow recovery that took until 1954 to fully recoup losses.'
+  },
+  '1966-01': {
+    name: 'Lost Decades',
+    date: 'January 1966',
+    description: 'The "Lost Decades" featured high inflation, stagnant markets, and multiple recessions through 1982. After adjusting for inflation, stocks made no real gains for 16 years.'
+  },
+  '1973-01': {
+    name: 'Oil Crisis & Stagflation',
+    date: 'January 1973',
+    description: 'The Oil Crisis brought stagflation—simultaneous high inflation and economic stagnation—with stocks falling 48% and bonds losing purchasing power.'
+  },
+  '2000-03': {
+    name: 'Dot-Com Bubble',
+    date: 'March 2000',
+    description: 'The Dot-Com Bubble burst led to a 49% stock decline, and retirees faced a "lost decade" as markets were hit again by the 2008 financial crisis.'
+  },
+  '2007-10': {
+    name: 'Global Financial Crisis',
+    date: 'October 2007',
+    description: 'The Global Financial Crisis saw stocks fall 57% in 17 months—the worst decline since the Depression—devastating portfolios just as many began retirement.'
+  },
+  '2022-01': {
+    name: 'Inflation Shock',
+    date: 'January 2022',
+    description: 'The 2022 Inflation Shock brought rapid interest rate hikes and simultaneous stock and bond losses—a rare double hit that hurt even diversified portfolios.'
+  }
+}
+
 let loraFontDataPromise:
   | Promise<{ regular: Uint8Array; bold: Uint8Array; italic: Uint8Array }>
   | null = null
@@ -926,7 +960,64 @@ async function buildPdfBuffer({
       { size: 12, color: subtleColor, lineHeight: 18 }
     )
   }
-  y -= 12
+  y -= 8
+
+  // Scenario Type Banner
+  const historicalScenario = assumptions?.historicalScenario
+  const historicalInfo = historicalScenario ? HISTORICAL_SCENARIO_INFO[historicalScenario] : null
+  const yearsToRetirement = assumptions?.retirementAge && assumptions?.currentAge
+    ? assumptions.retirementAge - assumptions.currentAge
+    : 0
+  const yearsInRetirement = assumptions?.yearsInRetirement ?? 30
+  const totalYears = yearsToRetirement + yearsInRetirement
+  const isImmediateRetirement = yearsToRetirement <= 0
+
+  const bannerHeight = 44
+  const bannerColor = historicalInfo ? rgb(1, 0.97, 0.9) : rgb(0.91, 0.96, 0.95)
+  const bannerBorderColor = historicalInfo ? rgb(0.96, 0.62, 0.04) : accentColor
+
+  ensureSpace(bannerHeight + 12)
+  page.drawRectangle({
+    x: currentMargin,
+    y: y - bannerHeight,
+    width: contentWidth,
+    height: bannerHeight,
+    color: bannerColor,
+    borderColor: bannerBorderColor,
+    borderWidth: 0,
+  })
+  page.drawRectangle({
+    x: currentMargin,
+    y: y - bannerHeight,
+    width: 4,
+    height: bannerHeight,
+    color: bannerBorderColor,
+  })
+
+  const bannerTitle = historicalInfo
+    ? `Historical Stress Test: ${historicalInfo.name}`
+    : 'Monte Carlo Simulation'
+  const bannerDesc = historicalInfo
+    ? isImmediateRetirement
+      ? `All ${yearsInRetirement} years use actual historical returns starting ${historicalInfo.date}.`
+      : `Pre-retirement: ${yearsToRetirement} years simulated. Retirement: ${yearsInRetirement} years of actual returns starting ${historicalInfo.date}.`
+    : `Results based on 1,000 randomized scenarios across all ${totalYears} years.`
+
+  page.drawText(bannerTitle, {
+    x: currentMargin + 14,
+    y: y - 16,
+    size: 12,
+    font: boldFont,
+    color: textColor,
+  })
+  page.drawText(bannerDesc, {
+    x: currentMargin + 14,
+    y: y - 32,
+    size: 10,
+    font: normalFont,
+    color: subtleColor,
+  })
+  y -= bannerHeight + 12
 
   drawSectionHeading('Simulation Results', { size: 14, spacingAfter: 4, lineHeight: 18 })
   drawSummaryCards(summaryCardsPrimary, {
@@ -950,22 +1041,67 @@ async function buildPdfBuffer({
     })
   }
 
-  // -- Portfolio Chart & Next Steps (keep on summary page when possible) --
+  // -- Portfolio Chart --
   await drawChartImage(charts?.portfolio ?? null, 'Portfolio Balance Over Time', {
-    maxHeight: 240,
-    spacingAfter: 18,
+    maxHeight: 220,
+    spacingAfter: 12,
   })
-  const successRatePercent =
-    successRate !== null ? `${Math.round(successRate * 100)}%` : '—'
-  drawSectionHeading('What This Means For You')
+
+  // Comprehensive "Understanding Your Results" section
+  const successRatePercent = successRate !== null ? `${Math.round(successRate * 100)}%` : '—'
+  const riskPercent = successRate !== null ? `${Math.max(0, 100 - Math.round(successRate * 100))}%` : '—'
+  const successRateNum = successRate !== null ? successRate * 100 : 0
+
+  drawSectionHeading('Understanding Your Results', { size: 12, spacingAfter: 6 })
+
+  // Paragraph 1: Success Rate
+  let para1 = `Your success rate of ${successRatePercent} means that in ${successRate !== null ? Math.round(successRate * 1000) : '—'} out of 1,000 simulated scenarios, your retirement savings lasted through your entire ${yearsInRetirement}-year retirement period. `
+  if (successRateNum >= 90) {
+    para1 += 'A success rate above 90% is generally considered comfortable for retirement planning.'
+  } else if (successRateNum >= 80) {
+    para1 += 'While this is a reasonable success rate, some advisors recommend targeting 90% or higher.'
+  } else if (successRateNum >= 70) {
+    para1 += `This success rate suggests moderate risk—there's a ${riskPercent} chance you could outlive your savings.`
+  } else {
+    para1 += 'This success rate indicates significant risk of running out of money during retirement.'
+  }
+  if (historicalInfo) {
+    para1 += ' Because you selected a historical stress test, these results show how your plan would have fared during one of the most challenging periods in market history.'
+  }
+  drawParagraph(para1, { size: 10, spacingAfter: 8 })
+
+  // Paragraph 2: Percentiles
+  const p20Str = percentile20 !== null ? formatCurrency(percentile20) : '—'
+  const medianStr = medianBalance !== null ? formatCurrency(medianBalance) : '—'
+  const p80Str = percentile80 !== null ? formatCurrency(percentile80) : '—'
   drawParagraph(
-    `Your success rate of ${successRatePercent} means that you would expect to not run out of money ${successRatePercent} of the time. That also means you could run out of money in ${successRate !== null ? `${Math.max(0, 100 - Math.round(successRate * 100))}%` : '—'} of scenarios. If this number is above 10% you are at risk that you could run out of money during retirement. Contact us for help to lower the risk this happens.`,
-    { size: 11, spacingAfter: 18 }
+    `The 20th percentile (${p20Str}) represents a challenging scenario—only 20% of simulations ended with less. The median (${medianStr}) is your most likely outcome. The 80th percentile (${p80Str}) shows favorable conditions. The spread reflects market uncertainty over ${totalYears} years.`,
+    { size: 10, spacingAfter: 8 }
   )
-  drawSectionHeading('Next Steps')
+
+  // Paragraph 3: Next Steps
+  let para3 = 'Your results are influenced by your withdrawal strategy, asset allocation, and time horizon. '
+  if (successRateNum < 80) {
+    para3 += 'Given your success rate, small adjustments could make a meaningful difference—consider retiring later, reducing withdrawals, or adjusting allocation. We recommend discussing your options with an advisor.'
+  } else if (successRateNum < 90) {
+    para3 += 'To improve your success rate toward 90%+, consider small adjustments like slightly reducing withdrawals or extending your working years.'
+  } else {
+    para3 += 'Your plan appears to be on solid footing. Continue to monitor and adjust as circumstances change.'
+  }
+  drawParagraph(para3, { size: 10, spacingAfter: 8 })
+
+  // Paragraph 4: Historical Context (only for historical scenarios)
+  if (historicalInfo) {
+    drawParagraph(
+      `Historical Context: ${historicalInfo.description} This stress test helps you understand whether your plan could withstand similar conditions.`,
+      { size: 10, spacingAfter: 8 }
+    )
+  }
+
+  // Contact info
   drawParagraph(
-    'Thank you for exploring your retirement readiness with ArcVest. These results are designed to help you understand potential outcomes across thousands of market scenarios. For a more personalized strategy, schedule time with our advisory team. Email wealth@arcvest.com or call 713-581-4550 or sign-up for a time to talk on our website.',
-    { size: 11, spacingAfter: 0 }
+    'For a more personalized strategy, contact our advisory team at wealth@arcvest.com or 713-581-4550.',
+    { size: 10, color: subtleColor, spacingAfter: 0 }
   )
 
   // ---- Page 2: Distribution Chart ----

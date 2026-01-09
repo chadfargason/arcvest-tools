@@ -493,6 +493,157 @@
       color: var(--red);
     }
 
+    /* Scenario Banner */
+    .scenario-banner {
+      padding: 16px 20px;
+      border-radius: 8px;
+      margin-bottom: 20px;
+    }
+    .scenario-montecarlo {
+      background: linear-gradient(135deg, #E8F5F3 0%, #D1EBE7 100%);
+      border-left: 4px solid var(--brand);
+    }
+    .scenario-historical {
+      background: linear-gradient(135deg, #FFF8E6 0%, #FFEFC2 100%);
+      border-left: 4px solid #F59E0B;
+    }
+    .scenario-type {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .scenario-title {
+      font-weight: 600;
+      font-size: 16px;
+      color: var(--text-dark);
+    }
+    .scenario-description {
+      font-size: 13px;
+      color: var(--muted);
+      margin-top: 4px;
+      line-height: 1.5;
+    }
+
+    /* Explanation Section */
+    .explanation-section {
+      background: #fff;
+      border: 1px solid var(--ast-border-color);
+      border-radius: 8px;
+      padding: 20px;
+      margin-bottom: 20px;
+    }
+    .explanation-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      cursor: pointer;
+      user-select: none;
+    }
+    .explanation-title {
+      font-size: 15px;
+      font-weight: 600;
+      color: var(--text-dark);
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .collapse-toggle {
+      background: none;
+      border: none;
+      font-size: 12px;
+      color: var(--muted);
+      cursor: pointer;
+      padding: 4px 8px;
+      transition: transform 0.2s;
+    }
+    .collapse-toggle.collapsed {
+      transform: rotate(-90deg);
+    }
+    .explanation-content {
+      margin-top: 16px;
+      overflow: hidden;
+      transition: max-height 0.3s ease;
+    }
+    .explanation-content.collapsed {
+      max-height: 0 !important;
+      margin-top: 0;
+    }
+    .explanation-para {
+      font-size: 14px;
+      line-height: 1.7;
+      color: var(--text);
+      margin-bottom: 14px;
+    }
+    .explanation-para:last-child {
+      margin-bottom: 0;
+    }
+    .explanation-para strong {
+      color: var(--text-dark);
+    }
+
+    /* Compact Metrics */
+    .results-grid-compact {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+      gap: 16px;
+      margin-bottom: 16px;
+    }
+    .result-card-compact {
+      background: #fff;
+      border: 1px solid var(--ast-border-color);
+      border-radius: var(--radius);
+      padding: 14px 16px;
+      text-align: center;
+    }
+    .result-label-compact {
+      font-size: 11px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      color: var(--muted);
+      margin-bottom: 4px;
+    }
+    .result-value-primary {
+      font-size: 22px;
+      font-weight: 700;
+      color: var(--text-dark);
+    }
+    .result-value-primary.success { color: var(--green); }
+    .result-value-primary.warning { color: #f59e0b; }
+    .result-value-primary.danger { color: var(--red); }
+
+    /* Secondary Metrics Inline */
+    .metrics-secondary {
+      background: #fff;
+      border: 1px solid var(--ast-border-color);
+      border-radius: var(--radius);
+      padding: 14px 20px;
+      margin-bottom: 20px;
+      font-size: 13px;
+      color: var(--text);
+      line-height: 1.8;
+    }
+    .metrics-secondary-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px 24px;
+    }
+    .metric-item {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .metric-label {
+      color: var(--muted);
+    }
+    .metric-value {
+      font-weight: 600;
+      color: var(--text-dark);
+    }
+    .metric-separator {
+      color: var(--ast-border-color);
+    }
+
     .chart-container {
       background: #fff;
       border: 1px solid var(--ast-border-color);
@@ -1259,6 +1410,40 @@
     let lastPortfolioChartImage = null;
     let lastDistributionChartImage = null;
 
+    // Historical scenario descriptions for explanatory text
+    const HISTORICAL_SCENARIO_INFO = {
+      '1929-10': {
+        name: 'Great Depression',
+        date: 'October 1929',
+        description: 'The Great Depression saw stocks fall 86% over 3 years, with deflation initially followed by a slow, grinding recovery that took until 1954 to fully recoup losses.'
+      },
+      '1966-01': {
+        name: 'Lost Decades',
+        date: 'January 1966',
+        description: 'The "Lost Decades" featured high inflation, stagnant markets, and multiple recessions through 1982. After adjusting for inflation, stocks made no real gains for 16 years.'
+      },
+      '1973-01': {
+        name: 'Oil Crisis & Stagflation',
+        date: 'January 1973',
+        description: 'The Oil Crisis brought stagflation—simultaneous high inflation and economic stagnation—with stocks falling 48% and bonds losing purchasing power to double-digit inflation.'
+      },
+      '2000-03': {
+        name: 'Dot-Com Bubble',
+        date: 'March 2000',
+        description: 'The Dot-Com Bubble burst led to a 49% stock decline, and retirees faced a "lost decade" as markets were hit again by the 2008 financial crisis before recovering.'
+      },
+      '2007-10': {
+        name: 'Global Financial Crisis',
+        date: 'October 2007',
+        description: 'The Global Financial Crisis saw stocks fall 57% in 17 months—the worst decline since the Depression—devastating portfolios just as many were beginning retirement.'
+      },
+      '2022-01': {
+        name: 'Inflation Shock',
+        date: 'January 2022',
+        description: 'The 2022 Inflation Shock brought rapid interest rate hikes and simultaneous stock and bond losses—a rare double hit that hurt even diversified portfolios.'
+      }
+    };
+
     // Tab switching
     document.querySelectorAll('.tab').forEach(tab => {
       tab.addEventListener('click', () => {
@@ -1811,73 +1996,147 @@
 
     function displayResults(data) {
       const successRate = (data.successRate * 100).toFixed(1);
+      const successRateNum = data.successRate * 100;
       const successClass = data.successRate >= 0.9 ? 'success' : data.successRate >= 0.7 ? 'warning' : 'danger';
-      
+      const params = lastSimulationParams;
+
+      // Determine scenario type
+      const isHistorical = params && params.historicalScenario;
+      const historicalInfo = isHistorical ? HISTORICAL_SCENARIO_INFO[params.historicalScenario] : null;
+      const yearsToRetirement = params ? (params.retirementAge - params.currentAge) : 0;
+      const yearsInRetirement = params ? params.yearsInRetirement : 30;
+      const isImmediateRetirement = yearsToRetirement <= 0;
+
+      // Build scenario banner
+      let scenarioBanner = '';
+      if (isHistorical && historicalInfo) {
+        const scenarioTitle = `Historical Stress Test: ${historicalInfo.name}`;
+        let scenarioDesc = '';
+        if (isImmediateRetirement) {
+          scenarioDesc = `All ${yearsInRetirement} years use actual historical returns starting ${historicalInfo.date}.`;
+        } else {
+          scenarioDesc = `Pre-retirement: ${yearsToRetirement} years simulated with randomized returns. Retirement: ${yearsInRetirement} years of actual historical returns starting ${historicalInfo.date}.`;
+        }
+        scenarioBanner = `
+          <div class="scenario-banner scenario-historical">
+            <div class="scenario-type">
+              <span class="scenario-title">${scenarioTitle}</span>
+            </div>
+            <div class="scenario-description">${scenarioDesc}</div>
+          </div>
+        `;
+      } else {
+        scenarioBanner = `
+          <div class="scenario-banner scenario-montecarlo">
+            <div class="scenario-type">
+              <span class="scenario-title">Monte Carlo Simulation</span>
+            </div>
+            <div class="scenario-description">Results based on 1,000 randomized scenarios using expected returns and volatility across all ${yearsToRetirement + yearsInRetirement} years.</div>
+          </div>
+        `;
+      }
+
+      // Build explanation text
+      const successRounded = Math.round(successRateNum);
+      const riskPercent = Math.max(0, 100 - successRounded);
+      const totalYears = yearsToRetirement + yearsInRetirement;
+
+      // Paragraph 1: Success Rate
+      let para1 = `<strong>Success Rate:</strong> Your success rate of ${successRounded}% means that in ${successRounded * 10} out of 1,000 simulated scenarios, your retirement savings lasted through your entire ${yearsInRetirement}-year retirement period. `;
+      if (successRateNum >= 90) {
+        para1 += `A success rate above 90% is generally considered comfortable for retirement planning.`;
+      } else if (successRateNum >= 80) {
+        para1 += `While this is a reasonable success rate, some advisors recommend targeting 90% or higher for added peace of mind.`;
+      } else if (successRateNum >= 70) {
+        para1 += `This success rate suggests moderate risk—there's a ${riskPercent}% chance you could outlive your savings. Consider adjustments to improve your odds.`;
+      } else {
+        para1 += `This success rate indicates significant risk of running out of money during retirement. We strongly recommend reviewing your plan.`;
+      }
+      if (isHistorical) {
+        para1 += ` Because you selected a historical stress test, these results show how your plan would have fared during one of the most challenging periods in market history.`;
+      }
+
+      // Paragraph 2: Percentiles
+      let para2 = `<strong>Range of Outcomes:</strong> The 20th percentile (${formatCurrency(data.percentile20)}) represents a challenging scenario—only 20% of simulations ended with less money. The median (${formatCurrency(data.medianBalance)}) is your most likely outcome. The 80th percentile (${formatCurrency(data.percentile80)}) shows what happens under favorable conditions. The spread between these numbers reflects market uncertainty over a ${totalYears}-year time horizon.`;
+
+      // Paragraph 3: Next Steps
+      let para3 = `<strong>Key Factors:</strong> Your results are influenced by your withdrawal strategy, asset allocation, and time horizon. `;
+      if (successRateNum < 80) {
+        para3 += `Given your success rate of ${successRounded}%, small adjustments could make a meaningful difference—consider retiring a year later, reducing annual spending, or adjusting your stock/bond allocation. <strong>We recommend discussing your options with an advisor.</strong>`;
+      } else if (successRateNum < 90) {
+        para3 += `To improve your success rate toward 90%+, you might consider small adjustments like slightly reducing withdrawals or extending your working years.`;
+      } else {
+        para3 += `Your plan appears to be on solid footing. Continue to monitor and adjust as your circumstances change.`;
+      }
+      if (isHistorical) {
+        para3 += ` Remember, this stress test shows performance during a historically difficult period—actual future results will differ.`;
+      }
+
+      // Paragraph 4: Historical Context (only for historical scenarios)
+      let para4 = '';
+      if (isHistorical && historicalInfo) {
+        para4 = `<strong>Historical Context:</strong> ${historicalInfo.description} This stress test helps you understand whether your plan could withstand similar conditions.`;
+      }
+
+      // Build secondary metrics
+      const medianIRR = (data.medianIRR !== undefined && !isNaN(data.medianIRR)) ? data.medianIRR.toFixed(1) + '%' : 'N/A';
+      const medianVol = (data.medianVolatility !== undefined && !isNaN(data.medianVolatility)) ? data.medianVolatility.toFixed(1) + '%' : 'N/A';
+      const stockMedian = (data.stockReturnDistribution && data.stockReturnDistribution.length > 0) ? calculateMedian(data.stockReturnDistribution).toFixed(1) + '%' : 'N/A';
+      const stockRange = (data.stockReturnDistribution && data.stockReturnDistribution.length > 0) ? `${calculatePercentile(data.stockReturnDistribution, 0.2).toFixed(1)}% to ${calculatePercentile(data.stockReturnDistribution, 0.8).toFixed(1)}%` : 'N/A';
+      const bondMedian = (data.bondReturnDistribution && data.bondReturnDistribution.length > 0) ? calculateMedian(data.bondReturnDistribution).toFixed(1) + '%' : 'N/A';
+      const bondRange = (data.bondReturnDistribution && data.bondReturnDistribution.length > 0) ? `${calculatePercentile(data.bondReturnDistribution, 0.2).toFixed(1)}% to ${calculatePercentile(data.bondReturnDistribution, 0.8).toFixed(1)}%` : 'N/A';
+
       // Rebuild entire results HTML
       const resultsDiv = document.getElementById('results');
       resultsDiv.innerHTML = `
         <div class="results-header">
           <h2>Simulation Results</h2>
-        <button class="btn btn-primary email-pdf-button" id="emailPdfTrigger">Email PDF</button>
+          <button class="btn btn-primary email-pdf-button" id="emailPdfTrigger">Email PDF</button>
         </div>
 
-        <div class="results-grid">
-          <div class="result-card">
-            <div class="result-label">Success Rate</div>
-            <div class="result-value ${successClass}">${successRate}%</div>
-          </div>
+        ${scenarioBanner}
 
-          <div class="result-card">
-            <div class="result-label">Median Final Balance</div>
-            <div class="result-value">${formatCurrency(data.medianBalance)}</div>
+        <div class="explanation-section">
+          <div class="explanation-header" onclick="toggleExplanation()">
+            <span class="explanation-title">Understanding Your Results</span>
+            <button class="collapse-toggle" id="explanationToggle" aria-expanded="true">▼</button>
           </div>
-
-          <div class="result-card">
-            <div class="result-label">20th Percentile</div>
-            <div class="result-value">${formatCurrency(data.percentile20)}</div>
-          </div>
-
-          <div class="result-card">
-            <div class="result-label">80th Percentile</div>
-            <div class="result-value">${formatCurrency(data.percentile80)}</div>
+          <div class="explanation-content" id="explanationContent">
+            <p class="explanation-para">${para1}</p>
+            <p class="explanation-para">${para2}</p>
+            <p class="explanation-para">${para3}</p>
+            ${para4 ? `<p class="explanation-para">${para4}</p>` : ''}
           </div>
         </div>
 
-        <h3 style="font-size: 18px; font-weight: 600; color: var(--text-dark); margin: 24px 0 16px;">Investment Performance Metrics</h3>
-        <div class="results-grid">
-          <div class="result-card">
-            <div class="result-label">Median IRR</div>
-            <div class="result-value">${(data.medianIRR !== undefined && !isNaN(data.medianIRR)) ? data.medianIRR.toFixed(2) + '%' : 'N/A'}</div>
-            <div style="font-size: 12px; color: var(--muted); margin-top: 4px;">Internal Rate of Return (Net of Fees)</div>
+        <div class="results-grid-compact">
+          <div class="result-card-compact">
+            <div class="result-label-compact">Success Rate</div>
+            <div class="result-value-primary ${successClass}">${successRate}%</div>
           </div>
-
-          <div class="result-card">
-            <div class="result-label">Median Volatility</div>
-            <div class="result-value">${(data.medianVolatility !== undefined && !isNaN(data.medianVolatility)) ? data.medianVolatility.toFixed(2) + '%' : 'N/A'}</div>
-            <div style="font-size: 12px; color: var(--muted); margin-top: 4px;">Annualized Standard Deviation</div>
+          <div class="result-card-compact">
+            <div class="result-label-compact">Median Final Balance</div>
+            <div class="result-value-primary">${formatCurrency(data.medianBalance)}</div>
+          </div>
+          <div class="result-card-compact">
+            <div class="result-label-compact">20th Percentile</div>
+            <div class="result-value-primary">${formatCurrency(data.percentile20)}</div>
+          </div>
+          <div class="result-card-compact">
+            <div class="result-label-compact">80th Percentile</div>
+            <div class="result-value-primary">${formatCurrency(data.percentile80)}</div>
           </div>
         </div>
 
-        <h3 style="font-size: 18px; font-weight: 600; color: var(--text-dark); margin: 24px 0 16px;">Annualized Return Distributions</h3>
-        <div class="results-grid">
-          <div class="result-card">
-            <div class="result-label">Stock Return (Median)</div>
-            <div class="result-value">${(data.stockReturnDistribution && data.stockReturnDistribution.length > 0) ? calculateMedian(data.stockReturnDistribution).toFixed(2) + '%' : 'N/A'}</div>
-          </div>
-
-          <div class="result-card">
-            <div class="result-label">Stock Return (20th-80th)</div>
-            <div class="result-value">${(data.stockReturnDistribution && data.stockReturnDistribution.length > 0) ? calculatePercentile(data.stockReturnDistribution, 0.2).toFixed(2) + '% to ' + calculatePercentile(data.stockReturnDistribution, 0.8).toFixed(2) + '%' : 'N/A'}</div>
-          </div>
-
-          <div class="result-card">
-            <div class="result-label">Bond Return (Median)</div>
-            <div class="result-value">${(data.bondReturnDistribution && data.bondReturnDistribution.length > 0) ? calculateMedian(data.bondReturnDistribution).toFixed(2) + '%' : 'N/A'}</div>
-          </div>
-
-          <div class="result-card">
-            <div class="result-label">Bond Return (20th-80th)</div>
-            <div class="result-value">${(data.bondReturnDistribution && data.bondReturnDistribution.length > 0) ? calculatePercentile(data.bondReturnDistribution, 0.2).toFixed(2) + '% to ' + calculatePercentile(data.bondReturnDistribution, 0.8).toFixed(2) + '%' : 'N/A'}</div>
+        <div class="metrics-secondary">
+          <div class="metrics-secondary-row">
+            <span class="metric-item"><span class="metric-label">IRR (Net):</span> <span class="metric-value">${medianIRR}</span></span>
+            <span class="metric-separator">•</span>
+            <span class="metric-item"><span class="metric-label">Volatility:</span> <span class="metric-value">${medianVol}</span></span>
+            <span class="metric-separator">•</span>
+            <span class="metric-item"><span class="metric-label">Stock Returns:</span> <span class="metric-value">${stockMedian}</span> <span class="metric-label">(${stockRange})</span></span>
+            <span class="metric-separator">•</span>
+            <span class="metric-item"><span class="metric-label">Bond Returns:</span> <span class="metric-value">${bondMedian}</span> <span class="metric-label">(${bondRange})</span></span>
           </div>
         </div>
 
@@ -1893,27 +2152,30 @@
       `;
 
       lastSimulationResults = data;
-      
+
       // Draw charts after HTML is ready
       drawPortfolioChart(data);
       drawDistributionChart(data);
       setupEmailPdfTrigger();
       captureChartImagesDelayed();
-      
+
       // Populate Detailed Outcome tab
       populateDetailedOutcome(data);
 
       // Populate Detailed Failure tab (if there are failures)
       populateDetailedFailure(data);
       notifyParentHeight();
+    }
 
-      const whatThisMeans = document.getElementById('whatThisMeans');
-      if (whatThisMeans) {
-        const successRate = data.successRate || 0;
-        const rounded = Math.round(successRate * 100);
-        const successPercent = `${rounded}%`;
-        const riskPercent = `${Math.max(0, 100 - rounded)}%`;
-        whatThisMeans.textContent = `Your success rate of ${successPercent} means that you would expect to not run out of money ${successPercent} of the time. Which means you could run out of money in ${riskPercent} of scenarios. If this number is above 10% you are at risk that you could run out of money during retirement. Contact us for help to lower the risk this happens.`;
+    // Toggle explanation section collapse
+    function toggleExplanation() {
+      const content = document.getElementById('explanationContent');
+      const toggle = document.getElementById('explanationToggle');
+      if (content && toggle) {
+        content.classList.toggle('collapsed');
+        toggle.classList.toggle('collapsed');
+        toggle.setAttribute('aria-expanded', !content.classList.contains('collapsed'));
+        setTimeout(notifyParentHeight, 350);
       }
     }
 
