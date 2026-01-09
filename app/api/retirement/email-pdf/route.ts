@@ -1034,9 +1034,9 @@ async function buildPdfBuffer({
     if (assumptions?.guardrailBand > 0) {
       const band = ((assumptions?.guardrailBand ?? 0) * 100).toFixed(0)
       const adj = ((assumptions?.guardrailAdjustment ?? 0) * 100).toFixed(0)
-      withdrawalDesc = `Withdraw ${pct}% of portfolio value each year with Guyton-Klinger guardrails (±${band}% band, ${adj}% adjustment).`
+      withdrawalDesc = `Withdraw ${pct}% of portfolio at retirement, then grow with inflation. Guyton-Klinger guardrails (±${band}% band, ${adj}% adjustment).`
     } else {
-      withdrawalDesc = `Withdraw ${pct}% of portfolio value each year.`
+      withdrawalDesc = `Withdraw ${pct}% of portfolio at retirement, then grow ${((assumptions?.withdrawalInflation ?? 0) * 100).toFixed(1)}%/year with inflation.`
     }
   } else {
     withdrawalDesc = `Withdraw a fixed ${formatCurrency(assumptions?.annualWithdrawal ?? 0)} per year, increasing ${((assumptions?.withdrawalInflation ?? 0) * 100).toFixed(1)}% annually with inflation.`
@@ -1160,7 +1160,7 @@ async function buildPdfBuffer({
   }
   if (assumptions?.withdrawalType === 'percentage') {
     const pct = ((assumptions?.withdrawalPercentage ?? 0.04) * 100).toFixed(1)
-    pdfPara1 += `You then began withdrawing ${pct}% of your portfolio annually. In the first year, this was ${formatCurrency(firstYearWithdrawal)}. `
+    pdfPara1 += `You then began withdrawing ${pct}% of your retirement portfolio value (${formatCurrency(firstYearWithdrawal)} in year one), increasing with ${((assumptions?.withdrawalInflation ?? 0) * 100).toFixed(1)}% inflation each year. `
     if (assumptions?.guardrailBand > 0) {
       pdfPara1 += 'Guyton-Klinger guardrails automatically adjusted spending. '
     }

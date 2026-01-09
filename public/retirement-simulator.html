@@ -2114,7 +2114,7 @@
           const adj = (params.guardrailAdjustment * 100).toFixed(0);
           withdrawalDesc = `Withdraw ${pct}% of portfolio value each year with Guyton-Klinger guardrails (±${band}% band, ${adj}% adjustment). Spending automatically adjusts if withdrawal rate drifts too far from ${pct}%.`;
         } else {
-          withdrawalDesc = `Withdraw ${pct}% of portfolio value each year. As the portfolio grows or shrinks, withdrawals adjust accordingly.`;
+          withdrawalDesc = `Withdraw ${pct}% of portfolio value at retirement start, then increase that amount by ${(params.withdrawalInflation * 100).toFixed(1)}% each year with inflation.`;
         }
       } else {
         withdrawalDesc = `Withdraw a fixed ${formatCurrency(params.annualWithdrawal)} per year, increasing ${(params.withdrawalInflation * 100).toFixed(1)}% annually with inflation.`;
@@ -2173,7 +2173,7 @@
       }
       if (params.withdrawalType === 'percentage') {
         const pct = (params.withdrawalPercentage * 100).toFixed(1);
-        para1 += `You then began withdrawing ${pct}% of your portfolio annually. In the first year, this was <strong>${formatCurrency(firstYearWithdrawal)}</strong>. `;
+        para1 += `You then began withdrawing ${pct}% of your retirement portfolio value (<strong>${formatCurrency(firstYearWithdrawal)}</strong> in year one), increasing with ${(params.withdrawalInflation * 100).toFixed(1)}% inflation each year. `;
         if (params.guardrailBand > 0) {
           para1 += `Guyton-Klinger guardrails automatically adjusted spending when withdrawal rates drifted too high or low. `;
         }
