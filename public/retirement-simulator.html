@@ -2120,18 +2120,22 @@
         withdrawalDesc = `Withdraw a fixed ${formatCurrency(params.annualWithdrawal)} per year, increasing ${(params.withdrawalInflation * 100).toFixed(1)}% annually with inflation.`;
       }
 
-      // Build market outcomes description
-      let marketDesc = '';
-      if (isHistorical && historicalInfo) {
-        // Calculate how many years of historical data are available from the scenario start date
+      // Calculate how many years of historical data are available (needed for multiple sections)
+      let historicalYearsAvailable = 0;
+      let retirementFullyCovered = false;
+      if (isHistorical && params.historicalScenario) {
         const scenarioYear = parseInt(params.historicalScenario.substring(0, 4));
         const scenarioMonth = parseInt(params.historicalScenario.substring(5, 7));
         const dataEndYear = 2025;
         const dataEndMonth = 12;
         const historicalMonthsAvailable = (dataEndYear - scenarioYear) * 12 + (dataEndMonth - scenarioMonth) + 1;
-        const historicalYearsAvailable = Math.floor(historicalMonthsAvailable / 12);
-        const retirementFullyCovered = historicalYearsAvailable >= yearsInRetirement;
+        historicalYearsAvailable = Math.floor(historicalMonthsAvailable / 12);
+        retirementFullyCovered = historicalYearsAvailable >= yearsInRetirement;
+      }
 
+      // Build market outcomes description
+      let marketDesc = '';
+      if (isHistorical && historicalInfo) {
         if (isImmediateRetirement) {
           if (retirementFullyCovered) {
             marketDesc = `<strong>Single Deterministic Path:</strong> All ${yearsInRetirement} retirement years use actual historical returns from ${historicalInfo.date}. Since all 1,000 simulations follow the exact same historical sequence, they all produce identical results—your plan either succeeds (100%) or fails (0%). There is no range of outcomes because history only happened one way.`;
@@ -2151,6 +2155,24 @@
         } else {
           marketDesc = `<strong>Monte Carlo:</strong> 1,000 scenarios with randomized returns drawn from a skewed Student's t-distribution. Expected stock return: ${(params.stockReturn * 100).toFixed(1)}%, expected bond return: ${(params.bondReturn * 100).toFixed(1)}%. Correlation: ${params.correlation.toFixed(2)}.`;
         }
+      }
+
+      // Build "What This Means" explanation for deterministic historical scenarios
+      let whatThisMeansItem = '';
+      const isDeterministicHistorical = isHistorical && retirementFullyCovered;
+      if (isDeterministicHistorical) {
+        let whatThisMeansText = '';
+        if (isImmediateRetirement) {
+          whatThisMeansText = `Because this is a <strong>fully deterministic</strong> historical stress test, all 1,000 simulations experience the exact same market returns. There is no randomness—every scenario follows the identical path. This means your success rate will be either <strong>0% (plan fails)</strong> or <strong>100% (plan survives)</strong>. The result tells you definitively whether your plan would have survived this historical period.`;
+        } else {
+          whatThisMeansText = `The accumulation phase has variability (1,000 different paths to retirement), but <strong>once retirement begins, all scenarios follow the exact same historical returns</strong>. This means the retirement phase is deterministic. If most scenarios fail, it's because the historical period was too difficult for your withdrawal strategy—not bad luck, but the actual historical reality. Success rates near 0% or 100% indicate the historical period was either unsurvivable or survivable regardless of accumulation-phase variability.`;
+        }
+        whatThisMeansItem = `
+            <div class="scenario-item" style="background: #FFF8E6; border: 1px solid #F59E0B;">
+              <div class="scenario-item-label" style="color: #B45309;">What This Means</div>
+              <div class="scenario-item-value">${whatThisMeansText}</div>
+            </div>
+        `;
       }
 
       const scenarioSummary = `
@@ -2173,6 +2195,7 @@
               <div class="scenario-item-label">Market Outcomes</div>
               <div class="scenario-item-value">${marketDesc}</div>
             </div>
+            ${whatThisMeansItem}
           </div>
         </div>
       `;
@@ -2199,20 +2222,61 @@
       }
       para1 += `After ${yearsInRetirement} years of retirement, the simulation tracked how much money remained.`;
 
-      // Paragraph 2: Success Rate
-      let para2 = `<strong>Success Rate:</strong> Your success rate of <strong>${successRounded}%</strong> means that in ${successRounded * 10} out of 1,000 simulated scenarios, your retirement savings lasted through your entire ${yearsInRetirement}-year retirement period. `;
-      if (successRateNum >= 90) {
-        para2 += `A success rate above 90% is generally considered comfortable for retirement planning.`;
-      } else if (successRateNum >= 80) {
-        para2 += `While reasonable, some advisors recommend targeting 90%+ for added peace of mind.`;
-      } else if (successRateNum >= 70) {
-        para2 += `This suggests moderate risk—there's a ${riskPercent}% chance you could outlive your savings.`;
+      // Paragraph 2: Success Rate - different for deterministic historical vs Monte Carlo
+      let para2 = '';
+
+      if (isDeterministicHistorical && (successRateNum <= 5 || successRateNum >= 95)) {
+        // Deterministic historical scenario with clear pass/fail outcome
+        const failureCount = data.failureCount || 0;
+        const failureAge = data.medianFailureAge || 0;
+        const yearsUntilFailure = failureAge > 0 ? failureAge - params.retirementAge : 0;
+
+        if (successRateNum <= 5) {
+          // Plan failed the historical stress test
+          para2 = `<strong>Historical Result: Plan Did Not Survive</strong><br>`;
+          para2 += `Your retirement plan <strong style="color: #c0392b;">failed</strong> the ${historicalInfo.name} stress test. `;
+          if (failureAge > 0) {
+            para2 += `Money ran out at <strong>age ${failureAge}</strong> (${yearsUntilFailure} years into retirement). `;
+          }
+          para2 += `<br><br><strong>What happened:</strong> ${historicalInfo.description} `;
+          para2 += `Your withdrawal strategy—`;
+          if (params.withdrawalType === 'percentage') {
+            para2 += `${(params.withdrawalPercentage * 100).toFixed(1)}% of your initial retirement balance, growing with inflation—`;
+          } else {
+            para2 += `${formatCurrency(params.annualWithdrawal)}/year, growing with inflation—`;
+          }
+          para2 += `could not be sustained through this historically difficult period. `;
+          para2 += `<br><br>See the <strong>Detailed Failure</strong> tab for a year-by-year breakdown of exactly how the portfolio depleted.`;
+        } else {
+          // Plan survived the historical stress test
+          para2 = `<strong>Historical Result: Plan Survived</strong><br>`;
+          para2 += `Your retirement plan <strong style="color: #0a9488;">survived</strong> the ${historicalInfo.name} stress test with a final balance of <strong>${formatCurrency(data.medianBalance)}</strong>. `;
+          para2 += `<br><br><strong>What happened:</strong> Despite ${historicalInfo.description.toLowerCase()} `;
+          para2 += `Your withdrawal strategy proved sustainable through this challenging period. `;
+          if (isImmediateRetirement) {
+            para2 += `This is a definitive result—your plan would have survived this exact historical sequence.`;
+          } else {
+            para2 += `Even with variability in your accumulation phase, ${successRounded}% of scenarios built enough wealth to weather the storm.`;
+          }
+          para2 += `<br><br>See the <strong>Detailed Outcome</strong> tab for a year-by-year breakdown of the median scenario.`;
+        }
       } else {
-        para2 += `This indicates significant risk of running out of money. We recommend reviewing your plan.`;
-      }
-      // Special note for full historical scenarios with percentage withdrawals
-      if (isHistorical && isImmediateRetirement && params.withdrawalType === 'percentage' && yearsInRetirement >= 30) {
-        para2 += ` <em>Note: With a full historical scenario using percentage-based withdrawals over ${yearsInRetirement}+ years, you typically see 0% or 100% success because all 1,000 scenarios use the same historical returns—they either all succeed or all fail.</em>`;
+        // Standard Monte Carlo or partial historical - use probabilistic language
+        para2 = `<strong>Success Rate:</strong> Your success rate of <strong>${successRounded}%</strong> means that in ${successRounded * 10} out of 1,000 simulated scenarios, your retirement savings lasted through your entire ${yearsInRetirement}-year retirement period. `;
+        if (successRateNum >= 90) {
+          para2 += `A success rate above 90% is generally considered comfortable for retirement planning.`;
+        } else if (successRateNum >= 80) {
+          para2 += `While reasonable, some advisors recommend targeting 90%+ for added peace of mind.`;
+        } else if (successRateNum >= 70) {
+          para2 += `This suggests moderate risk—there's a ${riskPercent}% chance you could outlive your savings.`;
+        } else {
+          para2 += `This indicates significant risk of running out of money. We recommend reviewing your plan.`;
+        }
+
+        // For historical scenarios that aren't fully deterministic, still note the historical element
+        if (isHistorical && historicalInfo) {
+          para2 += ` Because you selected a historical stress test, these results incorporate actual market returns from the ${historicalInfo.name} period.`;
+        }
       }
 
       // Paragraph 3: Range of Outcomes

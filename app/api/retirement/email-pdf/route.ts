@@ -1042,19 +1042,23 @@ async function buildPdfBuffer({
     withdrawalDesc = `Withdraw a fixed ${formatCurrency(assumptions?.annualWithdrawal ?? 0)} per year, increasing ${((assumptions?.withdrawalInflation ?? 0) * 100).toFixed(1)}% annually with inflation.`
   }
 
-  // Build market outcomes description
-  let marketDesc = ''
-  if (historicalInfo) {
-    // Calculate how many years of historical data are available
-    const historicalScenario = assumptions?.historicalScenario ?? ''
+  // Calculate how many years of historical data are available (needed for multiple sections)
+  let historicalYearsAvailable = 0
+  let retirementFullyCovered = false
+  if (assumptions?.historicalScenario) {
+    const historicalScenario = assumptions.historicalScenario
     const scenarioYear = parseInt(historicalScenario.substring(0, 4)) || 2000
     const scenarioMonth = parseInt(historicalScenario.substring(5, 7)) || 1
     const dataEndYear = 2025
     const dataEndMonth = 12
     const historicalMonthsAvailable = (dataEndYear - scenarioYear) * 12 + (dataEndMonth - scenarioMonth) + 1
-    const historicalYearsAvailable = Math.floor(historicalMonthsAvailable / 12)
-    const retirementFullyCovered = historicalYearsAvailable >= yearsInRetirement
+    historicalYearsAvailable = Math.floor(historicalMonthsAvailable / 12)
+    retirementFullyCovered = historicalYearsAvailable >= yearsInRetirement
+  }
 
+  // Build market outcomes description
+  let marketDesc = ''
+  if (historicalInfo) {
     if (isImmediateRetirement) {
       if (retirementFullyCovered) {
         marketDesc = `SINGLE PATH: All ${yearsInRetirement} years use actual historical returns from ${historicalInfo.date}. All 1,000 simulations are identical—success is either 0% or 100%.`
@@ -1078,13 +1082,27 @@ async function buildPdfBuffer({
 
   drawSectionHeading('Scenario Being Tested', { size: 12, spacingAfter: 4, lineHeight: 16 })
 
+  // Build "What This Means" for deterministic historical scenarios
+  const isDeterministicHistorical = historicalInfo && retirementFullyCovered
+
   // Draw scenario items in a compact format
-  const scenarioItems = [
+  const scenarioItems: Array<{ label: string; value: string; highlight?: boolean }> = [
     { label: 'Portfolio', value: `${formatCurrency(assumptions?.startingBalance ?? 0)} at age ${assumptions?.currentAge ?? 30}, allocated ${stockAlloc}% stocks / ${bondAlloc}% bonds.` },
     { label: 'Contributions', value: contributionText },
     { label: 'Withdrawals', value: `Begin at age ${assumptions?.retirementAge ?? 65} for ${yearsInRetirement} years. ${withdrawalDesc}` },
     { label: 'Market Outcomes', value: marketDesc },
   ]
+
+  // Add "What This Means" for deterministic historical
+  if (isDeterministicHistorical) {
+    let whatThisMeans = ''
+    if (isImmediateRetirement) {
+      whatThisMeans = 'DETERMINISTIC: All 1,000 simulations follow identical historical returns. Success is either 0% (plan fails) or 100% (plan survives). The result is definitive.'
+    } else {
+      whatThisMeans = 'DETERMINISTIC RETIREMENT: Accumulation varies, but all scenarios follow identical historical returns during retirement. Success rates near 0% or 100% indicate whether this period was survivable.'
+    }
+    scenarioItems.push({ label: 'What This Means', value: whatThisMeans, highlight: true })
+  }
 
   for (const item of scenarioItems) {
     const itemHeight = 28
@@ -1188,27 +1206,53 @@ async function buildPdfBuffer({
   pdfPara1 += `After ${yearsInRetirement} years of retirement, the simulation tracked how much money remained.`
   drawParagraph(pdfPara1, { size: 10, spacingAfter: 8 })
 
-  // Paragraph 2: Success Rate
-  let pdfPara2 = `Success Rate: Your success rate of ${successRatePercent} means that in ${successRate !== null ? Math.round(successRate * 1000) : '—'} out of 1,000 simulated scenarios, your retirement savings lasted through your entire ${yearsInRetirement}-year retirement period. `
-  if (successRateNum >= 90) {
-    pdfPara2 += 'A success rate above 90% is generally considered comfortable for retirement planning.'
-  } else if (successRateNum >= 80) {
-    pdfPara2 += 'While reasonable, some advisors recommend targeting 90%+ for added peace of mind.'
-  } else if (successRateNum >= 70) {
-    pdfPara2 += `This suggests moderate risk—there's a ${riskPercent} chance you could outlive your savings.`
+  // Define percentile strings early since they're used in multiple places
+  const p20Str = percentile20 !== null ? formatCurrency(percentile20) : '—'
+  const medianStr = medianBalance !== null ? formatCurrency(medianBalance) : '—'
+  const p80Str = percentile80 !== null ? formatCurrency(percentile80) : '—'
+
+  // Paragraph 2: Success Rate - different for deterministic historical vs Monte Carlo
+  let pdfPara2 = ''
+  const failureCount = simulation?.failureCount ?? 0
+  const failureAge = simulation?.medianFailureAge ?? 0
+  const yearsUntilFailure = failureAge > 0 ? failureAge - (assumptions?.retirementAge ?? 65) : 0
+
+  if (isDeterministicHistorical && (successRateNum <= 5 || successRateNum >= 95)) {
+    // Deterministic historical with clear pass/fail
+    if (successRateNum <= 5) {
+      pdfPara2 = 'HISTORICAL RESULT: PLAN DID NOT SURVIVE. '
+      pdfPara2 += `Your retirement plan failed the ${historicalInfo?.name} stress test. `
+      if (failureAge > 0) {
+        pdfPara2 += `Money ran out at age ${failureAge} (${yearsUntilFailure} years into retirement). `
+      }
+      pdfPara2 += `What happened: ${historicalInfo?.description} `
+      pdfPara2 += 'Your withdrawal strategy could not be sustained through this historically difficult period. '
+      pdfPara2 += 'See the Detailed Failure section for a year-by-year breakdown.'
+    } else {
+      pdfPara2 = 'HISTORICAL RESULT: PLAN SURVIVED. '
+      pdfPara2 += `Your retirement plan survived the ${historicalInfo?.name} stress test with a final balance of ${medianStr}. `
+      pdfPara2 += `What happened: Despite the challenges of this period, your withdrawal strategy proved sustainable. `
+      pdfPara2 += 'See the Detailed Outcome section for a year-by-year breakdown.'
+    }
   } else {
-    pdfPara2 += 'This indicates significant risk of running out of money. We recommend reviewing your plan.'
-  }
-  // Note for full historical scenarios with percentage withdrawals
-  if (historicalInfo && isImmediateRetirement && assumptions?.withdrawalType === 'percentage' && yearsInRetirement >= 30) {
-    pdfPara2 += ' Note: With a full historical scenario using percentage-based withdrawals over 30+ years, you typically see 0% or 100% success because all 1,000 scenarios use the same historical returns.'
+    // Standard Monte Carlo or partial historical
+    pdfPara2 = `Success Rate: Your success rate of ${successRatePercent} means that in ${successRate !== null ? Math.round(successRate * 1000) : '—'} out of 1,000 simulated scenarios, your retirement savings lasted through your entire ${yearsInRetirement}-year retirement period. `
+    if (successRateNum >= 90) {
+      pdfPara2 += 'A success rate above 90% is generally considered comfortable for retirement planning.'
+    } else if (successRateNum >= 80) {
+      pdfPara2 += 'While reasonable, some advisors recommend targeting 90%+ for added peace of mind.'
+    } else if (successRateNum >= 70) {
+      pdfPara2 += `This suggests moderate risk—there's a ${riskPercent} chance you could outlive your savings.`
+    } else {
+      pdfPara2 += 'This indicates significant risk of running out of money. We recommend reviewing your plan.'
+    }
+    if (historicalInfo) {
+      pdfPara2 += ` Because you selected a historical stress test, these results incorporate actual market returns from the ${historicalInfo.name} period.`
+    }
   }
   drawParagraph(pdfPara2, { size: 10, spacingAfter: 8 })
 
   // Paragraph 3: Range of Outcomes
-  const p20Str = percentile20 !== null ? formatCurrency(percentile20) : '—'
-  const medianStr = medianBalance !== null ? formatCurrency(medianBalance) : '—'
-  const p80Str = percentile80 !== null ? formatCurrency(percentile80) : '—'
   drawParagraph(
     `Range of Outcomes: The 20th percentile (${p20Str}) represents a challenging scenario—only 20% of simulations ended with less. The median (${medianStr}) is your most likely outcome. The 80th percentile (${p80Str}) shows favorable conditions. The spread reflects market uncertainty over ${totalYears} years.`,
     { size: 10, spacingAfter: 8 }
