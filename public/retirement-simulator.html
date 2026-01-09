@@ -612,6 +612,47 @@
     .result-value-primary.warning { color: #f59e0b; }
     .result-value-primary.danger { color: var(--red); }
 
+    /* Scenario Summary Section */
+    .scenario-summary {
+      background: #fff;
+      border: 1px solid var(--ast-border-color);
+      border-radius: var(--radius);
+      padding: 20px 24px;
+      margin-bottom: 20px;
+    }
+    .scenario-summary h3 {
+      font-size: 16px;
+      font-weight: 600;
+      color: var(--text-dark);
+      margin-bottom: 16px;
+    }
+    .scenario-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+      gap: 16px;
+    }
+    .scenario-item {
+      padding: 12px 16px;
+      background: var(--gray-50);
+      border-radius: 6px;
+    }
+    .scenario-item-label {
+      font-size: 11px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      color: var(--muted);
+      margin-bottom: 6px;
+    }
+    .scenario-item-value {
+      font-size: 14px;
+      color: var(--text-dark);
+      line-height: 1.5;
+    }
+    .scenario-item-value strong {
+      font-weight: 600;
+    }
+
     /* Secondary Metrics Inline */
     .metrics-secondary {
       background: #fff;
@@ -619,7 +660,7 @@
       border-radius: var(--radius);
       padding: 14px 20px;
       margin-bottom: 20px;
-      font-size: 13px;
+      font-size: 15px;
       color: var(--text);
       line-height: 1.8;
     }
@@ -2006,6 +2047,27 @@
       const yearsToRetirement = params ? (params.retirementAge - params.currentAge) : 0;
       const yearsInRetirement = params ? params.yearsInRetirement : 30;
       const isImmediateRetirement = yearsToRetirement <= 0;
+      const totalYears = yearsToRetirement + yearsInRetirement;
+
+      // Calculate median savings at retirement and first year withdrawal from medianSimulationDetails
+      let medianSavingsAtRetirement = params ? params.startingBalance : 0;
+      let firstYearWithdrawal = 0;
+      if (data.medianSimulationDetails && data.medianSimulationDetails.length > 0) {
+        // Find the year where retirement starts (first year with withdrawals > 0)
+        const retirementYearIndex = data.medianSimulationDetails.findIndex(y => y.withdrawalGross > 0);
+        if (retirementYearIndex > 0) {
+          // Use the end balance of the year before retirement
+          medianSavingsAtRetirement = data.medianSimulationDetails[retirementYearIndex - 1].endBalance;
+        } else if (retirementYearIndex === 0) {
+          // Immediate retirement - use starting balance
+          medianSavingsAtRetirement = params ? params.startingBalance : data.medianSimulationDetails[0].startBalance || 0;
+        }
+        // Get first year withdrawal
+        const firstRetirementYear = data.medianSimulationDetails.find(y => y.withdrawalGross > 0);
+        if (firstRetirementYear) {
+          firstYearWithdrawal = firstRetirementYear.withdrawalGross;
+        }
+      }
 
       // Build scenario banner
       let scenarioBanner = '';
@@ -2031,51 +2093,137 @@
             <div class="scenario-type">
               <span class="scenario-title">Monte Carlo Simulation</span>
             </div>
-            <div class="scenario-description">Results based on 1,000 randomized scenarios using expected returns and volatility across all ${yearsToRetirement + yearsInRetirement} years.</div>
+            <div class="scenario-description">Results based on 1,000 randomized scenarios using expected returns and volatility across all ${totalYears} years.</div>
           </div>
         `;
       }
 
+      // Build scenario summary section
+      const stockAlloc = params ? (params.allocation?.STOCKS || 0) : 70;
+      const bondAlloc = params ? (params.allocation?.BONDS || 0) : 30;
+      const contributionText = yearsToRetirement > 0
+        ? `Beginning at age ${params.currentAge}, contribute ${formatCurrency(params.annualContribution)} per year for ${params.yearsContributing} years, increasing ${(params.contributionGrowth * 100).toFixed(1)}% annually with inflation.`
+        : `No contribution period (retiring immediately).`;
+
+      // Build withdrawal description based on type
+      let withdrawalDesc = '';
+      if (params.withdrawalType === 'percentage') {
+        const pct = (params.withdrawalPercentage * 100).toFixed(1);
+        if (params.guardrailBand > 0) {
+          const band = (params.guardrailBand * 100).toFixed(0);
+          const adj = (params.guardrailAdjustment * 100).toFixed(0);
+          withdrawalDesc = `Withdraw ${pct}% of portfolio value each year with Guyton-Klinger guardrails (±${band}% band, ${adj}% adjustment). Spending automatically adjusts if withdrawal rate drifts too far from ${pct}%.`;
+        } else {
+          withdrawalDesc = `Withdraw ${pct}% of portfolio value each year. As the portfolio grows or shrinks, withdrawals adjust accordingly.`;
+        }
+      } else {
+        withdrawalDesc = `Withdraw a fixed ${formatCurrency(params.annualWithdrawal)} per year, increasing ${(params.withdrawalInflation * 100).toFixed(1)}% annually with inflation.`;
+      }
+
+      // Build market outcomes description
+      let marketDesc = '';
+      if (isHistorical && historicalInfo) {
+        if (isImmediateRetirement) {
+          marketDesc = `<strong>Deterministic:</strong> All ${yearsInRetirement} retirement years use actual historical returns from ${historicalInfo.date}. This shows exactly what would have happened had you retired at that date.`;
+        } else {
+          marketDesc = `<strong>Hybrid:</strong> Pre-retirement (${yearsToRetirement} years) uses randomized Monte Carlo returns. Retirement (${yearsInRetirement} years) uses actual historical returns starting ${historicalInfo.date}. Inflation during retirement uses actual historical CPI.`;
+        }
+      } else {
+        if (params.simulationMode === 'regime') {
+          marketDesc = `<strong>Regime-Switching Model:</strong> Returns are generated using a 3-state Markov model with Calm (85%), Crash (10%), and Inflation (5%) regimes. Each regime has calibrated returns, volatility, and correlation. This captures realistic market dynamics including volatility clustering and correlation regime changes.`;
+        } else {
+          marketDesc = `<strong>Monte Carlo:</strong> 1,000 scenarios with randomized returns drawn from a skewed Student's t-distribution. Expected stock return: ${(params.stockReturn * 100).toFixed(1)}%, expected bond return: ${(params.bondReturn * 100).toFixed(1)}%. Correlation: ${params.correlation.toFixed(2)}.`;
+        }
+      }
+
+      const scenarioSummary = `
+        <div class="scenario-summary">
+          <h3>Scenario Being Tested</h3>
+          <div class="scenario-grid">
+            <div class="scenario-item">
+              <div class="scenario-item-label">Portfolio</div>
+              <div class="scenario-item-value"><strong>${formatCurrency(params.startingBalance)}</strong> at age ${params.currentAge}, allocated ${stockAlloc}% stocks / ${bondAlloc}% bonds.</div>
+            </div>
+            <div class="scenario-item">
+              <div class="scenario-item-label">Contributions</div>
+              <div class="scenario-item-value">${contributionText}</div>
+            </div>
+            <div class="scenario-item">
+              <div class="scenario-item-label">Withdrawals</div>
+              <div class="scenario-item-value">Begin at age ${params.retirementAge} for ${yearsInRetirement} years. ${withdrawalDesc}</div>
+            </div>
+            <div class="scenario-item">
+              <div class="scenario-item-label">Market Outcomes</div>
+              <div class="scenario-item-value">${marketDesc}</div>
+            </div>
+          </div>
+        </div>
+      `;
+
       // Build explanation text
       const successRounded = Math.round(successRateNum);
       const riskPercent = Math.max(0, 100 - successRounded);
-      const totalYears = yearsToRetirement + yearsInRetirement;
 
-      // Paragraph 1: Success Rate
-      let para1 = `<strong>Success Rate:</strong> Your success rate of ${successRounded}% means that in ${successRounded * 10} out of 1,000 simulated scenarios, your retirement savings lasted through your entire ${yearsInRetirement}-year retirement period. `;
+      // Paragraph 1: What happened (narrative)
+      let para1 = `<strong>What This Simulation Did:</strong> `;
+      if (yearsToRetirement > 0) {
+        para1 += `Starting with ${formatCurrency(params.startingBalance)} at age ${params.currentAge}, you saved for ${yearsToRetirement} years. In the median scenario, your portfolio grew to <strong>${formatCurrency(medianSavingsAtRetirement)}</strong> by retirement at age ${params.retirementAge}. `;
+      } else {
+        para1 += `Starting with ${formatCurrency(params.startingBalance)} at age ${params.currentAge} (immediate retirement). `;
+      }
+      if (params.withdrawalType === 'percentage') {
+        const pct = (params.withdrawalPercentage * 100).toFixed(1);
+        para1 += `You then began withdrawing ${pct}% of your portfolio annually. In the first year, this was <strong>${formatCurrency(firstYearWithdrawal)}</strong>. `;
+        if (params.guardrailBand > 0) {
+          para1 += `Guyton-Klinger guardrails automatically adjusted spending when withdrawal rates drifted too high or low. `;
+        }
+      } else {
+        para1 += `You then began withdrawing ${formatCurrency(params.annualWithdrawal)}/year (growing with inflation). In the first year, this was <strong>${formatCurrency(firstYearWithdrawal)}</strong>. `;
+      }
+      para1 += `After ${yearsInRetirement} years of retirement, the simulation tracked how much money remained.`;
+
+      // Paragraph 2: Success Rate
+      let para2 = `<strong>Success Rate:</strong> Your success rate of <strong>${successRounded}%</strong> means that in ${successRounded * 10} out of 1,000 simulated scenarios, your retirement savings lasted through your entire ${yearsInRetirement}-year retirement period. `;
       if (successRateNum >= 90) {
-        para1 += `A success rate above 90% is generally considered comfortable for retirement planning.`;
+        para2 += `A success rate above 90% is generally considered comfortable for retirement planning.`;
       } else if (successRateNum >= 80) {
-        para1 += `While this is a reasonable success rate, some advisors recommend targeting 90% or higher for added peace of mind.`;
+        para2 += `While reasonable, some advisors recommend targeting 90%+ for added peace of mind.`;
       } else if (successRateNum >= 70) {
-        para1 += `This success rate suggests moderate risk—there's a ${riskPercent}% chance you could outlive your savings. Consider adjustments to improve your odds.`;
+        para2 += `This suggests moderate risk—there's a ${riskPercent}% chance you could outlive your savings.`;
       } else {
-        para1 += `This success rate indicates significant risk of running out of money during retirement. We strongly recommend reviewing your plan.`;
+        para2 += `This indicates significant risk of running out of money. We recommend reviewing your plan.`;
       }
-      if (isHistorical) {
-        para1 += ` Because you selected a historical stress test, these results show how your plan would have fared during one of the most challenging periods in market history.`;
+      // Special note for full historical scenarios with percentage withdrawals
+      if (isHistorical && isImmediateRetirement && params.withdrawalType === 'percentage' && yearsInRetirement >= 30) {
+        para2 += ` <em>Note: With a full historical scenario using percentage-based withdrawals over ${yearsInRetirement}+ years, you typically see 0% or 100% success because all 1,000 scenarios use the same historical returns—they either all succeed or all fail.</em>`;
       }
 
-      // Paragraph 2: Percentiles
-      let para2 = `<strong>Range of Outcomes:</strong> The 20th percentile (${formatCurrency(data.percentile20)}) represents a challenging scenario—only 20% of simulations ended with less money. The median (${formatCurrency(data.medianBalance)}) is your most likely outcome. The 80th percentile (${formatCurrency(data.percentile80)}) shows what happens under favorable conditions. The spread between these numbers reflects market uncertainty over a ${totalYears}-year time horizon.`;
+      // Paragraph 3: Range of Outcomes
+      let para3 = `<strong>Range of Outcomes:</strong> The 20th percentile (${formatCurrency(data.percentile20)}) represents a challenging scenario—only 20% of simulations ended with less. The median (${formatCurrency(data.medianBalance)}) is your most likely outcome. The 80th percentile (${formatCurrency(data.percentile80)}) shows favorable conditions. The spread reflects market uncertainty over ${totalYears} years.`;
 
-      // Paragraph 3: Next Steps
-      let para3 = `<strong>Key Factors:</strong> Your results are influenced by your withdrawal strategy, asset allocation, and time horizon. `;
+      // Paragraph 4: Key Factors
+      let para4 = `<strong>Key Factors:</strong> Your results depend on your withdrawal approach (`;
+      if (params.withdrawalType === 'percentage') {
+        para4 += `${(params.withdrawalPercentage * 100).toFixed(1)}% of assets${params.guardrailBand > 0 ? ' with guardrails' : ''}`;
+      } else {
+        para4 += `fixed ${formatCurrency(params.annualWithdrawal)}/year`;
+      }
+      para4 += `), asset allocation (${stockAlloc}/${bondAlloc} stocks/bonds), investment returns, and inflation. `;
       if (successRateNum < 80) {
-        para3 += `Given your success rate of ${successRounded}%, small adjustments could make a meaningful difference—consider retiring a year later, reducing annual spending, or adjusting your stock/bond allocation. <strong>We recommend discussing your options with an advisor.</strong>`;
+        para4 += `Given your ${successRounded}% success rate, small changes could help—retiring a year later, reducing spending, or adjusting allocation. <strong>We recommend consulting an advisor.</strong>`;
       } else if (successRateNum < 90) {
-        para3 += `To improve your success rate toward 90%+, you might consider small adjustments like slightly reducing withdrawals or extending your working years.`;
+        para4 += `To push toward 90%+, consider slightly reducing withdrawals or extending working years.`;
       } else {
-        para3 += `Your plan appears to be on solid footing. Continue to monitor and adjust as your circumstances change.`;
+        para4 += `Your plan appears on solid footing. Continue to monitor as circumstances change.`;
       }
       if (isHistorical) {
-        para3 += ` Remember, this stress test shows performance during a historically difficult period—actual future results will differ.`;
+        para4 += ` Note: This stress test uses a historically difficult period—actual future results will differ.`;
       }
 
-      // Paragraph 4: Historical Context (only for historical scenarios)
-      let para4 = '';
+      // Paragraph 5: Historical Context (only for historical scenarios)
+      let para5 = '';
       if (isHistorical && historicalInfo) {
-        para4 = `<strong>Historical Context:</strong> ${historicalInfo.description} This stress test helps you understand whether your plan could withstand similar conditions.`;
+        para5 = `<strong>Historical Context:</strong> ${historicalInfo.description} This stress test helps you understand whether your plan could withstand similar conditions.`;
       }
 
       // Build secondary metrics
@@ -2096,6 +2244,8 @@
 
         ${scenarioBanner}
 
+        ${scenarioSummary}
+
         <div class="explanation-section">
           <div class="explanation-header" onclick="toggleExplanation()">
             <span class="explanation-title">Understanding Your Results</span>
@@ -2105,7 +2255,8 @@
             <p class="explanation-para">${para1}</p>
             <p class="explanation-para">${para2}</p>
             <p class="explanation-para">${para3}</p>
-            ${para4 ? `<p class="explanation-para">${para4}</p>` : ''}
+            <p class="explanation-para">${para4}</p>
+            ${para5 ? `<p class="explanation-para">${para5}</p>` : ''}
           </div>
         </div>
 

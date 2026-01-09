@@ -1019,6 +1019,87 @@ async function buildPdfBuffer({
   })
   y -= bannerHeight + 12
 
+  // --- Scenario Being Tested Section ---
+  const stockAlloc = stockAllocation ?? 70
+  const bondAlloc = bondAllocation ?? 30
+
+  const contributionText = yearsToRetirement > 0
+    ? `Beginning at age ${assumptions?.currentAge ?? 30}, contribute ${formatCurrency(assumptions?.annualContribution ?? 0)} per year for ${assumptions?.yearsContributing ?? yearsToRetirement} years, increasing ${((assumptions?.contributionGrowth ?? 0) * 100).toFixed(1)}% annually.`
+    : 'No contribution period (retiring immediately).'
+
+  // Build withdrawal description
+  let withdrawalDesc = ''
+  if (assumptions?.withdrawalType === 'percentage') {
+    const pct = ((assumptions?.withdrawalPercentage ?? 0.04) * 100).toFixed(1)
+    if (assumptions?.guardrailBand > 0) {
+      const band = ((assumptions?.guardrailBand ?? 0) * 100).toFixed(0)
+      const adj = ((assumptions?.guardrailAdjustment ?? 0) * 100).toFixed(0)
+      withdrawalDesc = `Withdraw ${pct}% of portfolio value each year with Guyton-Klinger guardrails (±${band}% band, ${adj}% adjustment).`
+    } else {
+      withdrawalDesc = `Withdraw ${pct}% of portfolio value each year.`
+    }
+  } else {
+    withdrawalDesc = `Withdraw a fixed ${formatCurrency(assumptions?.annualWithdrawal ?? 0)} per year, increasing ${((assumptions?.withdrawalInflation ?? 0) * 100).toFixed(1)}% annually with inflation.`
+  }
+
+  // Build market outcomes description
+  let marketDesc = ''
+  if (historicalInfo) {
+    if (isImmediateRetirement) {
+      marketDesc = `Deterministic: All ${yearsInRetirement} years use actual historical returns from ${historicalInfo.date}.`
+    } else {
+      marketDesc = `Hybrid: Pre-retirement uses Monte Carlo. Retirement uses actual returns starting ${historicalInfo.date}.`
+    }
+  } else {
+    if (assumptions?.simulationMode === 'regime') {
+      marketDesc = 'Regime-Switching Model with Calm (85%), Crash (10%), and Inflation (5%) regimes.'
+    } else {
+      marketDesc = `Monte Carlo: 1,000 scenarios. Stock: ${((assumptions?.stockReturn ?? 0.08) * 100).toFixed(1)}%, Bond: ${((assumptions?.bondReturn ?? 0.045) * 100).toFixed(1)}%.`
+    }
+  }
+
+  drawSectionHeading('Scenario Being Tested', { size: 12, spacingAfter: 4, lineHeight: 16 })
+
+  // Draw scenario items in a compact format
+  const scenarioItems = [
+    { label: 'Portfolio', value: `${formatCurrency(assumptions?.startingBalance ?? 0)} at age ${assumptions?.currentAge ?? 30}, allocated ${stockAlloc}% stocks / ${bondAlloc}% bonds.` },
+    { label: 'Contributions', value: contributionText },
+    { label: 'Withdrawals', value: `Begin at age ${assumptions?.retirementAge ?? 65} for ${yearsInRetirement} years. ${withdrawalDesc}` },
+    { label: 'Market Outcomes', value: marketDesc },
+  ]
+
+  for (const item of scenarioItems) {
+    const itemHeight = 28
+    ensureSpace(itemHeight)
+    page.drawText(item.label.toUpperCase(), {
+      x: currentMargin,
+      y: y - 6,
+      size: 8,
+      font: boldFont,
+      color: subtleColor,
+    })
+    // Wrap long value text
+    const valueWords = item.value.split(' ')
+    let valueLine = ''
+    let valueY = y - 18
+    for (const word of valueWords) {
+      const testLine = valueLine ? `${valueLine} ${word}` : word
+      const lineWidth = normalFont.widthOfTextAtSize(testLine, 9)
+      if (lineWidth > contentWidth - 10) {
+        page.drawText(valueLine, { x: currentMargin, y: valueY, size: 9, font: normalFont, color: textColor })
+        valueY -= 11
+        valueLine = word
+      } else {
+        valueLine = testLine
+      }
+    }
+    if (valueLine) {
+      page.drawText(valueLine, { x: currentMargin, y: valueY, size: 9, font: normalFont, color: textColor })
+    }
+    y -= itemHeight
+  }
+  y -= 6
+
   drawSectionHeading('Simulation Results', { size: 14, spacingAfter: 4, lineHeight: 18 })
   drawSummaryCards(summaryCardsPrimary, {
     columns: 4,
@@ -1052,45 +1133,90 @@ async function buildPdfBuffer({
   const riskPercent = successRate !== null ? `${Math.max(0, 100 - Math.round(successRate * 100))}%` : '—'
   const successRateNum = successRate !== null ? successRate * 100 : 0
 
+  // Calculate median savings at retirement and first year withdrawal
+  let medianSavingsAtRetirement = assumptions?.startingBalance ?? 0
+  let firstYearWithdrawal = 0
+  if (yearData.length > 0) {
+    const retirementYearIndex = yearData.findIndex((y: any) => y.withdrawalGross > 0)
+    if (retirementYearIndex > 0) {
+      medianSavingsAtRetirement = yearData[retirementYearIndex - 1].endBalance ?? medianSavingsAtRetirement
+    } else if (retirementYearIndex === 0) {
+      medianSavingsAtRetirement = yearData[0].startBalance ?? medianSavingsAtRetirement
+    }
+    const firstRetirementYear = yearData.find((y: any) => y.withdrawalGross > 0)
+    if (firstRetirementYear) {
+      firstYearWithdrawal = firstRetirementYear.withdrawalGross
+    }
+  }
+
   drawSectionHeading('Understanding Your Results', { size: 12, spacingAfter: 6 })
 
-  // Paragraph 1: Success Rate
-  let para1 = `Your success rate of ${successRatePercent} means that in ${successRate !== null ? Math.round(successRate * 1000) : '—'} out of 1,000 simulated scenarios, your retirement savings lasted through your entire ${yearsInRetirement}-year retirement period. `
-  if (successRateNum >= 90) {
-    para1 += 'A success rate above 90% is generally considered comfortable for retirement planning.'
-  } else if (successRateNum >= 80) {
-    para1 += 'While this is a reasonable success rate, some advisors recommend targeting 90% or higher.'
-  } else if (successRateNum >= 70) {
-    para1 += `This success rate suggests moderate risk—there's a ${riskPercent} chance you could outlive your savings.`
+  // Paragraph 1: What This Simulation Did (narrative)
+  let pdfPara1 = 'What This Simulation Did: '
+  if (yearsToRetirement > 0) {
+    pdfPara1 += `Starting with ${formatCurrency(assumptions?.startingBalance ?? 0)} at age ${assumptions?.currentAge ?? 30}, you saved for ${yearsToRetirement} years. In the median scenario, your portfolio grew to ${formatCurrency(medianSavingsAtRetirement)} by retirement at age ${assumptions?.retirementAge ?? 65}. `
   } else {
-    para1 += 'This success rate indicates significant risk of running out of money during retirement.'
+    pdfPara1 += `Starting with ${formatCurrency(assumptions?.startingBalance ?? 0)} at age ${assumptions?.currentAge ?? 30} (immediate retirement). `
   }
-  if (historicalInfo) {
-    para1 += ' Because you selected a historical stress test, these results show how your plan would have fared during one of the most challenging periods in market history.'
+  if (assumptions?.withdrawalType === 'percentage') {
+    const pct = ((assumptions?.withdrawalPercentage ?? 0.04) * 100).toFixed(1)
+    pdfPara1 += `You then began withdrawing ${pct}% of your portfolio annually. In the first year, this was ${formatCurrency(firstYearWithdrawal)}. `
+    if (assumptions?.guardrailBand > 0) {
+      pdfPara1 += 'Guyton-Klinger guardrails automatically adjusted spending. '
+    }
+  } else {
+    pdfPara1 += `You then began withdrawing ${formatCurrency(assumptions?.annualWithdrawal ?? 0)}/year. In the first year, this was ${formatCurrency(firstYearWithdrawal)}. `
   }
-  drawParagraph(para1, { size: 10, spacingAfter: 8 })
+  pdfPara1 += `After ${yearsInRetirement} years of retirement, the simulation tracked how much money remained.`
+  drawParagraph(pdfPara1, { size: 10, spacingAfter: 8 })
 
-  // Paragraph 2: Percentiles
+  // Paragraph 2: Success Rate
+  let pdfPara2 = `Success Rate: Your success rate of ${successRatePercent} means that in ${successRate !== null ? Math.round(successRate * 1000) : '—'} out of 1,000 simulated scenarios, your retirement savings lasted through your entire ${yearsInRetirement}-year retirement period. `
+  if (successRateNum >= 90) {
+    pdfPara2 += 'A success rate above 90% is generally considered comfortable for retirement planning.'
+  } else if (successRateNum >= 80) {
+    pdfPara2 += 'While reasonable, some advisors recommend targeting 90%+ for added peace of mind.'
+  } else if (successRateNum >= 70) {
+    pdfPara2 += `This suggests moderate risk—there's a ${riskPercent} chance you could outlive your savings.`
+  } else {
+    pdfPara2 += 'This indicates significant risk of running out of money. We recommend reviewing your plan.'
+  }
+  // Note for full historical scenarios with percentage withdrawals
+  if (historicalInfo && isImmediateRetirement && assumptions?.withdrawalType === 'percentage' && yearsInRetirement >= 30) {
+    pdfPara2 += ' Note: With a full historical scenario using percentage-based withdrawals over 30+ years, you typically see 0% or 100% success because all 1,000 scenarios use the same historical returns.'
+  }
+  drawParagraph(pdfPara2, { size: 10, spacingAfter: 8 })
+
+  // Paragraph 3: Range of Outcomes
   const p20Str = percentile20 !== null ? formatCurrency(percentile20) : '—'
   const medianStr = medianBalance !== null ? formatCurrency(medianBalance) : '—'
   const p80Str = percentile80 !== null ? formatCurrency(percentile80) : '—'
   drawParagraph(
-    `The 20th percentile (${p20Str}) represents a challenging scenario—only 20% of simulations ended with less. The median (${medianStr}) is your most likely outcome. The 80th percentile (${p80Str}) shows favorable conditions. The spread reflects market uncertainty over ${totalYears} years.`,
+    `Range of Outcomes: The 20th percentile (${p20Str}) represents a challenging scenario—only 20% of simulations ended with less. The median (${medianStr}) is your most likely outcome. The 80th percentile (${p80Str}) shows favorable conditions. The spread reflects market uncertainty over ${totalYears} years.`,
     { size: 10, spacingAfter: 8 }
   )
 
-  // Paragraph 3: Next Steps
-  let para3 = 'Your results are influenced by your withdrawal strategy, asset allocation, and time horizon. '
-  if (successRateNum < 80) {
-    para3 += 'Given your success rate, small adjustments could make a meaningful difference—consider retiring later, reducing withdrawals, or adjusting allocation. We recommend discussing your options with an advisor.'
-  } else if (successRateNum < 90) {
-    para3 += 'To improve your success rate toward 90%+, consider small adjustments like slightly reducing withdrawals or extending your working years.'
+  // Paragraph 4: Key Factors
+  let pdfPara4 = 'Key Factors: Your results depend on your withdrawal approach ('
+  if (assumptions?.withdrawalType === 'percentage') {
+    pdfPara4 += `${((assumptions?.withdrawalPercentage ?? 0.04) * 100).toFixed(1)}% of assets${assumptions?.guardrailBand > 0 ? ' with guardrails' : ''}`
   } else {
-    para3 += 'Your plan appears to be on solid footing. Continue to monitor and adjust as circumstances change.'
+    pdfPara4 += `fixed ${formatCurrency(assumptions?.annualWithdrawal ?? 0)}/year`
   }
-  drawParagraph(para3, { size: 10, spacingAfter: 8 })
+  pdfPara4 += `), asset allocation (${stockAlloc}/${bondAlloc} stocks/bonds), investment returns, and inflation. `
+  if (successRateNum < 80) {
+    pdfPara4 += 'Given your success rate, small changes could help—retiring later, reducing spending, or adjusting allocation. We recommend consulting an advisor.'
+  } else if (successRateNum < 90) {
+    pdfPara4 += 'To push toward 90%+, consider slightly reducing withdrawals or extending working years.'
+  } else {
+    pdfPara4 += 'Your plan appears on solid footing. Continue to monitor as circumstances change.'
+  }
+  if (historicalInfo) {
+    pdfPara4 += ' Note: This stress test uses a historically difficult period—actual future results will differ.'
+  }
+  drawParagraph(pdfPara4, { size: 10, spacingAfter: 8 })
 
-  // Paragraph 4: Historical Context (only for historical scenarios)
+  // Paragraph 5: Historical Context (only for historical scenarios)
   if (historicalInfo) {
     drawParagraph(
       `Historical Context: ${historicalInfo.description} This stress test helps you understand whether your plan could withstand similar conditions.`,
