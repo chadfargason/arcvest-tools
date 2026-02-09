@@ -197,9 +197,9 @@ function runMonteCarloSimulation(params: SimulationParams): any {
   // Default investment fee to 0 if not provided (backwards compatibility)
   const finalInvestmentFee = investmentFee ?? 0;
 
-  // Convert annual parameters to monthly
-  const monthlyStockReturn = stockReturn / 12;
-  const monthlyBondReturn = bondReturn / 12;
+  // Convert annual parameters to monthly (geometric for returns)
+  const monthlyStockReturn = Math.pow(1 + stockReturn, 1/12) - 1;
+  const monthlyBondReturn = Math.pow(1 + bondReturn, 1/12) - 1;
   const monthlyStockVol = stockVolatility / Math.sqrt(12);
   const monthlyBondVol = bondVolatility / Math.sqrt(12);
   
@@ -1232,8 +1232,8 @@ function generateRegimeSwitchingReturns(
   // For log returns: μ_monthly = ln(1 + μ_annual) / 12
   // For simplicity (small values): μ_monthly ≈ μ_annual / 12
   // Volatility: σ_monthly = σ_annual / √12
-  const monthlyStockMean = params.stockMean / 12;
-  const monthlyBondMean = params.bondMean / 12;
+  const monthlyStockMean = Math.pow(1 + params.stockMean, 1/12) - 1;
+  const monthlyBondMean = Math.pow(1 + params.bondMean, 1/12) - 1;
   const monthlyStockVol = params.stockVol / Math.sqrt(12);
   const monthlyBondVol = params.bondVol / Math.sqrt(12);
 
@@ -1256,6 +1256,62 @@ function generateRegimeSwitchingReturns(
   return { stockReturn, bondReturn, newRegime };
 }
 
+// Empirical mean correction cache (keyed by "df:skew")
+const meanCorrectionCache: Record<string, number> = {};
+
+// Compute empirical mean correction for the skewed t-distribution.
+// Uses a deterministic PRNG (xorshift128) so results are reproducible.
+// Cached per (df, skew) pair — runs once per unique combination (~5ms).
+function computeEmpiricalMeanCorrection(df: number, skew: number): number {
+  const key = `${df}:${skew.toFixed(4)}`;
+  if (meanCorrectionCache[key] !== undefined) return meanCorrectionCache[key];
+
+  // Deterministic seeded PRNG (xorshift128)
+  let s0 = 123456789, s1 = 362436069;
+  function nextRandom(): number {
+    let x = s0, y = s1;
+    s0 = y;
+    x ^= (x << 23) | 0;
+    x ^= (x >> 17) | 0;
+    x ^= (y ^ (y >> 26)) | 0;
+    s1 = x;
+    return ((x + y) >>> 0) / 4294967296;
+  }
+
+  function seededNormal(): number {
+    let u1 = 0, u2 = 0;
+    while (u1 === 0) u1 = nextRandom();
+    while (u2 === 0) u2 = nextRandom();
+    return Math.sqrt(-2.0 * Math.log(u1)) * Math.cos(2.0 * Math.PI * u2);
+  }
+
+  function seededT(df: number): number {
+    const z = seededNormal();
+    let chiSq = 0;
+    for (let i = 0; i < df; i++) {
+      const n = seededNormal();
+      chiSq += n * n;
+    }
+    if (df > 2) {
+      return z / Math.sqrt(chiSq / df) * Math.sqrt((df - 2) / df);
+    }
+    return z / Math.sqrt(chiSq / df);
+  }
+
+  const N = 50000;
+  let sum = 0;
+  for (let i = 0; i < N; i++) {
+    const t = seededT(df);
+    const skewed = t < 0
+      ? t * (1 + Math.abs(skew))
+      : t * (1 - Math.abs(skew) * 0.5);
+    sum += skewed;
+  }
+  const correction = -(sum / N);
+  meanCorrectionCache[key] = correction;
+  return correction;
+}
+
 // Generate Skewed Student's t-distributed random variable
 // Implements a mean-preserving skewed transformation
 // skew < 0 = left tail fatter (more crash risk)
@@ -1263,36 +1319,24 @@ function generateRegimeSwitchingReturns(
 function randomSkewedT(df: number, skew: number): number {
   // Generate standard t-distributed variable
   const t = randomT(df);
-  
+
   // Check for NaN
   if (isNaN(t)) {
     console.error('randomT produced NaN with df=', df);
     return 0;
   }
-  
+
   // Apply mean-preserving skewness transformation
-  // For skew = -0.3 (negative):
-  // - Makes negative deviations larger (fatter left tail)
-  // - Makes positive deviations smaller (thinner right tail)
-  // - But adds correction to preserve mean at 0
-  
   let skewed;
   if (t < 0) {
     skewed = t * (1 + Math.abs(skew));  // Amplify crashes
   } else {
     skewed = t * (1 - Math.abs(skew) * 0.5);  // Reduce booms
   }
-  
-  // Mean correction factor
-  // For symmetric distribution around 0:
-  // E[negative part] ≈ -0.8, E[positive part] ≈ +0.8
-  // After transformation with skew=-0.3:
-  //   E[neg] = -0.8 * 1.3 = -1.04
-  //   E[pos] = +0.8 * 0.85 = +0.68
-  //   Mean shift = 0.5*(-1.04) + 0.5*(0.68) - 0 = -0.18
-  // Need to add back +0.18 to preserve mean
-  const meanCorrection = 0.18 * Math.abs(skew) / 0.3;  // Scale by actual skew parameter
-  
+
+  // Empirical mean correction — adapts to any df/skewness combination
+  const meanCorrection = computeEmpiricalMeanCorrection(df, skew);
+
   return skewed + meanCorrection;
 }
 
