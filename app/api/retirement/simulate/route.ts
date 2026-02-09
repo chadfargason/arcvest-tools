@@ -1260,22 +1260,19 @@ function generateRegimeSwitchingReturns(
 const meanCorrectionCache: Record<string, number> = {};
 
 // Compute empirical mean correction for the skewed t-distribution.
-// Uses a deterministic PRNG (xorshift128) so results are reproducible.
+// Uses a deterministic PRNG (mulberry32) so results are reproducible.
 // Cached per (df, skew) pair — runs once per unique combination (~5ms).
 function computeEmpiricalMeanCorrection(df: number, skew: number): number {
   const key = `${df}:${skew.toFixed(4)}`;
   if (meanCorrectionCache[key] !== undefined) return meanCorrectionCache[key];
 
-  // Deterministic seeded PRNG (xorshift128)
-  let s0 = 123456789, s1 = 362436069;
+  // Deterministic seeded PRNG (mulberry32 — safe for JS integer handling)
+  let seed = 42;
   function nextRandom(): number {
-    let x = s0, y = s1;
-    s0 = y;
-    x ^= (x << 23) | 0;
-    x ^= (x >> 17) | 0;
-    x ^= (y ^ (y >> 26)) | 0;
-    s1 = x;
-    return ((x + y) >>> 0) / 4294967296;
+    let t = seed += 0x6D2B79F5;
+    t = Math.imul(t ^ t >>> 15, t | 1);
+    t ^= t + Math.imul(t ^ t >>> 7, t | 61);
+    return ((t ^ t >>> 14) >>> 0) / 4294967296;
   }
 
   function seededNormal(): number {
