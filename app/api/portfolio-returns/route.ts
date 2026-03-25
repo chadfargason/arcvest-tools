@@ -57,7 +57,7 @@ export async function POST(request: NextRequest) {
     // Fetch data for all tickers
     const { data, error } = await supabase
       .from('asset_returns')
-      .select('asset_ticker, return_date, monthly_return, price')
+      .select('asset_ticker, return_date, monthly_return')
       .in('asset_ticker', tickers)
       .gte('return_date', startDate)
       .lte('return_date', endDate)
@@ -129,7 +129,6 @@ export async function POST(request: NextRequest) {
         portfolioReturn += weight * monthlyReturn;
         assetReturns[ticker] = {
           return: monthlyReturn,
-          price: row.price,
         };
       }
 
